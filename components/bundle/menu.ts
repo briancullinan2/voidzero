@@ -52,7 +52,7 @@ export const MODULE_REGISTRY: Record<string, ComponentRoute> = {
 	'code': { label: 'Code Graph', url: './components/code/widget.ts', className: 'CodeWidget', iconClass: 'bx bx-sitemap' },
 	'test': { label: 'Test Runner', url: './components/test/widget.ts', className: 'TestingWidget', iconClass: 'bx bx-plug-connect' },
 	'complexity': { label: 'Code Complexity', url: './components/code/widget-complexity.ts', className: 'ComplexityWidget', iconClass: 'bx bx-tachometer' },
-	'merge': { label: 'Merge Toools', url: './components/code/widget-merge.ts', className: 'MergeWidget', iconClass: 'bx bx-git-merge' },
+	'merge': { label: 'Merge Tools', url: './components/code/widget-merge.ts', className: 'MergeWidget', iconClass: 'bx bx-git-merge' },
 	'automation': { label: 'Chat Automation', url: './components/chat/widget.ts', className: 'ChatWidget', iconClass: 'bx bx-robot' },
 	'repl': { label: 'Run Code', url: './components/repl/widget.ts', className: 'ReplWidget', iconClass: 'bx bx-fast-forward' },
 
