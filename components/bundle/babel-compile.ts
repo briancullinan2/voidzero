@@ -662,7 +662,7 @@ export async function loadAndInstantiate(route: ComponentRoute): Promise<any>
 	if(route.url.endsWith('.js'))
 	{
 
-		const modulePromise = import(/* webpackIgnore: true */ route.url + '?t=' + Date.now() + '&local-csp=true');
+		const modulePromise = import(/* webpackIgnore: true */ route.url + '?t=' + Date.now());
 		registry.set(route.url, modulePromise);
 		const module = await modulePromise;
 		return new (module?.default?.[route.className] ?? module?.[route.className] ?? compileSelf[route.className])(route.label);

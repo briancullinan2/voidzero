@@ -1182,19 +1182,63 @@ self.__assetsManifest = [
   },
   {
     "path": "/app.bundle.js",
-    "size": 14692498
+    "size": 15915378
   },
   {
     "path": "/babel.min.js",
     "size": 2331591
   },
   {
+    "path": "/components/art/art.css",
+    "size": 1219
+  },
+  {
+    "path": "/components/art/coverflow.css",
+    "size": 6408
+  },
+  {
+    "path": "/components/art/middleware.js",
+    "size": 3394
+  },
+  {
+    "path": "/components/art/pill.css",
+    "size": 4421
+  },
+  {
+    "path": "/components/art/style.css",
+    "size": 1870
+  },
+  {
+    "path": "/components/art/widget-coverflow.ts",
+    "size": 8959
+  },
+  {
+    "path": "/components/art/widget-pill.ts",
+    "size": 12039
+  },
+  {
+    "path": "/components/art/widget-style.ts",
+    "size": 6412
+  },
+  {
+    "path": "/components/art/widget.ts",
+    "size": 18188
+  },
+  {
+    "path": "/components/assets/settings.css",
+    "size": 5135
+  },
+  {
+    "path": "/components/assets/widget-settings.ts",
+    "size": 14584
+  },
+  {
     "path": "/components/bundle/babel-compile.ts",
-    "size": 22630
+    "size": 25833
   },
   {
     "path": "/components/bundle/controls.css",
-    "size": 7366
+    "size": 7982
   },
   {
     "path": "/components/bundle/frame-rater.ts",
@@ -1206,23 +1250,23 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/bundle/github-api.ts",
-    "size": 12492
+    "size": 12799
   },
   {
     "path": "/components/bundle/github-settings.ts",
-    "size": 10024
+    "size": 10026
   },
   {
     "path": "/components/bundle/github-tools.ts",
-    "size": 10590
+    "size": 10683
   },
   {
     "path": "/components/bundle/github-types.ts",
-    "size": 1821
+    "size": 1828
   },
   {
     "path": "/components/bundle/github-worker.ts",
-    "size": 3448
+    "size": 3574
   },
   {
     "path": "/components/bundle/github.d.ts",
@@ -1234,7 +1278,7 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/bundle/global.ts",
-    "size": 3992
+    "size": 4137
   },
   {
     "path": "/components/bundle/levenshtein.ts",
@@ -1246,7 +1290,7 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/bundle/local.ts",
-    "size": 16846
+    "size": 17257
   },
   {
     "path": "/components/bundle/logging.d.ts",
@@ -1262,7 +1306,7 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/bundle/lumino-resize.ts",
-    "size": 27144
+    "size": 28274
   },
   {
     "path": "/components/bundle/lumino-search.ts",
@@ -1270,35 +1314,43 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/bundle/lumino-widget.ts",
-    "size": 12833
+    "size": 13673
   },
   {
     "path": "/components/bundle/lumino.css",
-    "size": 3727
+    "size": 4763
   },
   {
     "path": "/components/bundle/lumino.d.ts",
-    "size": 3105
+    "size": 3606
   },
   {
     "path": "/components/bundle/lumino.ts",
-    "size": 11561
+    "size": 12505
   },
   {
     "path": "/components/bundle/make.d.ts",
-    "size": 4633
+    "size": 4804
   },
   {
     "path": "/components/bundle/menu-app.ts",
-    "size": 19761
+    "size": 4100
+  },
+  {
+    "path": "/components/bundle/menu-edit.ts",
+    "size": 5170
   },
   {
     "path": "/components/bundle/menu-file.ts",
-    "size": 13402
+    "size": 10323
   },
   {
     "path": "/components/bundle/menu-history.ts",
-    "size": 15250
+    "size": 15306
+  },
+  {
+    "path": "/components/bundle/menu-layout.ts",
+    "size": 19554
   },
   {
     "path": "/components/bundle/menu-manager.ts",
@@ -1310,23 +1362,27 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/bundle/menu-script.ts",
-    "size": 4237
+    "size": 4238
   },
   {
     "path": "/components/bundle/menu-settings.ts",
     "size": 13199
   },
   {
+    "path": "/components/bundle/menu-view.ts",
+    "size": 10062
+  },
+  {
     "path": "/components/bundle/menu.css",
-    "size": 1519
+    "size": 1525
   },
   {
     "path": "/components/bundle/menu.d.ts",
-    "size": 4388
+    "size": 5068
   },
   {
     "path": "/components/bundle/menu.ts",
-    "size": 22990
+    "size": 28162
   },
   {
     "path": "/components/bundle/paint.css",
@@ -1334,19 +1390,27 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/bundle/scroll.css",
-    "size": 2059
+    "size": 2057
   },
   {
     "path": "/components/bundle/settings-coalesced.ts",
-    "size": 6785
+    "size": 6933
   },
   {
     "path": "/components/bundle/settings-coalescer.ts",
-    "size": 5170
+    "size": 5257
   },
   {
     "path": "/components/bundle/settings.ts",
-    "size": 12345
+    "size": 13429
+  },
+  {
+    "path": "/components/bundle/splash.css",
+    "size": 3429
+  },
+  {
+    "path": "/components/bundle/splash.ts",
+    "size": 2849
   },
   {
     "path": "/components/bundle/status.css",
@@ -1358,7 +1422,7 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/bundle/toolbar.css",
-    "size": 3085
+    "size": 3254
   },
   {
     "path": "/components/bundle/tree.css",
@@ -1369,12 +1433,308 @@ self.__assetsManifest = [
     "size": 108
   },
   {
+    "path": "/components/bundle/widget-extensions.ts",
+    "size": 12711
+  },
+  {
+    "path": "/components/bundle/widget-search.ts",
+    "size": 10671
+  },
+  {
     "path": "/components/bundle/worker.d.ts",
     "size": 4423
   },
   {
     "path": "/components/bundle/worker.ts",
-    "size": 7081
+    "size": 8128
+  },
+  {
+    "path": "/components/chat/chat-worker.mjs",
+    "size": 260
+  },
+  {
+    "path": "/components/chat/chat.css",
+    "size": 0
+  },
+  {
+    "path": "/components/chat/mlc.mjs",
+    "size": 6601743
+  },
+  {
+    "path": "/components/chat/widget-message.ts",
+    "size": 13964
+  },
+  {
+    "path": "/components/chat/widget-native.ts",
+    "size": 8458
+  },
+  {
+    "path": "/components/chat/widget-storage.ts",
+    "size": 9346
+  },
+  {
+    "path": "/components/chat/widget-threads.ts",
+    "size": 5510
+  },
+  {
+    "path": "/components/chat/widget.ts",
+    "size": 4377
+  },
+  {
+    "path": "/components/code/code.bundle.js",
+    "size": 13659437
+  },
+  {
+    "path": "/components/code/code.css",
+    "size": 2207
+  },
+  {
+    "path": "/components/code/colors-2b1720c5.cjs.prod.js",
+    "size": 18397
+  },
+  {
+    "path": "/components/code/colors-3de957ad.esm.js",
+    "size": 17915
+  },
+  {
+    "path": "/components/code/colors-47ad171c.cjs.dev.js",
+    "size": 18397
+  },
+  {
+    "path": "/components/code/data-59a0dfa8.cjs.dev.js",
+    "size": 2045
+  },
+  {
+    "path": "/components/code/data-733c2ee0.esm.js",
+    "size": 1956
+  },
+  {
+    "path": "/components/code/data-ad02b913.cjs.prod.js",
+    "size": 2045
+  },
+  {
+    "path": "/components/code/easings-331c0d2b.cjs.prod.js",
+    "size": 2372
+  },
+  {
+    "path": "/components/code/easings-65f8fcb8.esm.js",
+    "size": 2165
+  },
+  {
+    "path": "/components/code/easings-f4937361.cjs.dev.js",
+    "size": 2372
+  },
+  {
+    "path": "/components/code/edge-data-texture-1ad8e1d2.cjs.prod.js",
+    "size": 39823
+  },
+  {
+    "path": "/components/code/edge-data-texture-7146018b.esm.js",
+    "size": 39725
+  },
+  {
+    "path": "/components/code/edge-data-texture-a7f14bcb.cjs.dev.js",
+    "size": 39819
+  },
+  {
+    "path": "/components/code/factory-668a8969.esm.js",
+    "size": 412307
+  },
+  {
+    "path": "/components/code/factory-ccf53574.cjs.prod.js",
+    "size": 415024
+  },
+  {
+    "path": "/components/code/factory-d105c136.cjs.dev.js",
+    "size": 415021
+  },
+  {
+    "path": "/components/code/graphology-library.min.js",
+    "size": 168452
+  },
+  {
+    "path": "/components/code/graphology.cjs.js",
+    "size": 182407
+  },
+  {
+    "path": "/components/code/graphology.cjs.js.map",
+    "size": 346847
+  },
+  {
+    "path": "/components/code/graphology.d.ts",
+    "size": 1709
+  },
+  {
+    "path": "/components/code/graphology.esm.js",
+    "size": 178153
+  },
+  {
+    "path": "/components/code/graphology.esm.js.map",
+    "size": 336391
+  },
+  {
+    "path": "/components/code/graphology.mjs",
+    "size": 178150
+  },
+  {
+    "path": "/components/code/graphology.mjs.map",
+    "size": 336388
+  },
+  {
+    "path": "/components/code/graphology.umd.js",
+    "size": 205945
+  },
+  {
+    "path": "/components/code/graphology.umd.js.map",
+    "size": 379414
+  },
+  {
+    "path": "/components/code/graphology.umd.min.js",
+    "size": 73629
+  },
+  {
+    "path": "/components/code/graphology.umd.min.js.map",
+    "size": 285143
+  },
+  {
+    "path": "/components/code/loop-7edc1db0.cjs.dev.js",
+    "size": 17960
+  },
+  {
+    "path": "/components/code/loop-9f5e9a8f.cjs.prod.js",
+    "size": 17961
+  },
+  {
+    "path": "/components/code/loop-e859c0ba.esm.js",
+    "size": 17738
+  },
+  {
+    "path": "/components/code/misc-0e506b5b.esm.js",
+    "size": 1817
+  },
+  {
+    "path": "/components/code/misc-a5158167.cjs.dev.js",
+    "size": 1880
+  },
+  {
+    "path": "/components/code/misc-fd3b239a.cjs.prod.js",
+    "size": 1880
+  },
+  {
+    "path": "/components/code/normalization-050f8c45.cjs.prod.js",
+    "size": 6396
+  },
+  {
+    "path": "/components/code/normalization-4a46e800.esm.js",
+    "size": 6000
+  },
+  {
+    "path": "/components/code/normalization-b8854754.cjs.dev.js",
+    "size": 6394
+  },
+  {
+    "path": "/components/code/parser-1748e148.esm.js",
+    "size": 11559
+  },
+  {
+    "path": "/components/code/parser-54e0a86a.cjs.prod.js",
+    "size": 11713
+  },
+  {
+    "path": "/components/code/parser-678bd4d9.cjs.dev.js",
+    "size": 11709
+  },
+  {
+    "path": "/components/code/shelf-atlas-9d18a043.esm.js",
+    "size": 2259
+  },
+  {
+    "path": "/components/code/shelf-atlas-b22ab2a2.cjs.prod.js",
+    "size": 2270
+  },
+  {
+    "path": "/components/code/shelf-atlas-c68b62c3.cjs.dev.js",
+    "size": 2269
+  },
+  {
+    "path": "/components/code/sigma-easings.js",
+    "size": 3516
+  },
+  {
+    "path": "/components/code/sigma.cjs.d.mts",
+    "size": 344
+  },
+  {
+    "path": "/components/code/sigma.cjs.d.ts",
+    "size": 333
+  },
+  {
+    "path": "/components/code/sigma.cjs.default.d.ts",
+    "size": 66
+  },
+  {
+    "path": "/components/code/sigma.cjs.default.js",
+    "size": 54
+  },
+  {
+    "path": "/components/code/sigma.cjs.dev.js",
+    "size": 299027
+  },
+  {
+    "path": "/components/code/sigma.cjs.js",
+    "size": 172
+  },
+  {
+    "path": "/components/code/sigma.cjs.mjs",
+    "size": 318
+  },
+  {
+    "path": "/components/code/sigma.cjs.prod.js",
+    "size": 299040
+  },
+  {
+    "path": "/components/code/sigma.esm.js",
+    "size": 296603
+  },
+  {
+    "path": "/components/code/sigma.min.js",
+    "size": 391560
+  },
+  {
+    "path": "/components/code/types-16c866c5.cjs.dev.js",
+    "size": 42233
+  },
+  {
+    "path": "/components/code/types-95471488.cjs.dev.js",
+    "size": 4170
+  },
+  {
+    "path": "/components/code/types-966319c1.cjs.prod.js",
+    "size": 42237
+  },
+  {
+    "path": "/components/code/types-d4a4cbaa.cjs.prod.js",
+    "size": 4171
+  },
+  {
+    "path": "/components/code/types-d51059d8.esm.js",
+    "size": 4019
+  },
+  {
+    "path": "/components/code/types-d8ce3382.esm.js",
+    "size": 41664
+  },
+  {
+    "path": "/components/code/widget-sidebar.ts",
+    "size": 2892
+  },
+  {
+    "path": "/components/code/widget-willow.ts",
+    "size": 4864
+  },
+  {
+    "path": "/components/code/widget.ts",
+    "size": 5706
   },
   {
     "path": "/components/editor/annotations.js",
@@ -1382,11 +1742,11 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/editor/editor.css",
-    "size": 1637
+    "size": 1643
   },
   {
     "path": "/components/editor/events.ts",
-    "size": 13403
+    "size": 13884
   },
   {
     "path": "/components/editor/widget-menu.ts",
@@ -1398,11 +1758,11 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/editor/widget-settings.ts",
-    "size": 2470
+    "size": 2576
   },
   {
     "path": "/components/editor/widget.d.ts",
-    "size": 1075
+    "size": 1146
   },
   {
     "path": "/components/editor/widget.ts",
@@ -1414,15 +1774,15 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/filelist/save-dialog.css",
-    "size": 5855
+    "size": 6235
   },
   {
     "path": "/components/filelist/save-dialog.ts",
-    "size": 11266
+    "size": 11682
   },
   {
     "path": "/components/filelist/search.css",
-    "size": 1944
+    "size": 1956
   },
   {
     "path": "/components/filelist/tree.css",
@@ -1450,31 +1810,39 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/filelist/widget-assets.ts",
-    "size": 7437
+    "size": 5988
   },
   {
     "path": "/components/filelist/widget-database.ts",
-    "size": 8254
+    "size": 8404
   },
   {
     "path": "/components/filelist/widget-github.ts",
-    "size": 12997
+    "size": 13487
+  },
+  {
+    "path": "/components/filelist/widget-google.ts",
+    "size": 14276
+  },
+  {
+    "path": "/components/filelist/widget-index.ts",
+    "size": 13459
   },
   {
     "path": "/components/filelist/widget-local.ts",
-    "size": 7815
+    "size": 8208
   },
   {
     "path": "/components/filelist/widget-search.ts",
-    "size": 11058
+    "size": 11293
   },
   {
     "path": "/components/filelist/widget.d.ts",
-    "size": 2398
+    "size": 4581
   },
   {
     "path": "/components/filelist/widget.ts",
-    "size": 17557
+    "size": 18803
   },
   {
     "path": "/components/graph/litegraph.css",
@@ -1490,7 +1858,27 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/graph/widget.ts",
-    "size": 13794
+    "size": 14006
+  },
+  {
+    "path": "/components/keystore/key-parser.ts",
+    "size": 4804
+  },
+  {
+    "path": "/components/keystore/keystore.css",
+    "size": 8290
+  },
+  {
+    "path": "/components/keystore/token-modal.ts",
+    "size": 5825
+  },
+  {
+    "path": "/components/keystore/widget-sidebar.ts",
+    "size": 6080
+  },
+  {
+    "path": "/components/keystore/widget.ts",
+    "size": 14603
   },
   {
     "path": "/components/layout/base.css",
@@ -1498,7 +1886,7 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/layout/components.css",
-    "size": 7195
+    "size": 6911
   },
   {
     "path": "/components/layout/history.css",
@@ -1513,40 +1901,116 @@ self.__assetsManifest = [
     "size": 4063
   },
   {
-    "path": "/components/layout/token-modal.ts",
-    "size": 5825
-  },
-  {
     "path": "/components/layout/tooltip.css",
-    "size": 1351
+    "size": 1417
   },
   {
     "path": "/components/proxy/checksum.js",
     "size": 5930
   },
   {
+    "path": "/components/proxy/hosting.css",
+    "size": 3258
+  },
+  {
     "path": "/components/proxy/huffman.js",
     "size": 142744
   },
   {
+    "path": "/components/proxy/master-ts.ts",
+    "size": 10709
+  },
+  {
     "path": "/components/proxy/master.js",
-    "size": 9373
+    "size": 14054
+  },
+  {
+    "path": "/components/proxy/repack-whitelist.js",
+    "size": 4516
+  },
+  {
+    "path": "/components/proxy/shownet.js",
+    "size": 8157
+  },
+  {
+    "path": "/components/proxy/socks.0.js",
+    "size": 10323
+  },
+  {
+    "path": "/components/proxy/socks.1.js",
+    "size": 6485
+  },
+  {
+    "path": "/components/proxy/socks.2.js",
+    "size": 4729
+  },
+  {
+    "path": "/components/proxy/socks.3.js",
+    "size": 8927
+  },
+  {
+    "path": "/components/proxy/socks.4.js",
+    "size": 7989
+  },
+  {
+    "path": "/components/proxy/socks.5.js",
+    "size": 12943
   },
   {
     "path": "/components/proxy/socks.parser.js",
-    "size": 7646
+    "size": 11999
+  },
+  {
+    "path": "/components/proxy/socks.password-ts.ts",
+    "size": 6938
   },
   {
     "path": "/components/proxy/socks.password.js",
-    "size": 5903
+    "size": 9079
   },
   {
     "path": "/components/proxy/socks.server.js",
-    "size": 31876
+    "size": 17466
+  },
+  {
+    "path": "/components/proxy/web-config.js",
+    "size": 1154
+  },
+  {
+    "path": "/components/proxy/web-convert.js",
+    "size": 6689
+  },
+  {
+    "path": "/components/proxy/web-layered.js",
+    "size": 4737
+  },
+  {
+    "path": "/components/proxy/web-middle.js",
+    "size": 11383
+  },
+  {
+    "path": "/components/proxy/web-watcher.js",
+    "size": 1379
+  },
+  {
+    "path": "/components/proxy/web-workers-ts.ts",
+    "size": 11955
+  },
+  {
+    "path": "/components/proxy/web-workers.js",
+    "size": 14332
   },
   {
     "path": "/components/proxy/web.js",
-    "size": 17451
+    "size": 5022
+  },
+  {
+    "path": "/components/proxy/websocket.ts",
+    "size": 16741
+  },
+  {
+    "path": "/components/proxy/widget-hosting.ts",
+    "size": 9603
   },
   {
     "path": "/components/rosetta/antlr-languages.bundle.js",
@@ -1554,7 +2018,7 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/rosetta/binary.mjs",
-    "size": 141389
+    "size": 141434
   },
   {
     "path": "/components/rosetta/parsers.js",
@@ -1571,6 +2035,58 @@ self.__assetsManifest = [
   {
     "path": "/components/rosetta/worker-language.js",
     "size": 23667
+  },
+  {
+    "path": "/components/settings/settings.css",
+    "size": 7163
+  },
+  {
+    "path": "/components/settings/widget-core.ts",
+    "size": 3727
+  },
+  {
+    "path": "/components/settings/widget-editor.ts",
+    "size": 2698
+  },
+  {
+    "path": "/components/settings/widget-github.ts",
+    "size": 3415
+  },
+  {
+    "path": "/components/settings/widget-paths.ts",
+    "size": 3025
+  },
+  {
+    "path": "/components/settings/widget-xterm.ts",
+    "size": 2169
+  },
+  {
+    "path": "/components/settings/widget.ts",
+    "size": 3181
+  },
+  {
+    "path": "/components/status/d3.js",
+    "size": 587043
+  },
+  {
+    "path": "/components/status/d3.min.js",
+    "size": 290866
+  },
+  {
+    "path": "/components/status/generate.ts",
+    "size": 15273
+  },
+  {
+    "path": "/components/status/middleware.js",
+    "size": 2131
+  },
+  {
+    "path": "/components/status/status-data.json",
+    "size": 50130
+  },
+  {
+    "path": "/components/status/widget.ts",
+    "size": 34664
   },
   {
     "path": "/components/terminal/commands-build.js",
@@ -1594,11 +2110,11 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/terminal/commands.js",
-    "size": 24329
+    "size": 24382
   },
   {
     "path": "/components/terminal/events.ts",
-    "size": 21444
+    "size": 21442
   },
   {
     "path": "/components/terminal/history.ts",
@@ -1610,7 +2126,7 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/terminal/render.ts",
-    "size": 13362
+    "size": 13807
   },
   {
     "path": "/components/terminal/search.ts",
@@ -1630,7 +2146,7 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/terminal/widget.ts",
-    "size": 19352
+    "size": 19381
   },
   {
     "path": "/components/terminal/xterm-addon-fit.js",
@@ -1643,6 +2159,26 @@ self.__assetsManifest = [
   {
     "path": "/components/terminal/xterm.js",
     "size": 977164
+  },
+  {
+    "path": "/components/theme/all.css",
+    "size": 141539
+  },
+  {
+    "path": "/components/theme/all.min.css",
+    "size": 90246
+  },
+  {
+    "path": "/components/theme/bootstrap-icons.min.css",
+    "size": 85840
+  },
+  {
+    "path": "/components/theme/bootstrap-icons.woff",
+    "size": 180288
+  },
+  {
+    "path": "/components/theme/bootstrap-icons.woff2",
+    "size": 134044
   },
   {
     "path": "/components/theme/boxicons-brands.min.css",
@@ -1659,6 +2195,22 @@ self.__assetsManifest = [
   {
     "path": "/components/theme/boxicons-brands.woff2",
     "size": 39988
+  },
+  {
+    "path": "/components/theme/boxicons-filled.min.css",
+    "size": 85938
+  },
+  {
+    "path": "/components/theme/boxicons-filled.ttf",
+    "size": 299720
+  },
+  {
+    "path": "/components/theme/boxicons-filled.woff",
+    "size": 130418
+  },
+  {
+    "path": "/components/theme/boxicons-filled.woff2",
+    "size": 97372
   },
   {
     "path": "/components/theme/boxicons.css",
@@ -1681,12 +2233,44 @@ self.__assetsManifest = [
     "size": 114152
   },
   {
+    "path": "/components/theme/fa-brands-400.woff2",
+    "size": 115420
+  },
+  {
+    "path": "/components/theme/fa-regular-400.woff2",
+    "size": 19512
+  },
+  {
+    "path": "/components/theme/fa-solid-900.woff2",
+    "size": 119488
+  },
+  {
+    "path": "/components/theme/fa-v4compatibility.woff2",
+    "size": 4168
+  },
+  {
     "path": "/components/theme/theme-elements.css",
     "size": 12184
   },
   {
     "path": "/components/theme/theme.css",
-    "size": 39612
+    "size": 39639
+  },
+  {
+    "path": "/components/tools/drag-and-drop.ts",
+    "size": 3871
+  },
+  {
+    "path": "/components/tools/tools.css",
+    "size": 8841
+  },
+  {
+    "path": "/components/tools/widget-sidebar.ts",
+    "size": 6689
+  },
+  {
+    "path": "/components/tools/widget.ts",
+    "size": 8981
   },
   {
     "path": "/components/workers/commit-worker.js",
@@ -1694,7 +2278,7 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/workers/github.js",
-    "size": 38298
+    "size": 38390
   },
   {
     "path": "/components/workers/lg2.js",
@@ -1742,43 +2326,71 @@ self.__assetsManifest = [
   },
   {
     "path": "/components/workers/local.js",
-    "size": 19706
+    "size": 19980
   },
   {
     "path": "/components/workers/search-worker.js",
-    "size": 5751
+    "size": 5752
   },
   {
     "path": "/components/workers/sys_fs.js",
     "size": 57369
   },
   {
+    "path": "/cors.json",
+    "size": 593
+  },
+  {
+    "path": "/dev.js",
+    "size": 2451
+  },
+  {
+    "path": "/favicon.ico",
+    "size": 15406
+  },
+  {
     "path": "/index.html",
-    "size": 2083
+    "size": 2283
   },
   {
     "path": "/jsconfig.json",
-    "size": 1154
+    "size": 1155
+  },
+  {
+    "path": "/logo-tiny.png",
+    "size": 163379
   },
   {
     "path": "/package-lock.json",
-    "size": 232945
+    "size": 268896
   },
   {
     "path": "/package.json",
-    "size": 1678
+    "size": 2307
+  },
+  {
+    "path": "/parrot-config.json",
+    "size": 230
+  },
+  {
+    "path": "/README.md",
+    "size": 10850
   },
   {
     "path": "/service-worker.js",
-    "size": 35060
+    "size": 38924
   },
   {
     "path": "/tsconfig.json",
-    "size": 911
+    "size": 912
+  },
+  {
+    "path": "/webpack.code.js",
+    "size": 3944
   },
   {
     "path": "/webpack.prod.js",
-    "size": 4494
+    "size": 4714
   },
   {
     "path": "/womp.LICENSE",

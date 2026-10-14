@@ -141,3 +141,78 @@ The system uses a unified build pipeline orchestrated via standard build scripts
 * **Metaprogramming & Templating:** Rapidly prototype across languages using PASTA attribute rules and live code generation pipelines.
 * **In-Browser Local Directory Sharing:** Expose local development files to isolated browser environments securely using WebSockets and Cloudflare tunnels.
 * **Interactive Learning & REPLs:** Experiment with low-level WASM systems, custom layouts, and real-time execution in a self-contained browser workspace.
+
+
+
+## Project History
+
+
+### 10/14/2026
+
+![alt text](<Screenshot 2026-10-14 114608.png>) ![alt text](<Screenshot 2026-10-14 105034.png>) ![alt text](<Screenshot 2026-10-14 114557.png>)
+
+
+okay, what is this crap? i think it was maybe like 8 years ago i sitting in scottsdale in my house
+after removing the middle wall to make open concept and i had this idea. since quake 3 runs in a
+browser, i should able to edit it in a browser also. my first attempt i was just going to commit to
+github and use their Actions backend, it literally just came out at the time. i had a bunch of code
+saved up for like parsing ASTs and i wrote this thing to use XPath and CSS Query selectors on those
+code ASTs instead of the way i just got through doing it with mocha and babel and node istanbul
+(why is it called that?). i remember making a little editor, a console, and beginning to embed git
+wasm that i compiled myself with emscripten by turning off specific features i didn't know how to
+use like multithreaded http requests. i was just using it with a musl/FS wrapper at the time. I
+figured i would need a proxy server or github API, and then i think it stalled and i went to
+redesign the proxy server and "native" wasm inputs for quake3e. i might even still have been on
+ioq3 before switching my more awesome build to q3e.
+
+shortly after i mastered the quakejs build and emscripten my friend abe asked if i could help him
+start a consulting company. and i just saw this like facial expression face tracking 3D thing come
+out so i thought i could use the quake 3 engine for graphics and drop in an HD face model with
+skeletal muscles through md5/idm bone model system to mimic emotional reactions and make an
+interactive consulting web page/tool. i called this morpheus and i was going to use it to automate
+all kinds of things including chrome/selenium data capture. but at the core of that project was
+supposed to be this DevTools chrome extension that could run automation scripts on the same window
+that you're working in. well, chrome has a rule there is no eval, and no mid-stream code updates to
+plugins listed in their store. so i thought a running workaround for that would be, since that's
+the whole point of my tool is to be able to write a script and run it in DevTools, i'll just make
+my chrome extension a REPL service for the DevTools API and pipe everything from my front end into
+my plugin for running like a for() loop. it worked, the browser policies fully allowed it and i got
+a proof of concept opening and switching tabs from button clicks on a web page that the extension
+had injected its controls into. i first had that idea when i worked at swiftpage and i was going to
+call it demonstrable, but i didn't get the actual REPL thing working, the earlier version i merely
+worked on the little page injectable widget for monkeying around with the loaded scripts. that
+project actually got sidetracked by scraping FAANG data with selenium remotely, and i ended up
+putting the whole thing in an AWS service and making 5,000 connections on Linkedin after my father
+told me my profile looks bad. whew, that's a lot to take in/put out.
+
+
+so that's the background. here's the foreground. i've always wanted to do things like, "show me all the functions leading to an FS sink" and this tool will do exactly that with the search widget. i've made a few d3 implementations of this code graph in 2D where the force graph sorts out which nodes gravitate towards each other and minimizes imperfectly the number of overlaps between edge lines. that's cool. now i'm introducing the 3rd version of this, in 3D. i lacked many skills and now i kind of know what to ask for in regards to 3D even though my math is still weak, and obviously the tooling is stellar. i also want to be able to run any language functionally, despite APIs and see like a little stepper program highlight which parts of the program are being used while its running.
+
+here's what the 3D view is, left click orbits, right click horizontally slides between commits, and vertically slides between "nuance", j/k, code file structures and AST, and EVERYTHING will be linked together properly.
+
+#### more goals:
+
+* reverse search index for searching tokens that exist in files
+* search database is set up like this, FILE_DATA will contain search index cache files
+* A-Z store names will contain colums like 'word', 'count', 'frequency', 'path', so it will be
+slightly unnormalized word per path as the key
+* AA-ZZ will be stores with the levenstien distance between all other words from all other stores,
+precomputed, so i can easily add up the values to sort by relevancy.
+* thats 4 tools, search, graph, reverse index, and the llm to convert my prompt to data queries
+* i also wante the graph to show changes between commits, have a way to navigate between branches
+and merges. and to filter down and highlight search results and connected nodes, like i can easily
+see in the graph of the entire codebase everywhere that FS is used. this will make sink and bug
+hunting more fun.
+* the REPL tool i just wrote about. full force, any language, any environment, using litegraph and
+3D to visualize it.
+* test runner, same thing as repl but test dir and in 3D. matching the one i made for studysauce in
+principal.
+* code complexity tool, don't know anything about, maybe like that function length linter i made
+and named phil-osophies. wonder where that code went. probably on that drive that died.
+* workflow graph will become core for linter based events within the UI, or gitflow actions, or
+make file visuals, all fresh and great use cases
+* github sources will show code files as if theyve been code genned for xdoc or whatever. like the
+jupyter+github view for any repo, download, manage, built in fork clone basically.
+* local database will be the fileview version of github sources, instead of showing commit history
+like fork the git client, local databases shows code files pretty like in the file explorer grid
+

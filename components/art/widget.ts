@@ -11,7 +11,6 @@ import type { CarouselViewWidget } from '../fileview/widget-carousel';
 import type { ExplorerGridWidget } from '../fileview/widget-grid';
 import type { DetailsViewWidget } from '../fileview/widget-details';
 import { ISignal, Signal } from '@lumino/signaling';
-import { index } from 'd3';
 import type mime from 'mime';
 import type { IFileViewOptions } from '../fileview/widget';
 import type { WidgetExtensionsWindow } from '../bundle/widget-extensions';

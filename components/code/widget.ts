@@ -3,6 +3,7 @@ import Graph from 'graphology';
 import Sigma from 'sigma';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import { WillowWidget } from './widget-willow';
+import * as THREE from 'three';
 
 export class CodeWidget extends Widget
 {
@@ -191,10 +192,15 @@ export class CodeWidget extends Widget
 	}
 }
 
+declare var module: {
+	exports: any;
+};
+
 if(typeof module !== 'undefined' && module.exports)
 {
 	module.exports = {
 		CodeWidget,
-		WillowWidget
+		WillowWidget,
+		THREE
 	};
 }
