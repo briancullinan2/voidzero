@@ -1,0 +1,7626 @@
+'use strict';
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+var loop = require('./loop-9f5e9a8f.cjs.prod.js');
+var types_dist_sigmaTypes = require('./types-966319c1.cjs.prod.js');
+var data = require('./data-ad02b913.cjs.prod.js');
+var normalization = require('./normalization-050f8c45.cjs.prod.js');
+var easings$1 = require('./easings-331c0d2b.cjs.prod.js');
+var settings_dist_sigmaSettings = require('../settings/dist/sigma-settings.cjs.prod.js');
+var colors = require('./colors-2b1720c5.cjs.prod.js');
+var factory = require('./factory-ccf53574.cjs.prod.js');
+var types = require('./types-d4a4cbaa.cjs.prod.js');
+var misc = require('./misc-fd3b239a.cjs.prod.js');
+var parser = require('./parser-54e0a86a.cjs.prod.js');
+var edgeDataTexture = require('./edge-data-texture-1ad8e1d2.cjs.prod.js');
+require('events');
+require('graphology-utils/is-graph');
+require('./shelf-atlas-b22ab2a2.cjs.prod.js');
+
+function _objectWithoutPropertiesLoose(r, e) {
+  if (null == r) return {};
+  var t = {};
+  for (var n in r) if ({}.hasOwnProperty.call(r, n)) {
+    if (-1 !== e.indexOf(n)) continue;
+    t[n] = r[n];
+  }
+  return t;
+}
+
+function _objectWithoutProperties(e, t) {
+  if (null == e) return {};
+  var o,
+    r,
+    i = _objectWithoutPropertiesLoose(e, t);
+  if (Object.getOwnPropertySymbols) {
+    var n = Object.getOwnPropertySymbols(e);
+    for (r = 0; r < n.length; r++) o = n[r], -1 === t.indexOf(o) && {}.propertyIsEnumerable.call(e, o) && (i[o] = e[o]);
+  }
+  return i;
+}
+
+var _excluded = ["factor"],
+  _excluded2 = ["factor"];
+
+/**
+ * Defaults.
+ */
+var DEFAULT_ZOOMING_RATIO = 1.5;
+var DEFAULT_CAMERA_STATE = {
+  x: 0.5,
+  y: 0.5,
+  angle: 0,
+  ratio: 1
+};
+
+/**
+ * Options of the zoom shortcuts: the animation options, plus the zoom factor.
+ */
+
+/**
+ * Event payloads.
+ */
+
+/**
+ * Event types.
+ */
+/**
+ * Camera class
+ */
+var Camera = /*#__PURE__*/function (_TypedEventEmitter) {
+  function Camera() {
+    var _this;
+    loop._classCallCheck(this, Camera);
+    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+      args[_key] = arguments[_key];
+    }
+    _this = loop._callSuper(this, Camera, [].concat(args));
+    loop._defineProperty(_this, "minRatio", null);
+    loop._defineProperty(_this, "maxRatio", null);
+    loop._defineProperty(_this, "enabled", true);
+    loop._defineProperty(_this, "enabledZooming", true);
+    loop._defineProperty(_this, "enabledPanning", true);
+    loop._defineProperty(_this, "enabledRotation", true);
+    /**
+     * Hook to constrain each new state, applied at the end of
+     * {@link Camera#validateState}. Owned by Sigma, which derives it from the
+     * `cameraPanBoundaries` setting.
+     * @internal
+     */
+    loop._defineProperty(_this, "constrainState", null);
+    loop._defineProperty(_this, "state", loop._objectSpread2({}, DEFAULT_CAMERA_STATE));
+    loop._defineProperty(_this, "previousState", loop._objectSpread2({}, DEFAULT_CAMERA_STATE));
+    loop._defineProperty(_this, "nextFrame", null);
+    loop._defineProperty(_this, "currentAnimationFrom", null);
+    loop._defineProperty(_this, "currentAnimationTo", null);
+    loop._defineProperty(_this, "animationCallback", null);
+    return _this;
+  }
+  loop._inherits(Camera, _TypedEventEmitter);
+  return loop._createClass(Camera, [{
+    key: "x",
+    get:
+    // The state is read-only: it can only be updated through #setState, so that
+    // no update escapes validation and the "updated" event.
+    function get() {
+      return this.state.x;
+    }
+  }, {
+    key: "y",
+    get: function get() {
+      return this.state.y;
+    }
+  }, {
+    key: "angle",
+    get: function get() {
+      return this.state.angle;
+    }
+  }, {
+    key: "ratio",
+    get: function get() {
+      return this.state.ratio;
+    }
+
+    /**
+     * Static method used to create a Camera object with a given state.
+     */
+  }, {
+    key: "getState",
+    value:
+    /**
+     * Method used to retrieve the camera's current state.
+     */
+    function getState() {
+      return loop._objectSpread2({}, this.state);
+    }
+
+    /**
+     * Method used to retrieve the state the camera had before its last update.
+     */
+  }, {
+    key: "getPreviousState",
+    value: function getPreviousState() {
+      return loop._objectSpread2({}, this.previousState);
+    }
+
+    /**
+     * Method used to check minRatio and maxRatio values.
+     */
+  }, {
+    key: "getBoundedRatio",
+    value: function getBoundedRatio(ratio) {
+      var r = ratio;
+      if (typeof this.minRatio === "number") r = Math.max(r, this.minRatio);
+      if (typeof this.maxRatio === "number") r = Math.min(r, this.maxRatio);
+      return r;
+    }
+
+    /**
+     * Method used to merge a state candidate into the current state, dropping
+     * whatever the interaction flags forbid, and constraining the rest.
+     */
+  }, {
+    key: "validateState",
+    value: function validateState(state) {
+      var validatedState = this.getState();
+      if (this.enabledPanning && typeof state.x === "number") validatedState.x = state.x;
+      if (this.enabledPanning && typeof state.y === "number") validatedState.y = state.y;
+      if (this.enabledZooming && typeof state.ratio === "number") validatedState.ratio = this.getBoundedRatio(state.ratio);
+      if (this.enabledRotation && typeof state.angle === "number") validatedState.angle = state.angle;
+      return this.constrainState ? this.constrainState(validatedState) : validatedState;
+    }
+
+    /**
+     * Method used to check whether an animation is currently running.
+     */
+  }, {
+    key: "isAnimating",
+    value: function isAnimating() {
+      return this.nextFrame !== null;
+    }
+
+    /**
+     * Method used to set the camera's state.
+     */
+  }, {
+    key: "setState",
+    value: function setState(state) {
+      if (!this.enabled) return this;
+      var validState = this.validateState(state);
+      if (data.shallowEqual(this.state, validState)) return this;
+      this.previousState = this.state;
+      this.state = validState;
+      this.emit("updated", this.getState());
+      return this;
+    }
+
+    /**
+     * Method used to update the camera's state using a function.
+     */
+  }, {
+    key: "updateState",
+    value: function updateState(updater) {
+      this.setState(updater(this.getState()));
+      return this;
+    }
+
+    /**
+     * Animates the camera to the given state.
+     *
+     * The returned promise resolves when the animation stops, whether it ran to
+     * completion or was interrupted by a new animation or by
+     * {@link Camera#cancelAnimation}. Read `completed` on the `animationEnd`
+     * event to tell those apart. On a disabled camera it resolves right away.
+     */
+  }, {
+    key: "animate",
+    value: function animate(state, options) {
+      var _this2 = this;
+      if (!this.enabled) return Promise.resolve();
+      return new Promise(function (resolve) {
+        return _this2.runAnimation(state, loop._objectSpread2(loop._objectSpread2({}, normalization.ANIMATE_DEFAULTS), options), resolve);
+      });
+    }
+
+    /**
+     * Stops the running animation where it is, leaving the camera at its current
+     * state. No-op when nothing is running.
+     */
+  }, {
+    key: "cancelAnimation",
+    value: function cancelAnimation() {
+      if (this.nextFrame !== null) {
+        cancelAnimationFrame(this.nextFrame);
+        this.nextFrame = null;
+      }
+      this.resolveAnimation();
+      this.emitAnimationEnd(false);
+      return this;
+    }
+
+    /**
+     * Method used to zoom the camera in, by dividing its ratio by `factor`.
+     */
+  }, {
+    key: "zoomIn",
+    value: function zoomIn() {
+      var _ref = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {},
+        _ref$factor = _ref.factor,
+        factor = _ref$factor === void 0 ? DEFAULT_ZOOMING_RATIO : _ref$factor,
+        options = _objectWithoutProperties(_ref, _excluded);
+      return this.animate({
+        ratio: this.ratio / factor
+      }, options);
+    }
+
+    /**
+     * Method used to zoom the camera out, by multiplying its ratio by `factor`.
+     */
+  }, {
+    key: "zoomOut",
+    value: function zoomOut() {
+      var _ref2 = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {},
+        _ref2$factor = _ref2.factor,
+        factor = _ref2$factor === void 0 ? DEFAULT_ZOOMING_RATIO : _ref2$factor,
+        options = _objectWithoutProperties(_ref2, _excluded2);
+      return this.animate({
+        ratio: this.ratio * factor
+      }, options);
+    }
+
+    /**
+     * Method used to animate the camera back to its default state.
+     */
+  }, {
+    key: "reset",
+    value: function reset(options) {
+      return this.animate(DEFAULT_CAMERA_STATE, options);
+    }
+
+    /**
+     * Drives the animation frame loop. Interrupts whatever was running first, so
+     * a camera never has two animations competing for its state.
+     */
+  }, {
+    key: "runAnimation",
+    value: function runAnimation(state, options, callback) {
+      var _this3 = this;
+      var easing = easings$1.resolveEasing(options.easing);
+
+      // State
+      var start = Date.now(),
+        initialState = this.getState(),
+        targetState = this.validateState(state);
+
+      // Function performing the animation
+      var _fn = function fn() {
+        // The camera can get disabled mid-animation:
+        if (!_this3.enabled) {
+          _this3.cancelAnimation();
+          return;
+        }
+        var t = options.duration > 0 ? (Date.now() - start) / options.duration : 1;
+
+        // The animation is over:
+        if (t >= 1) {
+          _this3.nextFrame = null;
+          _this3.setState(targetState);
+          _this3.resolveAnimation();
+          _this3.emitAnimationEnd(true);
+          return;
+        }
+        var coefficient = easing(t);
+        _this3.setState({
+          x: initialState.x + (targetState.x - initialState.x) * coefficient,
+          y: initialState.y + (targetState.y - initialState.y) * coefficient,
+          angle: initialState.angle + (targetState.angle - initialState.angle) * coefficient,
+          ratio: initialState.ratio + (targetState.ratio - initialState.ratio) * coefficient
+        });
+        _this3.nextFrame = requestAnimationFrame(_fn);
+      };
+      this.cancelAnimation();
+      this.currentAnimationFrom = initialState;
+      this.currentAnimationTo = targetState;
+      this.animationCallback = callback;
+      this.emit("animationStart", {
+        from: initialState,
+        to: targetState
+      });
+      _fn();
+    }
+
+    /** Settles the pending `animate` promise, exactly once per animation. */
+  }, {
+    key: "resolveAnimation",
+    value: function resolveAnimation() {
+      var callback = this.animationCallback;
+      this.animationCallback = null;
+      if (callback) callback();
+    }
+  }, {
+    key: "emitAnimationEnd",
+    value: function emitAnimationEnd(completed) {
+      var from = this.currentAnimationFrom;
+      var to = this.currentAnimationTo;
+      if (!from || !to) return;
+      this.currentAnimationFrom = null;
+      this.currentAnimationTo = null;
+      this.emit("animationEnd", {
+        from: from,
+        to: to,
+        completed: completed
+      });
+    }
+  }], [{
+    key: "from",
+    value: function from(state) {
+      var camera = new Camera();
+      return camera.setState(state);
+    }
+  }]);
+}(types_dist_sigmaTypes.TypedEventEmitter);
+
+/**
+ * Captor utils functions
+ * ======================
+ */
+
+/**
+ * Extract the local X and Y coordinates from a mouse event or touch object. If
+ * a DOM element is given, it uses this element's offset to compute the position
+ * (this allows using events that are not bound to the container itself and
+ * still have a proper position).
+ *
+ * @param  {event}       e - A mouse event or touch object.
+ * @param  {HTMLElement} dom - A DOM element to compute offset relatively to.
+ * @return {number}      The local Y value of the mouse.
+ */
+function getPosition(e, dom) {
+  var bbox = dom.getBoundingClientRect();
+  return {
+    x: e.clientX - bbox.left,
+    y: e.clientY - bbox.top
+  };
+}
+
+/**
+ * Convert mouse coords to sigma coords.
+ *
+ * @param  {event}       e   - A mouse event or touch object.
+ * @param  {HTMLElement} dom - A DOM element to compute offset relatively to.
+ * @return {object}
+ */
+function getMouseCoords(e, dom) {
+  var res = loop._objectSpread2(loop._objectSpread2({}, getPosition(e, dom)), {}, {
+    sigmaDefaultPrevented: false,
+    preventSigmaDefault: function preventSigmaDefault() {
+      res.sigmaDefaultPrevented = true;
+    },
+    original: e
+  });
+  return res;
+}
+
+/**
+ * Takes a touch coords or a mouse coords, and always returns a clean mouse coords object.
+ */
+function cleanMouseCoords(e) {
+  var res = "x" in e ? e : loop._objectSpread2(loop._objectSpread2({}, e.touches[0] || e.previousTouches[0]), {}, {
+    original: e.original,
+    sigmaDefaultPrevented: e.sigmaDefaultPrevented,
+    preventSigmaDefault: function preventSigmaDefault() {
+      e.sigmaDefaultPrevented = true;
+      res.sigmaDefaultPrevented = true;
+    }
+  });
+  return res;
+}
+
+/**
+ * Convert mouse wheel event coords to sigma coords.
+ *
+ * @param  {event}       e   - A wheel mouse event.
+ * @param  {HTMLElement} dom - A DOM element to compute offset relatively to.
+ * @return {object}
+ */
+function getWheelCoords(e, dom) {
+  var res = getMouseCoords(e, dom);
+  res.delta = getWheelDelta(e);
+  return res;
+}
+var MAX_TOUCHES = 2;
+function getTouchesArray(touches) {
+  var arr = [];
+  for (var i = 0, l = Math.min(touches.length, MAX_TOUCHES); i < l; i++) arr.push(touches[i]);
+  return arr;
+}
+
+/**
+ * Convert touch coords to sigma coords.
+ *
+ * @param  {event}       e               - A touch event.
+ * @param  {Touch[]}     previousTouches - An array of the previously stored touches.
+ * @param  {HTMLElement} dom             - A DOM element to compute offset relatively to.
+ * @return {object}
+ */
+function getTouchCoords(e, previousTouches, dom) {
+  var res = {
+    touches: getTouchesArray(e.touches).map(function (touch) {
+      return getPosition(touch, dom);
+    }),
+    previousTouches: previousTouches.map(function (touch) {
+      return getPosition(touch, dom);
+    }),
+    sigmaDefaultPrevented: false,
+    preventSigmaDefault: function preventSigmaDefault() {
+      res.sigmaDefaultPrevented = true;
+    },
+    original: e
+  };
+  return res;
+}
+
+/**
+ * Extract the wheel delta from a mouse event or touch object.
+ *
+ * @param  {event}  e - A mouse event or touch object.
+ * @return {number}     The wheel delta of the mouse.
+ */
+function getWheelDelta(e) {
+  // TODO: check those ratios again to ensure a clean Chrome/Firefox compat
+  if (typeof e.deltaY !== "undefined") return e.deltaY * -3 / 360;
+  if (typeof e.detail !== "undefined") return e.detail / -9;
+  throw new Error("Captor: could not extract delta from event.");
+}
+
+/**
+ * Abstract class representing a captor like the user's mouse or touch controls.
+ */
+var Captor = /*#__PURE__*/function (_TypedEventEmitter) {
+  function Captor(container, renderer) {
+    var _this;
+    loop._classCallCheck(this, Captor);
+    _this = loop._callSuper(this, Captor);
+    // Properties
+    _this.container = container;
+    _this.renderer = renderer;
+    return _this;
+  }
+  loop._inherits(Captor, _TypedEventEmitter);
+  return loop._createClass(Captor);
+}(types_dist_sigmaTypes.TypedEventEmitter);
+
+var MOUSE_SETTINGS_KEYS = ["doubleClickTimeout", "doubleClickZoomingDuration", "doubleClickZoomingRatio", "dragTimeout", "draggedEventsTolerance", "enableCameraMouseRotation", "gestureTarget", "inertiaDuration", "inertiaRatio", "zoomDuration", "zoomingRatio"];
+var DEFAULT_MOUSE_SETTINGS = MOUSE_SETTINGS_KEYS.reduce(function (iter, key) {
+  return loop._objectSpread2(loop._objectSpread2({}, iter), {}, loop._defineProperty({}, key, settings_dist_sigmaSettings.DEFAULT_SETTINGS[key]));
+}, {});
+
+/**
+ * Event types.
+ */
+
+// Touch pointers belong to the touch captor, handling them here would count
+// each gesture twice:
+function isTouchPointer(e) {
+  return e instanceof PointerEvent && e.pointerType === "touch";
+}
+
+/**
+ * Mouse captor class.
+ *
+ * @constructor
+ */
+var MouseCaptor = /*#__PURE__*/function (_Captor) {
+  function MouseCaptor(container, renderer) {
+    var _this;
+    loop._classCallCheck(this, MouseCaptor);
+    _this = loop._callSuper(this, MouseCaptor, [container, renderer]);
+
+    // Binding methods
+    // State
+    loop._defineProperty(_this, "enabled", true);
+    loop._defineProperty(_this, "draggedEvents", 0);
+    loop._defineProperty(_this, "downStartTime", null);
+    loop._defineProperty(_this, "lastMouseX", null);
+    loop._defineProperty(_this, "lastMouseY", null);
+    loop._defineProperty(_this, "isMouseDown", false);
+    loop._defineProperty(_this, "isMoving", false);
+    loop._defineProperty(_this, "isPanningStage", false);
+    loop._defineProperty(_this, "movingTimeout", null);
+    loop._defineProperty(_this, "startCameraState", null);
+    loop._defineProperty(_this, "clicks", 0);
+    loop._defineProperty(_this, "doubleClickTimeout", null);
+    loop._defineProperty(_this, "isRightMouseDown", false);
+    loop._defineProperty(_this, "startRotationAngle", null);
+    loop._defineProperty(_this, "startCameraAngle", null);
+    loop._defineProperty(_this, "currentWheelDirection", 0);
+    loop._defineProperty(_this, "lastWheelAnimationId", 0);
+    loop._defineProperty(_this, "settings", DEFAULT_MOUSE_SETTINGS);
+    _this.handleRightClick = _this.handleRightClick.bind(_this);
+    _this.handleDown = _this.handleDown.bind(_this);
+    _this.handleUp = _this.handleUp.bind(_this);
+    _this.handleMove = _this.handleMove.bind(_this);
+    _this.handleWheel = _this.handleWheel.bind(_this);
+    _this.handleLeave = _this.handleLeave.bind(_this);
+    _this.handleEnter = _this.handleEnter.bind(_this);
+
+    // Binding pointer events (filtered on non-touch pointers) rather than
+    // mouse events:
+    // The compatibility mouse events fired by browsers after taps would else
+    // make each tap count twice, once per captor. Clicks are derived from
+    // pointerup for the same reason
+    container.addEventListener("contextmenu", _this.handleRightClick, {
+      capture: false
+    });
+    container.addEventListener("pointerdown", _this.handleDown, {
+      capture: false
+    });
+    container.addEventListener("wheel", _this.handleWheel, {
+      capture: false,
+      passive: false
+    });
+    container.addEventListener("pointerleave", _this.handleLeave, {
+      capture: false
+    });
+    container.addEventListener("pointerenter", _this.handleEnter, {
+      capture: false
+    });
+    document.addEventListener("pointermove", _this.handleMove, {
+      capture: false
+    });
+    document.addEventListener("pointerup", _this.handleUp, {
+      capture: false
+    });
+    return _this;
+  }
+  loop._inherits(MouseCaptor, _Captor);
+  return loop._createClass(MouseCaptor, [{
+    key: "kill",
+    value: function kill() {
+      var container = this.container;
+      container.removeEventListener("contextmenu", this.handleRightClick);
+      container.removeEventListener("pointerdown", this.handleDown);
+      container.removeEventListener("wheel", this.handleWheel);
+      container.removeEventListener("pointerleave", this.handleLeave);
+      container.removeEventListener("pointerenter", this.handleEnter);
+      document.removeEventListener("pointermove", this.handleMove);
+      document.removeEventListener("pointerup", this.handleUp);
+    }
+  }, {
+    key: "handleClick",
+    value: function handleClick(e) {
+      var _this2 = this;
+      if (!this.enabled) return;
+      this.clicks++;
+      if (this.clicks === 2) {
+        this.clicks = 0;
+        if (typeof this.doubleClickTimeout === "number") {
+          clearTimeout(this.doubleClickTimeout);
+          this.doubleClickTimeout = null;
+        }
+        return this.handleDoubleClick(e);
+      }
+      setTimeout(function () {
+        _this2.clicks = 0;
+        _this2.doubleClickTimeout = null;
+      }, this.settings.doubleClickTimeout);
+
+      // NOTE: this is here to prevent click events on drag
+      if (this.draggedEvents < this.settings.draggedEventsTolerance) this.emit("click", getMouseCoords(e, this.container));
+    }
+  }, {
+    key: "handleRightClick",
+    value: function handleRightClick(e) {
+      if (!this.enabled) return;
+      if (this.settings.enableCameraMouseRotation) {
+        e.preventDefault();
+      }
+      this.emit("rightClick", getMouseCoords(e, this.container));
+    }
+  }, {
+    key: "handleDoubleClick",
+    value: function handleDoubleClick(e) {
+      if (!this.enabled) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var mouseCoords = getMouseCoords(e, this.container);
+      this.emit("doubleClick", mouseCoords);
+      if (mouseCoords.sigmaDefaultPrevented) return;
+
+      // default behavior
+      var camera = this.renderer.getCamera();
+      var newRatio = camera.getBoundedRatio(camera.getState().ratio / this.settings.doubleClickZoomingRatio);
+      camera.animate(this.renderer.getViewportZoomedState(getPosition(e, this.container), newRatio), {
+        easing: "quadraticInOut",
+        duration: this.settings.doubleClickZoomingDuration
+      });
+    }
+  }, {
+    key: "handleDown",
+    value: function handleDown(e) {
+      if (!this.enabled || isTouchPointer(e)) return;
+
+      // We only start dragging on left button
+      if (e.button === 0) {
+        this.startCameraState = this.renderer.getCamera().getState();
+        var _getPosition = getPosition(e, this.container),
+          x = _getPosition.x,
+          y = _getPosition.y;
+        this.lastMouseX = x;
+        this.lastMouseY = y;
+        this.draggedEvents = 0;
+        this.downStartTime = Date.now();
+        this.isMouseDown = true;
+      }
+
+      // Start rotation on right button when enabled
+      if (e.button === 2 && this.settings.enableCameraMouseRotation) {
+        var _getPosition2 = getPosition(e, this.container),
+          _x = _getPosition2.x,
+          _y = _getPosition2.y;
+        var centerX = this.container.offsetWidth / 2;
+        var centerY = this.container.offsetHeight / 2;
+        this.startRotationAngle = Math.atan2(_y - centerY, _x - centerX);
+        this.startCameraAngle = this.renderer.getCamera().getState().angle;
+        this.isRightMouseDown = true;
+      }
+      this.emit("mousedown", getMouseCoords(e, this.container));
+    }
+  }, {
+    key: "handleUp",
+    value: function handleUp(e) {
+      var _this3 = this;
+      if (!this.enabled || isTouchPointer(e) || !this.isMouseDown && !this.isRightMouseDown) return;
+
+      // Right-click rotation: just reset state, no inertia
+      if (this.isRightMouseDown) {
+        this.isRightMouseDown = false;
+        this.startRotationAngle = null;
+        this.startCameraAngle = null;
+        this.emit("mouseup", getMouseCoords(e, this.container));
+        return;
+      }
+      var camera = this.renderer.getCamera();
+      this.isMouseDown = false;
+      if (this.isPanningStage) {
+        this.isPanningStage = false;
+        this.renderer._setPanning(false);
+      }
+      if (typeof this.movingTimeout === "number") {
+        clearTimeout(this.movingTimeout);
+        this.movingTimeout = null;
+      }
+      var _getPosition3 = getPosition(e, this.container),
+        x = _getPosition3.x,
+        y = _getPosition3.y;
+      var cameraState = camera.getState(),
+        previousCameraState = camera.getPreviousState();
+      if (this.isMoving) {
+        camera.animate({
+          x: cameraState.x + this.settings.inertiaRatio * (cameraState.x - previousCameraState.x),
+          y: cameraState.y + this.settings.inertiaRatio * (cameraState.y - previousCameraState.y)
+        }, {
+          duration: this.settings.inertiaDuration,
+          easing: "quadraticOut"
+        });
+      } else if (this.lastMouseX !== x || this.lastMouseY !== y) {
+        camera.setState({
+          x: cameraState.x,
+          y: cameraState.y
+        });
+      }
+      this.isMoving = false;
+      setTimeout(function () {
+        var shouldRefresh = _this3.draggedEvents > 0;
+        _this3.draggedEvents = 0;
+
+        // NOTE: this refresh is here to make sure `hideEdgesOnMove` and `hideLabelsOnMove` can work
+        // when someone releases camera pan drag after having stopped moving.
+        // See commit: https://github.com/jacomyal/sigma.js/commit/cfd9197f70319109db6b675dd7c82be493ca95a2
+        // See also issue: https://github.com/jacomyal/sigma.js/issues/1290
+        // It could be possible to render instead of scheduling a refresh but for
+        // now it seems good enough.
+        var shouldRestoreDeferredRendering = _this3.renderer.getSetting("hideEdgesOnMove") || _this3.renderer.getSetting("hideLabelsOnMove");
+        if (shouldRefresh && shouldRestoreDeferredRendering) _this3.renderer.refresh();
+      }, 0);
+      this.emit("mouseup", getMouseCoords(e, this.container));
+
+      // A left-button release over the container is a click:
+      if (e.target === this.container || e.composedPath()[0] === this.container) this.handleClick(e);
+    }
+  }, {
+    key: "handleMove",
+    value: function handleMove(e) {
+      var _this4 = this;
+      if (!this.enabled || isTouchPointer(e)) return;
+      var mouseCoords = getMouseCoords(e, this.container);
+
+      // Always trigger a "mousemovebody" event, so that it is possible to develop
+      // a drag-and-drop effect that works even when the mouse is out of the
+      // container:
+      this.emit("mousemovebody", mouseCoords);
+
+      // Only trigger the "mousemove" event when the mouse is actually hovering
+      // the container, to avoid weirdly hovering nodes and/or edges when the
+      // mouse is not hover the container:
+      if (e.target === this.container || e.composedPath()[0] === this.container) {
+        this.emit("mousemove", mouseCoords);
+      }
+
+      // Count drag events even when sigma default is prevented, so that
+      // click suppression works correctly after node drags:
+      if (this.isMouseDown) {
+        this.draggedEvents++;
+      }
+      if (mouseCoords.sigmaDefaultPrevented) return;
+
+      // Handle the case when "isMouseDown" all the time, to allow dragging the
+      // stage while the mouse is not hover the container:
+      if (this.isMouseDown) {
+        this.isMoving = true;
+        if (typeof this.movingTimeout === "number") {
+          clearTimeout(this.movingTimeout);
+        }
+        this.movingTimeout = window.setTimeout(function () {
+          _this4.movingTimeout = null;
+          _this4.isMoving = false;
+        }, this.settings.dragTimeout);
+        var camera = this.renderer.getCamera();
+        var _getPosition4 = getPosition(e, this.container),
+          eX = _getPosition4.x,
+          eY = _getPosition4.y;
+        var lastMouse = this.renderer.viewportToFramedGraph({
+          x: this.lastMouseX,
+          y: this.lastMouseY
+        });
+        var mouse = this.renderer.viewportToFramedGraph({
+          x: eX,
+          y: eY
+        });
+        var offsetX = lastMouse.x - mouse.x,
+          offsetY = lastMouse.y - mouse.y;
+        var cameraState = camera.getState();
+        var x = cameraState.x + offsetX,
+          y = cameraState.y + offsetY;
+        if (!this.isPanningStage) {
+          this.isPanningStage = true;
+          this.renderer._setPanning(true);
+        }
+        camera.setState({
+          x: x,
+          y: y
+        });
+        this.lastMouseX = eX;
+        this.lastMouseY = eY;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (this.isRightMouseDown) {
+        var _getPosition5 = getPosition(e, this.container),
+          _eX = _getPosition5.x,
+          _eY = _getPosition5.y;
+        var centerX = this.container.offsetWidth / 2;
+        var centerY = this.container.offsetHeight / 2;
+        var currentAngle = Math.atan2(_eY - centerY, _eX - centerX);
+        var angleDiff = currentAngle - this.startRotationAngle;
+        var _camera = this.renderer.getCamera();
+        _camera.setState({
+          angle: this.startCameraAngle + angleDiff
+        });
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+  }, {
+    key: "handleLeave",
+    value: function handleLeave(e) {
+      if (isTouchPointer(e)) return;
+      this.emit("mouseleave", getMouseCoords(e, this.container));
+    }
+  }, {
+    key: "handleEnter",
+    value: function handleEnter(e) {
+      if (isTouchPointer(e)) return;
+      this.emit("mouseenter", getMouseCoords(e, this.container));
+    }
+  }, {
+    key: "handleWheel",
+    value: function handleWheel(e) {
+      var _this5 = this;
+      var camera = this.renderer.getCamera();
+      if (!this.enabled || !camera.enabledZooming) return;
+      var wheelCoords = getWheelCoords(e, this.container);
+      this.emit("wheel", wheelCoords);
+      if (wheelCoords.sigmaDefaultPrevented) return;
+      var gestureTarget = this.settings.gestureTarget;
+      if (gestureTarget === "page") return;
+
+      // In "shared" mode, wheel events only belong to the graph when user is
+      // pressing Ctrl or ⌘:
+      if (gestureTarget === "shared" && !e.ctrlKey && !e.metaKey) {
+        this.renderer._showGestureHint("wheel");
+        return;
+      }
+      var delta = getWheelDelta(e);
+      if (!delta) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var currentRatio = camera.getState().ratio;
+      var ratioDiff = delta > 0 ? 1 / this.settings.zoomingRatio : this.settings.zoomingRatio;
+      var newRatio = camera.getBoundedRatio(currentRatio * ratioDiff);
+      var wheelDirection = delta > 0 ? 1 : -1;
+      var now = Date.now();
+      if (currentRatio === newRatio) return;
+
+      // Cancel events that are too close each other and in the same direction:
+      if (this.currentWheelDirection === wheelDirection && this.lastWheelTriggerTime && now - this.lastWheelTriggerTime < this.settings.zoomDuration / 5) {
+        return;
+      }
+      var animationId = ++this.lastWheelAnimationId;
+      camera.animate(this.renderer.getViewportZoomedState(getPosition(e, this.container), newRatio), {
+        easing: "quadraticOut",
+        duration: this.settings.zoomDuration
+      }).then(function () {
+        // A newer wheel event has its own animation to clear the direction:
+        if (_this5.lastWheelAnimationId === animationId) _this5.currentWheelDirection = 0;
+      });
+      this.currentWheelDirection = wheelDirection;
+      this.lastWheelTriggerTime = now;
+    }
+  }, {
+    key: "setSettings",
+    value: function setSettings(settings) {
+      this.settings = settings;
+    }
+  }]);
+}(Captor);
+
+var TOUCH_SETTINGS_KEYS = ["dragTimeout", "gestureTarget", "inertiaDuration", "inertiaRatio", "doubleClickTimeout", "doubleClickZoomingRatio", "doubleClickZoomingDuration", "tapMoveTolerance"];
+var DEFAULT_TOUCH_SETTINGS = TOUCH_SETTINGS_KEYS.reduce(function (iter, key) {
+  return loop._objectSpread2(loop._objectSpread2({}, iter), {}, loop._defineProperty({}, key, settings_dist_sigmaSettings.DEFAULT_SETTINGS[key]));
+}, {});
+
+/**
+ * Event types.
+ */
+/**
+ * Touch captor class.
+ *
+ * @constructor
+ */
+var TouchCaptor = /*#__PURE__*/function (_Captor) {
+  function TouchCaptor(container, renderer) {
+    var _this;
+    loop._classCallCheck(this, TouchCaptor);
+    _this = loop._callSuper(this, TouchCaptor, [container, renderer]);
+
+    // Binding methods:
+    loop._defineProperty(_this, "enabled", true);
+    loop._defineProperty(_this, "isMoving", false);
+    loop._defineProperty(_this, "hasMoved", false);
+    loop._defineProperty(_this, "isPanningStage", false);
+    loop._defineProperty(_this, "isZoomingStage", false);
+    loop._defineProperty(_this, "touchMode", 0);
+    loop._defineProperty(_this, "startTouchesPositions", []);
+    loop._defineProperty(_this, "lastTouches", []);
+    loop._defineProperty(_this, "lastTap", null);
+    loop._defineProperty(_this, "settings", DEFAULT_TOUCH_SETTINGS);
+    _this.handleStart = _this.handleStart.bind(_this);
+    _this.handleLeave = _this.handleLeave.bind(_this);
+    _this.handleMove = _this.handleMove.bind(_this);
+
+    // Binding events
+    container.addEventListener("touchstart", _this.handleStart, {
+      capture: false
+    });
+    container.addEventListener("touchcancel", _this.handleLeave, {
+      capture: false
+    });
+    document.addEventListener("touchend", _this.handleLeave, {
+      capture: false,
+      passive: false
+    });
+    document.addEventListener("touchmove", _this.handleMove, {
+      capture: false,
+      passive: false
+    });
+    return _this;
+  }
+  loop._inherits(TouchCaptor, _Captor);
+  return loop._createClass(TouchCaptor, [{
+    key: "kill",
+    value: function kill() {
+      var container = this.container;
+      container.removeEventListener("touchstart", this.handleStart);
+      container.removeEventListener("touchcancel", this.handleLeave);
+      document.removeEventListener("touchend", this.handleLeave);
+      document.removeEventListener("touchmove", this.handleMove);
+    }
+  }, {
+    key: "getDimensions",
+    value: function getDimensions() {
+      return {
+        width: this.container.offsetWidth,
+        height: this.container.offsetHeight
+      };
+    }
+
+    // Returns true when the event is captured by the graph in practice, and
+    // false else.
+  }, {
+    key: "doesCapture",
+    value: function doesCapture(touchCount) {
+      var gestureTarget = this.settings.gestureTarget;
+      if (gestureTarget === "graph") return true;
+      if (gestureTarget === "page") return false;
+      return touchCount >= 2;
+    }
+
+    // Syncs isPanning/isZooming graph-state flags from the current gesture.
+    // Pinch (touchMode === 2) is a zoom gesture; single-finger drag with actual
+    // movement is a pan. Anything else clears both.
+  }, {
+    key: "syncStageFlags",
+    value: function syncStageFlags() {
+      var shouldPan = this.touchMode === 1 && this.hasMoved;
+      var shouldZoom = this.touchMode === 2;
+      if (shouldPan !== this.isPanningStage) {
+        this.isPanningStage = shouldPan;
+        this.renderer._setPanning(shouldPan);
+      }
+      if (shouldZoom !== this.isZoomingStage) {
+        this.isZoomingStage = shouldZoom;
+        this.renderer._setZooming(shouldZoom);
+      }
+    }
+  }, {
+    key: "handleStart",
+    value: function handleStart(e) {
+      var _this2 = this;
+      if (!this.enabled) return;
+      var touches = getTouchesArray(e.touches);
+      this.touchMode = touches.length;
+      this.startCameraState = this.renderer.getCamera().getState();
+      this.startTouchesPositions = touches.map(function (touch) {
+        return getPosition(touch, _this2.container);
+      });
+
+      // When there are two touches down, let's record distance and angle as well:
+      if (this.touchMode === 2) {
+        var _this$startTouchesPos = colors._slicedToArray(this.startTouchesPositions, 2),
+          _this$startTouchesPos2 = _this$startTouchesPos[0],
+          x0 = _this$startTouchesPos2.x,
+          y0 = _this$startTouchesPos2.y,
+          _this$startTouchesPos3 = _this$startTouchesPos[1],
+          x1 = _this$startTouchesPos3.x,
+          y1 = _this$startTouchesPos3.y;
+        this.startTouchesAngle = Math.atan2(y1 - y0, x1 - x0);
+        this.startTouchesDistance = Math.sqrt(Math.pow(x1 - x0, 2) + Math.pow(y1 - y0, 2));
+      }
+      this.syncStageFlags();
+      this.emit("touchdown", getTouchCoords(e, this.lastTouches, this.container));
+      this.lastTouches = touches;
+      this.lastTouchesPositions = this.startTouchesPositions;
+      if (e.cancelable && (this.doesCapture(e.touches.length) || this.renderer._hasNodeDrag())) e.preventDefault();
+    }
+  }, {
+    key: "handleLeave",
+    value: function handleLeave(e) {
+      if (!this.enabled || !this.startTouchesPositions.length) return;
+      if (e.cancelable && this.doesCapture(this.touchMode)) e.preventDefault();
+      if (this.movingTimeout) {
+        this.isMoving = false;
+        clearTimeout(this.movingTimeout);
+      }
+      switch (this.touchMode) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        case 2:
+          if (e.touches.length === 1) {
+            this.handleStart(e);
+            break;
+          }
+        /* falls through */
+        case 1:
+          if (this.isMoving) {
+            var camera = this.renderer.getCamera();
+            var cameraState = camera.getState(),
+              previousCameraState = camera.getPreviousState();
+            camera.animate({
+              x: cameraState.x + this.settings.inertiaRatio * (cameraState.x - previousCameraState.x),
+              y: cameraState.y + this.settings.inertiaRatio * (cameraState.y - previousCameraState.y)
+            }, {
+              duration: this.settings.inertiaDuration,
+              easing: "quadraticOut"
+            });
+          }
+          this.hasMoved = false;
+          this.isMoving = false;
+          this.touchMode = 0;
+          break;
+      }
+      this.syncStageFlags();
+      this.emit("touchup", getTouchCoords(e, this.lastTouches, this.container));
+
+      // When the last touch ends and there hasn't been too much movement, trigger a "tap" or "doubletap" event:
+      if (!e.touches.length) {
+        var position = getPosition(this.lastTouches[0], this.container);
+        var downPosition = this.startTouchesPositions[0];
+        var dSquare = Math.pow(position.x - downPosition.x, 2) + Math.pow(position.y - downPosition.y, 2);
+        if (!e.touches.length && dSquare < Math.pow(this.settings.tapMoveTolerance, 2)) {
+          // Only trigger "doubletap" when the last tap is recent enough:
+          if (this.lastTap && Date.now() - this.lastTap.time < this.settings.doubleClickTimeout) {
+            var touchCoords = getTouchCoords(e, this.lastTouches, this.container);
+            this.emit("doubletap", touchCoords);
+            this.lastTap = null;
+
+            // Only zoom on "doubletap" when gestures don't target the page:
+            if (!touchCoords.sigmaDefaultPrevented && this.settings.gestureTarget !== "page") {
+              var _camera = this.renderer.getCamera();
+              var newRatio = _camera.getBoundedRatio(_camera.getState().ratio / this.settings.doubleClickZoomingRatio);
+              _camera.animate(this.renderer.getViewportZoomedState(position, newRatio), {
+                easing: "quadraticInOut",
+                duration: this.settings.doubleClickZoomingDuration
+              });
+            }
+          }
+          // Else, trigger a normal "tap" event:
+          else {
+            var _touchCoords = getTouchCoords(e, this.lastTouches, this.container);
+            this.emit("tap", _touchCoords);
+            this.lastTap = {
+              time: Date.now(),
+              position: _touchCoords.touches[0] || _touchCoords.previousTouches[0]
+            };
+          }
+        }
+      }
+      this.lastTouches = getTouchesArray(e.touches);
+      this.startTouchesPositions = [];
+    }
+  }, {
+    key: "handleMove",
+    value: function handleMove(e) {
+      var _this3 = this;
+      if (!this.enabled || !this.startTouchesPositions.length) return;
+      var captured = this.doesCapture(e.touches.length);
+      if (captured) e.preventDefault();
+      var touches = getTouchesArray(e.touches);
+      var touchesPositions = touches.map(function (touch) {
+        return getPosition(touch, _this3.container);
+      });
+      var lastTouches = this.lastTouches;
+      this.lastTouches = touches;
+      this.lastTouchesPositions = touchesPositions;
+      var touchCoords = getTouchCoords(e, lastTouches, this.container);
+      this.emit("touchmove", touchCoords);
+      if (touchCoords.sigmaDefaultPrevented) return;
+
+      // If a move was initiated at some point, and we get back to start point,
+      // we should still consider that we did move (which also happens after a
+      // multiple touch when only one touch remains in which case handleStart
+      // is recalled within handleLeave).
+      // Now, some mobile browsers report zero-distance moves so we also check that
+      // one of the touches did actually move from the origin position.
+      this.hasMoved || (this.hasMoved = touchesPositions.some(function (position, idx) {
+        var startPosition = _this3.startTouchesPositions[idx];
+        return startPosition && (position.x !== startPosition.x || position.y !== startPosition.y);
+      }));
+
+      // If there was no move, do not trigger touch moves behavior
+      if (!this.hasMoved) {
+        return;
+      }
+      if (!captured) {
+        if (this.settings.gestureTarget === "shared") this.renderer._showGestureHint("touch");
+        return;
+      }
+      this.isMoving = true;
+      this.syncStageFlags();
+      if (this.movingTimeout) clearTimeout(this.movingTimeout);
+      this.movingTimeout = window.setTimeout(function () {
+        _this3.isMoving = false;
+      }, this.settings.dragTimeout);
+      var camera = this.renderer.getCamera();
+      var startCameraState = this.startCameraState;
+      var padding = this.renderer.getSetting("stagePadding");
+      switch (this.touchMode) {
+        case 1:
+          {
+            var _this$renderer$viewpo = this.renderer.viewportToFramedGraph((this.startTouchesPositions || [])[0]),
+              xStart = _this$renderer$viewpo.x,
+              yStart = _this$renderer$viewpo.y;
+            var _this$renderer$viewpo2 = this.renderer.viewportToFramedGraph(touchesPositions[0]),
+              x = _this$renderer$viewpo2.x,
+              y = _this$renderer$viewpo2.y;
+            camera.setState({
+              x: startCameraState.x + xStart - x,
+              y: startCameraState.y + yStart - y
+            });
+            break;
+          }
+        case 2:
+          {
+            /**
+             * Here is the thinking here:
+             *
+             * 1. We can find the new angle and ratio, by comparing the vector from "touch one" to "touch two" at the start
+             *    of the d'n'd and now
+             *
+             * 2. We can use `Camera#viewportToGraph` inside formula to retrieve the new camera position, using the graph
+             *    position of a touch at the beginning of the d'n'd (using `startCamera.viewportToGraph`) and the viewport
+             *    position of this same touch now
+             */
+            var newCameraState = {
+              x: 0.5,
+              y: 0.5,
+              angle: 0,
+              ratio: 1
+            };
+            var _touchesPositions$ = touchesPositions[0],
+              x0 = _touchesPositions$.x,
+              y0 = _touchesPositions$.y;
+            var _touchesPositions$2 = touchesPositions[1],
+              x1 = _touchesPositions$2.x,
+              y1 = _touchesPositions$2.y;
+            var angleDiff = Math.atan2(y1 - y0, x1 - x0) - this.startTouchesAngle;
+            var ratioDiff = Math.hypot(y1 - y0, x1 - x0) / this.startTouchesDistance;
+
+            // 1.
+            var newRatio = camera.getBoundedRatio(startCameraState.ratio / ratioDiff);
+            newCameraState.ratio = newRatio;
+            newCameraState.angle = startCameraState.angle + angleDiff;
+
+            // 2.
+            var dimensions = this.getDimensions();
+            var touchGraphPosition = this.renderer.viewportToFramedGraph((this.startTouchesPositions || [])[0], {
+              cameraState: startCameraState
+            });
+            var smallestDimension = Math.min(dimensions.width, dimensions.height) - 2 * padding;
+            var dx = smallestDimension / dimensions.width;
+            var dy = smallestDimension / dimensions.height;
+            var ratio = newRatio / smallestDimension;
+
+            // Align with center of the graph:
+            var _x = x0 - smallestDimension / 2 / dx;
+            var _y = y0 - smallestDimension / 2 / dy;
+
+            // Rotate:
+            var _rotateVec = colors.rotateVec2({
+              x: _x,
+              y: _y
+            }, newCameraState.angle);
+            _x = _rotateVec.x;
+            _y = _rotateVec.y;
+            newCameraState.x = touchGraphPosition.x - _x * ratio;
+            newCameraState.y = touchGraphPosition.y + _y * ratio;
+            camera.setState(newCameraState);
+            break;
+          }
+      }
+    }
+  }, {
+    key: "setSettings",
+    value: function setSettings(settings) {
+      this.settings = settings;
+    }
+  }]);
+}(Captor);
+
+/**
+ * Sigma.js Drag Manager
+ * =====================
+ *
+ * Owns node drag session state and applies position updates to the graph.
+ * Sigma subscribes to interaction events and delegates drag logic here.
+ *
+ * @module
+ */
+
+var DragManager = /*#__PURE__*/function () {
+  function DragManager(graph, viewportToGraph, setNodesState, emit) {
+    loop._classCallCheck(this, DragManager);
+    // Set on pointer-down over a node; actual drag starts on first pointer movement.
+    loop._defineProperty(this, "pendingNode", null);
+    loop._defineProperty(this, "session", null);
+    this.graph = graph;
+    this.viewportToGraph = viewportToGraph;
+    this.setNodesState = setNodesState;
+    this.emit = emit;
+  }
+
+  /**
+   * Begin a drag session. Returns false if the drag was cancelled via preventSigmaDefault
+   * in the nodeDragStart event.
+   */
+  return loop._createClass(DragManager, [{
+    key: "start",
+    value: function start(node, event, getDraggedNodes, xAttr, yAttr) {
+      var allNodes = getDraggedNodes(node);
+      var cancelled = false;
+      this.emit("nodeDragStart", {
+        node: node,
+        allDraggedNodes: allNodes,
+        event: event,
+        preventSigmaDefault: function preventSigmaDefault() {
+          cancelled = true;
+        }
+      });
+      if (cancelled) return false;
+      var startNodePositions = new Map();
+      var _iterator = colors._createForOfIteratorHelper(allNodes),
+        _step;
+      try {
+        for (_iterator.s(); !(_step = _iterator.n()).done;) {
+          var n = _step.value;
+          startNodePositions.set(n, {
+            x: this.graph.getNodeAttribute(n, xAttr),
+            y: this.graph.getNodeAttribute(n, yAttr)
+          });
+        }
+      } catch (err) {
+        _iterator.e(err);
+      } finally {
+        _iterator.f();
+      }
+      this.session = {
+        node: node,
+        allNodes: allNodes,
+        startPosition: this.viewportToGraph(event),
+        startNodePositions: startNodePositions,
+        xAttr: xAttr,
+        yAttr: yAttr
+      };
+      this.setNodesState(allNodes, {
+        isDragged: true
+      });
+      return true;
+    }
+
+    /**
+     * Apply the current pointer position to all dragged nodes.
+     */
+  }, {
+    key: "applyMove",
+    value: function applyMove(event, dragPositionToAttributes) {
+      var _ref = this.session,
+        allNodes = _ref.allNodes,
+        startNodePositions = _ref.startNodePositions,
+        startPosition = _ref.startPosition,
+        xAttr = _ref.xAttr,
+        yAttr = _ref.yAttr;
+      var currentPosition = this.viewportToGraph(event);
+      var totalDelta = {
+        x: currentPosition.x - startPosition.x,
+        y: currentPosition.y - startPosition.y
+      };
+      var _iterator2 = colors._createForOfIteratorHelper(allNodes),
+        _step2;
+      try {
+        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+          var n = _step2.value;
+          var startPos = startNodePositions.get(n);
+          if (!startPos || !this.graph.hasNode(n)) continue;
+          var newPosition = {
+            x: startPos.x + totalDelta.x,
+            y: startPos.y + totalDelta.y
+          };
+          if (dragPositionToAttributes) {
+            this.graph.mergeNodeAttributes(n, dragPositionToAttributes(newPosition, n));
+          } else {
+            this.graph.setNodeAttribute(n, xAttr, newPosition.x);
+            this.graph.setNodeAttribute(n, yAttr, newPosition.y);
+          }
+        }
+      } catch (err) {
+        _iterator2.e(err);
+      } finally {
+        _iterator2.f();
+      }
+    }
+
+    /**
+     * End the current drag session. Returns the session info for the nodeDragEnd event,
+     * or null if there was no active session.
+     */
+  }, {
+    key: "end",
+    value: function end() {
+      this.pendingNode = null;
+      if (!this.session) return null;
+      var _this$session = this.session,
+        node = _this$session.node,
+        allNodes = _this$session.allNodes;
+      this.setNodesState(allNodes, {
+        isDragged: false
+      });
+      this.session = null;
+      return {
+        node: node,
+        allNodes: allNodes
+      };
+    }
+
+    /**
+     * Called when a node is removed from the graph. Ends the session if the removed
+     * node is the primary dragged node, or removes it from the drag group otherwise.
+     */
+  }, {
+    key: "removeNode",
+    value: function removeNode(key) {
+      if (key === this.pendingNode) this.pendingNode = null;
+      if (!this.session) return;
+      if (this.session.node === key) {
+        this.setNodesState(this.session.allNodes, {
+          isDragged: false
+        });
+        this.session = null;
+      } else if (this.session.allNodes.includes(key)) {
+        this.session.allNodes = this.session.allNodes.filter(function (n) {
+          return n !== key;
+        });
+        this.session.startNodePositions["delete"](key);
+      }
+    }
+
+    /**
+     * Reset all drag state. Called on graph clear.
+     */
+  }, {
+    key: "clear",
+    value: function clear() {
+      this.pendingNode = null;
+      this.session = null;
+    }
+  }]);
+}();
+
+/**
+ * Sigma.js Edge Group Index
+ * =========================
+ *
+ * Tracks groups of edges that share the same endpoint pair (parallel edges),
+ * including self-loops that share the same node. Maintains a sorted order
+ * within each group so that forward-direction edges come before reverse-direction
+ * ones, and notifies sigma whenever a group changes so that parallelIndex/
+ * parallelCount state fields stay up to date.
+ *
+ * @module
+ */
+
+/**
+ * Manages grouping and ordering of parallel edges (edges that share both
+ * endpoints). Calls the provided callback whenever a group's membership or
+ * order changes so that callers can update per-edge state accordingly.
+ */
+var EdgeGroupIndex = /*#__PURE__*/function () {
+  function EdgeGroupIndex(graph,
+  // Called with the full ordered group and its size whenever the group changes.
+  onGroupChanged) {
+    loop._classCallCheck(this, EdgeGroupIndex);
+    loop._defineProperty(this, "groups", new Map());
+    loop._defineProperty(this, "edgeToGroupKey", new Map());
+    this.graph = graph;
+    this.onGroupChanged = onGroupChanged;
+  }
+  return loop._createClass(EdgeGroupIndex, [{
+    key: "getGroupKey",
+    value: function getGroupKey(edge) {
+      var source = this.graph.source(edge);
+      var target = this.graph.target(edge);
+      return source < target ? "".concat(source, "\0").concat(target) : "".concat(target, "\0").concat(source);
+    }
+
+    // Canonical-source edges sort before reverse-direction ones.
+  }, {
+    key: "sortGroup",
+    value: function sortGroup(group, groupKey) {
+      var _this = this;
+      var canonicalSource = groupKey.split("\0")[0];
+      group.sort(function (a, b) {
+        var aForward = _this.graph.source(a) === canonicalSource || !_this.graph.isDirected(a) ? 0 : 1;
+        var bForward = _this.graph.source(b) === canonicalSource || !_this.graph.isDirected(b) ? 0 : 1;
+        return aForward - bForward;
+      });
+    }
+  }, {
+    key: "register",
+    value: function register(edge) {
+      var groupKey = this.getGroupKey(edge);
+      var group = this.groups.get(groupKey);
+      if (!group) {
+        group = [];
+        this.groups.set(groupKey, group);
+      }
+      if (!group.includes(edge)) group.push(edge);
+      this.edgeToGroupKey.set(edge, groupKey);
+      this.sortGroup(group, groupKey);
+      this.onGroupChanged(group, group.length);
+    }
+  }, {
+    key: "unregister",
+    value: function unregister(edge) {
+      var groupKey = this.edgeToGroupKey.get(edge);
+      if (!groupKey) return;
+      this.edgeToGroupKey["delete"](edge);
+      var group = this.groups.get(groupKey);
+      if (!group) return;
+      var idx = group.indexOf(edge);
+      if (idx !== -1) group.splice(idx, 1);
+      if (group.length === 0) {
+        this.groups["delete"](groupKey);
+      } else {
+        this.onGroupChanged(group, group.length);
+      }
+    }
+  }, {
+    key: "getGroup",
+    value: function getGroup(edge) {
+      var _this$groups$get;
+      var groupKey = this.edgeToGroupKey.get(edge);
+      if (!groupKey) return [];
+      return (_this$groups$get = this.groups.get(groupKey)) !== null && _this$groups$get !== void 0 ? _this$groups$get : [];
+    }
+  }, {
+    key: "getSiblings",
+    value: function getSiblings(edge) {
+      return this.getGroup(edge).filter(function (e) {
+        return e !== edge;
+      });
+    }
+  }, {
+    key: "rebuild",
+    value: function rebuild() {
+      var _this2 = this;
+      this.groups.clear();
+      this.edgeToGroupKey.clear();
+      this.graph.forEachEdge(function (edge) {
+        var groupKey = _this2.getGroupKey(edge);
+        var group = _this2.groups.get(groupKey);
+        if (!group) {
+          group = [];
+          _this2.groups.set(groupKey, group);
+        }
+        group.push(edge);
+        _this2.edgeToGroupKey.set(edge, groupKey);
+      });
+      var _iterator = colors._createForOfIteratorHelper(this.groups),
+        _step;
+      try {
+        for (_iterator.s(); !(_step = _iterator.n()).done;) {
+          var _step$value = colors._slicedToArray(_step.value, 2),
+            groupKey = _step$value[0],
+            group = _step$value[1];
+          this.sortGroup(group, groupKey);
+          this.onGroupChanged(group, group.length);
+        }
+      } catch (err) {
+        _iterator.e(err);
+      } finally {
+        _iterator.f();
+      }
+    }
+  }, {
+    key: "clear",
+    value: function clear() {
+      this.groups.clear();
+      this.edgeToGroupKey.clear();
+    }
+  }]);
+}();
+
+/**
+ * Sigma.js Label Events
+ * =====================
+ *
+ * Helpers around the `LabelEventsSetting` shape used by `nodeLabelEvents` /
+ * `edgeLabelEvents`. They resolve the per-interaction mode and summarize a
+ * setting for the picking-encoding decision.
+ *
+ * @module
+ */
+
+function resolveLabelMode(setting, interaction) {
+  var _setting$default;
+  if (setting === false || setting === "extend" || setting === "separate") return setting;
+  var explicit = setting[interaction];
+  if (explicit !== undefined) return explicit;
+  return (_setting$default = setting["default"]) !== null && _setting$default !== void 0 ? _setting$default : false;
+}
+function hasAnyEnabled(setting) {
+  if (setting === false) return false;
+  if (setting === "extend" || setting === "separate") return true;
+  return Object.values(setting).some(function (s) {
+    return s === "extend" || s === "separate";
+  });
+}
+function hasAnySeparate(setting) {
+  if (setting === "separate") return true;
+  if (setting === false || setting === "extend") return false;
+  if (setting["default"] === "separate") return true;
+  return Object.values(setting).includes("separate");
+}
+
+/** A resolved pick. The lookup table maps picking IDs to these. */
+
+/** Per-kind metadata + behavior. */
+
+var KIND_REGISTRY = {
+  node: {
+    parent: null,
+    eventSuffix: "Node",
+    payloadKey: "node",
+    isEnabled: function isEnabled() {
+      return true;
+    },
+    writesPickingThisFrame: function writesPickingThisFrame() {
+      return true;
+    },
+    setHover: function setHover(i, k, on) {
+      return i.setNodeState(k, {
+        isHovered: on
+      });
+    },
+    getCursor: function getCursor(i, k) {
+      var _i$nodeDataCache$k;
+      return (_i$nodeDataCache$k = i.nodeDataCache[k]) === null || _i$nodeDataCache$k === void 0 ? void 0 : _i$nodeDataCache$k.cursor;
+    },
+    isHitValid: function isHitValid(i, k) {
+      var _i$nodeDataCache$k2;
+      return ((_i$nodeDataCache$k2 = i.nodeDataCache[k]) === null || _i$nodeDataCache$k2 === void 0 ? void 0 : _i$nodeDataCache$k2.visibility) !== "hidden";
+    }
+  },
+  edge: {
+    parent: null,
+    eventSuffix: "Edge",
+    payloadKey: "edge",
+    isEnabled: function isEnabled(internals) {
+      return !!internals.settings.enableEdgeEvents;
+    },
+    writesPickingThisFrame: function writesPickingThisFrame(internals) {
+      return !!internals.settings.enableEdgeEvents;
+    },
+    setHover: function setHover(internals, k, on) {
+      return internals.setEdgeState(k, {
+        isHovered: on
+      });
+    },
+    getCursor: function getCursor(internals, k) {
+      var _internals$edgeDataCa;
+      return (_internals$edgeDataCa = internals.edgeDataCache[k]) === null || _internals$edgeDataCa === void 0 ? void 0 : _internals$edgeDataCa.cursor;
+    }
+  },
+  nodeLabel: {
+    parent: "node",
+    eventSuffix: "NodeLabel",
+    payloadKey: "node",
+    isEnabled: function isEnabled(internals) {
+      return hasAnySeparate(internals.settings.nodeLabelEvents);
+    },
+    writesPickingThisFrame: function writesPickingThisFrame(internals) {
+      return hasAnyEnabled(internals.settings.nodeLabelEvents);
+    },
+    setHover: function setHover(internals, k, on) {
+      return internals.setNodeState(k, {
+        isLabelHovered: on
+      });
+    },
+    getCursor: function getCursor(internals, k) {
+      var _internals$nodeDataCa;
+      return (_internals$nodeDataCa = internals.nodeDataCache[k]) === null || _internals$nodeDataCa === void 0 ? void 0 : _internals$nodeDataCa.labelCursor;
+    },
+    resolveForVerb: function resolveForVerb(hit, verb, internals) {
+      var mode = resolveLabelMode(internals.settings.nodeLabelEvents, verb);
+      if (mode === false) return null;
+      if (mode === "extend") return {
+        kind: "node",
+        key: hit.key
+      };
+      return hit;
+    }
+  },
+  edgeLabel: {
+    parent: "edge",
+    eventSuffix: "EdgeLabel",
+    payloadKey: "edge",
+    isEnabled: function isEnabled(internals) {
+      return hasAnySeparate(internals.settings.edgeLabelEvents);
+    },
+    writesPickingThisFrame: function writesPickingThisFrame(internals) {
+      return hasAnyEnabled(internals.settings.edgeLabelEvents);
+    },
+    setHover: function setHover(internals, k, on) {
+      return internals.setEdgeState(k, {
+        isLabelHovered: on
+      });
+    },
+    getCursor: function getCursor(internals, k) {
+      var _internals$edgeDataCa2;
+      return (_internals$edgeDataCa2 = internals.edgeDataCache[k]) === null || _internals$edgeDataCa2 === void 0 ? void 0 : _internals$edgeDataCa2.labelCursor;
+    },
+    resolveForVerb: function resolveForVerb(hit, verb, internals) {
+      var mode = resolveLabelMode(internals.settings.edgeLabelEvents, verb);
+      if (mode === false) return null;
+      if (mode === "extend") return {
+        kind: "edge",
+        key: hit.key
+      };
+      return hit;
+    }
+  }
+};
+
+/** Kind names in allocation order. Parents come before their children. */
+var KIND_NAMES = ["node", "edge", "nodeLabel", "edgeLabel"];
+
+// ============================================================================
+// Picking state - sole authority on picking-ID encoding
+// ============================================================================
+
+/**
+ * Picking state, rebuilt incrementally during each render cycle. Owns the
+ * full picking-ID layout; programs query `pickingIdOf` to know what to write,
+ * and `lookup[id]` resolves a framebuffer pixel back to a hit.
+ */
+
+function createPickingState() {
+  return {
+    lookup: [null],
+    idsByKind: {
+      node: new Map(),
+      edge: new Map(),
+      nodeLabel: new Map(),
+      edgeLabel: new Map()
+    },
+    nextId: 1
+  };
+}
+
+/** The picking ID for `(kind, key)`, or 0 if unallocated. */
+function pickingIdOf(state, kind, key) {
+  var _state$idsByKind$kind;
+  return (_state$idsByKind$kind = state.idsByKind[kind].get(key)) !== null && _state$idsByKind$kind !== void 0 ? _state$idsByKind$kind : 0;
+}
+
+/**
+ * Clear `kind`'s allocations and any descendant (label-style) kind, and reset
+ * the allocation counter to where `kind`'s range begins (= total size of all
+ * kinds that come before it). Call before iterating items to (re)assign IDs.
+ */
+function resetKind(state, kind) {
+  var _iterator = colors._createForOfIteratorHelper(KIND_NAMES),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var k = _step.value;
+      if (k === kind || KIND_REGISTRY[k].parent === kind) {
+        var _iterator3 = colors._createForOfIteratorHelper(state.idsByKind[k].values()),
+          _step3;
+        try {
+          for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+            var id = _step3.value;
+            state.lookup[id] = null;
+          }
+        } catch (err) {
+          _iterator3.e(err);
+        } finally {
+          _iterator3.f();
+        }
+        state.idsByKind[k] = new Map();
+      }
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  var start = 1;
+  var _iterator2 = colors._createForOfIteratorHelper(KIND_NAMES),
+    _step2;
+  try {
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var _k = _step2.value;
+      if (_k === kind) break;
+      start += state.idsByKind[_k].size;
+    }
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
+  }
+  state.nextId = start;
+}
+
+/** Assign the next available picking ID to `(kind, key)`. Returns the ID. */
+function registerItem(state, kind, key) {
+  var id = state.nextId++;
+  state.idsByKind[kind].set(key, id);
+  state.lookup[id] = {
+    kind: kind,
+    key: key
+  };
+  return id;
+}
+
+/**
+ * After node + edge IDs are assigned, give each enabled parent-linked kind
+ * its own contiguous range right after the existing allocation. Label kinds
+ * borrow their parent's keys in the parent's iteration order.
+ */
+function allocateLabelIds(state, i) {
+  // Clear any prior label allocations.
+  var _iterator4 = colors._createForOfIteratorHelper(KIND_NAMES),
+    _step4;
+  try {
+    for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+      var name = _step4.value;
+      if (KIND_REGISTRY[name].parent === null) continue;
+      var _iterator7 = colors._createForOfIteratorHelper(state.idsByKind[name].values()),
+        _step7;
+      try {
+        for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+          var id = _step7.value;
+          state.lookup[id] = null;
+        }
+      } catch (err) {
+        _iterator7.e(err);
+      } finally {
+        _iterator7.f();
+      }
+      state.idsByKind[name] = new Map();
+    }
+
+    // `nextId` is stale after a partial process: restart after the highest parent ID
+  } catch (err) {
+    _iterator4.e(err);
+  } finally {
+    _iterator4.f();
+  }
+  state.nextId = 1;
+  var _iterator5 = colors._createForOfIteratorHelper(KIND_NAMES),
+    _step5;
+  try {
+    for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+      var _name = _step5.value;
+      if (KIND_REGISTRY[_name].parent !== null) continue;
+      var _iterator8 = colors._createForOfIteratorHelper(state.idsByKind[_name].values()),
+        _step8;
+      try {
+        for (_iterator8.s(); !(_step8 = _iterator8.n()).done;) {
+          var _id = _step8.value;
+          if (_id >= state.nextId) state.nextId = _id + 1;
+        }
+      } catch (err) {
+        _iterator8.e(err);
+      } finally {
+        _iterator8.f();
+      }
+    }
+  } catch (err) {
+    _iterator5.e(err);
+  } finally {
+    _iterator5.f();
+  }
+  var _iterator6 = colors._createForOfIteratorHelper(KIND_NAMES),
+    _step6;
+  try {
+    for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+      var _name2 = _step6.value;
+      var entry = KIND_REGISTRY[_name2];
+      if (entry.parent === null || !entry.isEnabled(i)) continue;
+      var _iterator9 = colors._createForOfIteratorHelper(state.idsByKind[entry.parent].keys()),
+        _step9;
+      try {
+        for (_iterator9.s(); !(_step9 = _iterator9.n()).done;) {
+          var parentKey = _step9.value;
+          state.idsByKind[_name2].set(parentKey, state.nextId);
+          state.lookup[state.nextId] = {
+            kind: _name2,
+            key: parentKey
+          };
+          state.nextId++;
+        }
+      } catch (err) {
+        _iterator9.e(err);
+      } finally {
+        _iterator9.f();
+      }
+    }
+  } catch (err) {
+    _iterator6.e(err);
+  } finally {
+    _iterator6.f();
+  }
+}
+
+/** Do two allocations map every (kind, key) to the same picking ID? */
+function samePickingAllocation(a, b) {
+  var _iterator0 = colors._createForOfIteratorHelper(KIND_NAMES),
+    _step0;
+  try {
+    for (_iterator0.s(); !(_step0 = _iterator0.n()).done;) {
+      var kind = _step0.value;
+      var mapA = a[kind];
+      var mapB = b[kind];
+      if (mapA === mapB) continue;
+      if (mapA.size !== mapB.size) return false;
+      var _iterator1 = colors._createForOfIteratorHelper(mapA),
+        _step1;
+      try {
+        for (_iterator1.s(); !(_step1 = _iterator1.n()).done;) {
+          var _step1$value = colors._slicedToArray(_step1.value, 2),
+            _key = _step1$value[0],
+            id = _step1$value[1];
+          if (mapB.get(_key) !== id) return false;
+        }
+      } catch (err) {
+        _iterator1.e(err);
+      } finally {
+        _iterator1.f();
+      }
+    }
+  } catch (err) {
+    _iterator0.e(err);
+  } finally {
+    _iterator0.f();
+  }
+  return true;
+}
+
+// ============================================================================
+// Dispatch helpers - called by event-handlers and sigma
+// ============================================================================
+
+function setHover(i, hit, on) {
+  KIND_REGISTRY[hit.kind].setHover(i, hit.key, on);
+}
+function getCursor(i, hit) {
+  return KIND_REGISTRY[hit.kind].getCursor(i, hit.key);
+}
+function eventName(kind, verb) {
+  return "".concat(verb).concat(KIND_REGISTRY[kind].eventSuffix);
+}
+function eventPayload(hit, base) {
+  return loop._objectSpread2(loop._objectSpread2({}, base), {}, loop._defineProperty({}, KIND_REGISTRY[hit.kind].payloadKey, hit.key));
+}
+function resolveForVerb(i, hit, verb) {
+  var resolver = KIND_REGISTRY[hit.kind].resolveForVerb;
+  return resolver ? resolver(hit, verb, i) : hit;
+}
+function isHitValid(i, hit) {
+  var check = KIND_REGISTRY[hit.kind].isHitValid;
+  return check ? check(i, hit.key) : true;
+}
+
+/** Kinds whose hover state must clear when an item of `target` is removed. */
+function kindsDependingOn(target) {
+  return KIND_NAMES.filter(function (n) {
+    return n === target || KIND_REGISTRY[n].parent === target;
+  });
+}
+
+/**
+ * Applies the kind's per-verb routing (extend/separate/false for labels,
+ * identity otherwise), and drops hits the kind rejects via `isHitValid`
+ * (e.g. hidden nodes).
+ */
+function routeHit(i, hit, verb) {
+  if (hit) hit = resolveForVerb(i, hit, verb);
+  if (hit && !isHitValid(i, hit)) hit = null;
+  return hit;
+}
+
+/**
+ * Resolves the hit for `verb` at `event`. Wheel reuses the last hover hit,
+ * since a fresh read would block on the GPU every tick.
+ */
+function resolveEventHit(i, event, verb) {
+  var hit = verb === "wheel" ? i.stateManager.hovered : i.getHitAtPosition(event);
+  return routeHit(i, hit, verb);
+}
+function sameHit(a, b) {
+  if (!a || !b) return a === b;
+  return a.kind === b.kind && a.key === b.key;
+}
+
+/**
+ * Routes a raw hit through the "enter" verb, then applies the leave/enter
+ * transition. Called when an async picking read completes.
+ */
+function updateHover(i, rawHit, event) {
+  var baseEvent = {
+    event: event,
+    preventSigmaDefault: function preventSigmaDefault() {
+      return event.preventSigmaDefault();
+    }
+  };
+  // A dragged node stays hovered for the whole session, wherever the pixels land
+  var session = i.dragManager.session;
+  var hit = session ? {
+    kind: "node",
+    key: session.node
+  } : routeHit(i, rawHit, "enter");
+  var stateManager = i.stateManager;
+  var prev = stateManager.hovered;
+  if (sameHit(prev, hit)) return;
+  if (prev) {
+    setHover(i, prev, false);
+    i.emit(eventName(prev.kind, "leave"), eventPayload(prev, baseEvent));
+  }
+  stateManager.setHovered(hit);
+  if (hit) {
+    setHover(i, hit, true);
+    i.emit(eventName(hit.kind, "enter"), eventPayload(hit, baseEvent));
+  }
+  i.updateContainerCursor();
+}
+function bindInteractionHandlers(internals, mouseCaptor, touchCaptor, activeListeners) {
+  activeListeners.handleResize = function () {
+    return internals.scheduleRefresh();
+  };
+  window.addEventListener("resize", activeListeners.handleResize);
+
+  // Hover detection: just record the position, resolution is asynchronous
+  activeListeners.handleMove = function (e) {
+    internals.hoverResolver.pointerMoved(cleanMouseCoords(e));
+  };
+
+  // Drag movement (body-level, fires even outside the canvas)
+  activeListeners.handleMoveBody = function (e) {
+    var event = cleanMouseCoords(e);
+    var dragManager = internals.dragManager;
+    if (dragManager.pendingNode && !dragManager.session) {
+      var _internals$nodeStyleA = internals.nodeStyleAnalysis,
+        xAttribute = _internals$nodeStyleA.xAttribute,
+        yAttribute = _internals$nodeStyleA.yAttribute;
+      var settings = internals.settings;
+      dragManager.start(dragManager.pendingNode, event, settings.getDraggedNodes, xAttribute || "x", yAttribute || "y");
+      dragManager.pendingNode = null;
+    }
+    if (dragManager.session) {
+      dragManager.applyMove(event, internals.settings.dragPositionToAttributes);
+      internals.emit("nodeDrag", {
+        node: dragManager.session.node,
+        allDraggedNodes: dragManager.session.allNodes,
+        event: event
+      });
+      event.preventSigmaDefault();
+    }
+    internals.emit("moveBody", {
+      event: event,
+      preventSigmaDefault: function preventSigmaDefault() {
+        return event.preventSigmaDefault();
+      }
+    });
+  };
+
+  // Mouse leaves the canvas: emit a leave for whatever was hovered, then leaveStage.
+  activeListeners.handleLeave = function (e) {
+    var event = cleanMouseCoords(e);
+    var baseEvent = {
+      event: event,
+      preventSigmaDefault: function preventSigmaDefault() {
+        return event.preventSigmaDefault();
+      }
+    };
+    internals.hoverResolver.pointerLeft();
+    updateHover(internals, null, event);
+    internals.emit("leaveStage", baseEvent);
+  };
+  activeListeners.handleEnter = function (e) {
+    var event = cleanMouseCoords(e);
+    internals.emit("enterStage", {
+      event: event,
+      preventSigmaDefault: function preventSigmaDefault() {
+        return event.preventSigmaDefault();
+      }
+    });
+  };
+
+  // Click-family events: one resolved hit per verb. No hit → falls through to stage.
+  var createInteractionListener = function createInteractionListener(verb) {
+    return function (e) {
+      var event = cleanMouseCoords(e);
+      var baseEvent = {
+        event: event,
+        preventSigmaDefault: function preventSigmaDefault() {
+          return event.preventSigmaDefault();
+        }
+      };
+      var hit = resolveEventHit(internals, event, verb);
+      if (hit) {
+        internals.emit(eventName(hit.kind, verb), eventPayload(hit, baseEvent));
+        return;
+      }
+      internals.emit("".concat(verb, "Stage"), baseEvent);
+    };
+  };
+  activeListeners.handleClick = createInteractionListener("click");
+  activeListeners.handleRightClick = createInteractionListener("rightClick");
+  activeListeners.handleDoubleClick = createInteractionListener("doubleClick");
+  activeListeners.handleWheel = createInteractionListener("wheel");
+
+  // down: same as the generic listener, but also arms the drag manager on a node hit.
+  activeListeners.handleDown = function (e) {
+    var event = cleanMouseCoords(e);
+    var baseEvent = {
+      event: event,
+      preventSigmaDefault: function preventSigmaDefault() {
+        return event.preventSigmaDefault();
+      }
+    };
+    var hit = resolveEventHit(internals, event, "down");
+    if (hit) {
+      if (hit.kind === "node" && internals.settings.enableNodeDrag) {
+        internals.dragManager.pendingNode = hit.key;
+      }
+      internals.emit(eventName(hit.kind, "down"), eventPayload(hit, baseEvent));
+      return;
+    }
+    internals.emit("downStage", baseEvent);
+  };
+
+  // up: same as the generic listener, but also ends any active drag session.
+  activeListeners.handleUp = function (e) {
+    var event = cleanMouseCoords(e);
+    var baseEvent = {
+      event: event,
+      preventSigmaDefault: function preventSigmaDefault() {
+        return event.preventSigmaDefault();
+      }
+    };
+    var dragResult = internals.dragManager.end();
+    if (dragResult) {
+      internals.emit("nodeDragEnd", loop._objectSpread2({
+        node: dragResult.node,
+        allDraggedNodes: dragResult.allNodes
+      }, baseEvent));
+    }
+    var hit = resolveEventHit(internals, event, "up");
+    if (hit) {
+      internals.emit(eventName(hit.kind, "up"), eventPayload(hit, baseEvent));
+      return;
+    }
+    internals.emit("upStage", baseEvent);
+  };
+  mouseCaptor.on("mousemove", activeListeners.handleMove);
+  mouseCaptor.on("mousemovebody", activeListeners.handleMoveBody);
+  mouseCaptor.on("click", activeListeners.handleClick);
+  mouseCaptor.on("rightClick", activeListeners.handleRightClick);
+  mouseCaptor.on("doubleClick", activeListeners.handleDoubleClick);
+  mouseCaptor.on("wheel", activeListeners.handleWheel);
+  mouseCaptor.on("mousedown", activeListeners.handleDown);
+  mouseCaptor.on("mouseup", activeListeners.handleUp);
+  mouseCaptor.on("mouseleave", activeListeners.handleLeave);
+  mouseCaptor.on("mouseenter", activeListeners.handleEnter);
+  touchCaptor.on("touchdown", activeListeners.handleDown);
+  touchCaptor.on("touchdown", activeListeners.handleMove);
+  touchCaptor.on("touchup", activeListeners.handleUp);
+  touchCaptor.on("touchmove", activeListeners.handleMove);
+  touchCaptor.on("tap", activeListeners.handleClick);
+  touchCaptor.on("doubletap", activeListeners.handleDoubleClick);
+  touchCaptor.on("touchmove", activeListeners.handleMoveBody);
+}
+function bindGraphHandlers(ctx, activeListeners) {
+  var graph = ctx.graph;
+  var LAYOUT_IMPACTING_FIELDS = new Set(["x", "y", "zIndex", "type"]);
+  activeListeners.eachNodeAttributesUpdatedGraphUpdate = function (e) {
+    var _e$hints;
+    var updatedFields = (_e$hints = e.hints) === null || _e$hints === void 0 ? void 0 : _e$hints.attributes;
+    var layoutChanged = !updatedFields || updatedFields.some(function (f) {
+      return LAYOUT_IMPACTING_FIELDS.has(f);
+    });
+    ctx.refresh({
+      partialGraph: {
+        nodes: graph.nodes()
+      },
+      skipIndexation: !layoutChanged,
+      schedule: true
+    });
+  };
+  activeListeners.eachEdgeAttributesUpdatedGraphUpdate = function (e) {
+    var _e$hints2;
+    var updatedFields = (_e$hints2 = e.hints) === null || _e$hints2 === void 0 ? void 0 : _e$hints2.attributes;
+    var layoutChanged = updatedFields && ["zIndex", "type"].some(function (f) {
+      return updatedFields === null || updatedFields === void 0 ? void 0 : updatedFields.includes(f);
+    });
+    ctx.refresh({
+      partialGraph: {
+        edges: graph.edges()
+      },
+      skipIndexation: !layoutChanged,
+      schedule: true
+    });
+  };
+  activeListeners.addNodeGraphUpdate = function (payload) {
+    ctx.addNode(payload.key);
+    ctx.refresh({
+      partialGraph: {
+        nodes: [payload.key]
+      },
+      skipIndexation: false,
+      schedule: true
+    });
+  };
+  activeListeners.updateNodeGraphUpdate = function (payload) {
+    ctx.refresh({
+      partialGraph: {
+        nodes: [payload.key]
+      },
+      skipIndexation: false,
+      schedule: true
+    });
+  };
+  activeListeners.dropNodeGraphUpdate = function (payload) {
+    ctx.removeNode(payload.key);
+    ctx.refresh({
+      schedule: true
+    });
+  };
+  activeListeners.addEdgeGraphUpdate = function (payload) {
+    var edge = payload.key;
+    ctx.edgeGroups.register(edge);
+    ctx.addEdge(edge);
+    var siblings = ctx.edgeGroups.getSiblings(edge);
+    var _iterator = colors._createForOfIteratorHelper(siblings),
+      _step;
+    try {
+      for (_iterator.s(); !(_step = _iterator.n()).done;) {
+        var sib = _step.value;
+        ctx.addEdge(sib);
+      }
+    } catch (err) {
+      _iterator.e(err);
+    } finally {
+      _iterator.f();
+    }
+    ctx.refresh({
+      partialGraph: {
+        edges: [edge].concat(loop._toConsumableArray(siblings))
+      },
+      schedule: true
+    });
+  };
+  activeListeners.updateEdgeGraphUpdate = function (payload) {
+    ctx.refresh({
+      partialGraph: {
+        edges: [payload.key]
+      },
+      skipIndexation: false,
+      schedule: true
+    });
+  };
+  activeListeners.dropEdgeGraphUpdate = function (payload) {
+    var edge = payload.key;
+    var siblings = ctx.edgeGroups.getSiblings(edge);
+    ctx.edgeGroups.unregister(edge);
+    ctx.removeEdge(edge);
+    var _iterator2 = colors._createForOfIteratorHelper(siblings),
+      _step2;
+    try {
+      for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+        var sib = _step2.value;
+        ctx.addEdge(sib);
+      }
+    } catch (err) {
+      _iterator2.e(err);
+    } finally {
+      _iterator2.f();
+    }
+    ctx.refresh({
+      schedule: true
+    });
+  };
+  activeListeners.clearEdgesGraphUpdate = function () {
+    ctx.clearEdgeState();
+    ctx.clearEdgeIndices();
+    ctx.refresh({
+      schedule: true
+    });
+  };
+  activeListeners.clearGraphUpdate = function () {
+    ctx.clearEdgeState();
+    ctx.clearNodeState();
+    ctx.clearEdgeIndices();
+    ctx.clearNodeIndices();
+    ctx.refresh({
+      schedule: true
+    });
+  };
+  graph.on("nodeAdded", activeListeners.addNodeGraphUpdate);
+  graph.on("nodeDropped", activeListeners.dropNodeGraphUpdate);
+  graph.on("nodeAttributesUpdated", activeListeners.updateNodeGraphUpdate);
+  graph.on("eachNodeAttributesUpdated", activeListeners.eachNodeAttributesUpdatedGraphUpdate);
+  graph.on("edgeAdded", activeListeners.addEdgeGraphUpdate);
+  graph.on("edgeDropped", activeListeners.dropEdgeGraphUpdate);
+  graph.on("edgeAttributesUpdated", activeListeners.updateEdgeGraphUpdate);
+  graph.on("eachEdgeAttributesUpdated", activeListeners.eachEdgeAttributesUpdatedGraphUpdate);
+  graph.on("edgesCleared", activeListeners.clearEdgesGraphUpdate);
+  graph.on("cleared", activeListeners.clearGraphUpdate);
+}
+function unbindGraphHandlers(graph, activeListeners) {
+  graph.removeListener("nodeAdded", activeListeners.addNodeGraphUpdate);
+  graph.removeListener("nodeDropped", activeListeners.dropNodeGraphUpdate);
+  graph.removeListener("nodeAttributesUpdated", activeListeners.updateNodeGraphUpdate);
+  graph.removeListener("eachNodeAttributesUpdated", activeListeners.eachNodeAttributesUpdatedGraphUpdate);
+  graph.removeListener("edgeAdded", activeListeners.addEdgeGraphUpdate);
+  graph.removeListener("edgeDropped", activeListeners.dropEdgeGraphUpdate);
+  graph.removeListener("edgeAttributesUpdated", activeListeners.updateEdgeGraphUpdate);
+  graph.removeListener("eachEdgeAttributesUpdated", activeListeners.eachEdgeAttributesUpdatedGraphUpdate);
+  graph.removeListener("edgesCleared", activeListeners.clearEdgesGraphUpdate);
+  graph.removeListener("cleared", activeListeners.clearGraphUpdate);
+}
+
+/**
+ * Sigma.js Fitted Extent
+ * ======================
+ *
+ * Expands a node extent so node sizes (and, optionally, labels) stay within the
+ * default framing, not just node positions. Drives `autoRescaleContent`.
+ *
+ * @module
+ */
+
+/** Default camera: centered, unrotated, ratio 1 — the reference framing. */
+var NULL_CAMERA_STATE = {
+  x: 0.5,
+  y: 0.5,
+  angle: 0,
+  ratio: 1
+};
+/** Iterations cap; the px<->unit fixed point converges geometrically. */
+var MAX_ITERATIONS = 8;
+/** Stop once the extent moves less than this fraction of its span. */
+var CONVERGENCE_RATIO = 1e-3;
+
+/** Axis-aligned box around a node center, viewport px (y points down). */
+
+/**
+ * Returns an extent that frames node sizes (and labels, when `fitLabels` is set)
+ * rather than only node positions.
+ *
+ * Node radii and labels are sized in fixed pixels (in `"screen"` mode, and
+ * always for labels), while the extent is in graph units, so the px<->unit factor
+ * depends on the resulting framing. We therefore iterate until it stabilizes; it
+ * converges quickly, since content shrinks relative to the graph as the extent
+ * grows. Returns the input extent unchanged when there are no nodes.
+ */
+function computeFittedExtent(input) {
+  var coords = input.coords,
+    nodeData = input.nodeData,
+    dimensions = input.dimensions,
+    stagePadding = input.stagePadding,
+    zoomToSizeRatioFunction = input.zoomToSizeRatioFunction,
+    itemSizesReference = input.itemSizesReference,
+    fitLabels = input.fitLabels,
+    nodeLabelBox = input.nodeLabelBox;
+  var keys = Object.keys(coords);
+  if (!keys.length) return input.extent;
+
+  // Node size at the default camera ratio (1), mirroring scaleSize(size, 1):
+  var zoomAtDefault = zoomToSizeRatioFunction(1) || 1;
+  var sizeInPositions = itemSizesReference === "positions";
+  var width = dimensions.width,
+    height = dimensions.height;
+  var extent = input.extent;
+  for (var iter = 0; iter < MAX_ITERATIONS; iter++) {
+    var normalize = normalization.createNormalizationFunction(extent);
+    var graphDimensions = {
+      width: extent.x[1] - extent.x[0] || 1,
+      height: extent.y[1] - extent.y[0] || 1
+    };
+    var matrix = colors.matrixFromCamera(NULL_CAMERA_STATE, dimensions, graphDimensions, stagePadding);
+
+    // Pixels per graph unit at the default framing (isotropic), via the same
+    // framed-graph -> viewport projection sigma uses to render:
+    var o = framedGraphToViewport(matrix, normalize({
+      x: 0,
+      y: 0
+    }), width, height);
+    var u = framedGraphToViewport(matrix, normalize({
+      x: 1,
+      y: 0
+    }), width, height);
+    var pixelsPerUnit = Math.hypot(u.x - o.x, u.y - o.y) || 1;
+    var xMin = Infinity;
+    var xMax = -Infinity;
+    var yMin = Infinity;
+    var yMax = -Infinity;
+    for (var i = 0, l = keys.length; i < l; i++) {
+      var node = keys[i];
+      var data = nodeData[node];
+
+      // Node radius in viewport pixels at the default framing. Derived from this
+      // iteration's matrix (not the frame-lagged graphToViewportRatio), so the
+      // fit is correct on the very first render:
+      var radius = data.size / zoomAtDefault * (sizeInPositions ? pixelsPerUnit : 1);
+
+      // Content box around the node center, in viewport pixels (y points down):
+      var minX = -radius;
+      var maxX = radius;
+      var minY = -radius;
+      var maxY = radius;
+      if (fitLabels) {
+        var box = nodeLabelBox(data, radius);
+        if (box) {
+          if (box.minX < minX) minX = box.minX;
+          if (box.maxX > maxX) maxX = box.maxX;
+          if (box.minY < minY) minY = box.minY;
+          if (box.maxY > maxY) maxY = box.maxY;
+        }
+      }
+
+      // Back to graph units (viewport y is flipped relative to graph y):
+      var _coords$node = coords[node],
+        x = _coords$node.x,
+        y = _coords$node.y;
+      xMin = Math.min(xMin, x + minX / pixelsPerUnit);
+      xMax = Math.max(xMax, x + maxX / pixelsPerUnit);
+      yMin = Math.min(yMin, y - maxY / pixelsPerUnit);
+      yMax = Math.max(yMax, y - minY / pixelsPerUnit);
+    }
+    var next = {
+      x: [xMin, xMax],
+      y: [yMin, yMax]
+    };
+    var span = Math.max(next.x[1] - next.x[0], next.y[1] - next.y[0]) || 1;
+    var delta = Math.max(Math.abs(next.x[0] - extent.x[0]), Math.abs(next.x[1] - extent.x[1]), Math.abs(next.y[0] - extent.y[0]), Math.abs(next.y[1] - extent.y[1]));
+    extent = next;
+    if (delta / span < CONVERGENCE_RATIO) break;
+  }
+  return extent;
+}
+
+/** framed-graph (normalized) -> viewport pixels; mirrors Sigma#framedGraphToViewport. */
+function framedGraphToViewport(matrix, coords, width, height) {
+  var v = colors.multiplyVec2(matrix, coords);
+  return {
+    x: (1 + v.x) * width / 2,
+    y: (1 - v.y) * height / 2
+  };
+}
+
+// ⌘ is the conventional modifier on Apple devices, Ctrl everywhere else:
+var IS_APPLE_PLATFORM = typeof navigator !== "undefined" && /Mac|iP(hone|ad|od)/.test(navigator.platform);
+
+// How long the hint stays visible after the last plain gesture:
+var HIDE_DELAY = 1500;
+
+// Only the opacity (the show/hide mechanism) is inline:
+// language=CSS
+var RULES = /*css*/".sigma-gesture-hint {\n  position: absolute;\n  inset: 0;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  text-align: center;\n  padding: 1em;\n  background: #00000066;\n  color: #ffffff;\n  font-size: 1em;\n  pointer-events: none;\n  transition: opacity 0.1s;\n}";
+
+// Checks whether the browser's CSS parser keeps a given rule (the <style>
+// element must be connected for its sheet to exist):
+function cssRuleParses(rule) {
+  var _style$sheet$cssRules, _style$sheet;
+  var style = misc.createElement("style");
+  style.textContent = rule;
+  document.head.appendChild(style);
+  var parses = ((_style$sheet$cssRules = (_style$sheet = style.sheet) === null || _style$sheet === void 0 ? void 0 : _style$sheet.cssRules.length) !== null && _style$sheet$cssRules !== void 0 ? _style$sheet$cssRules : 0) > 0;
+  style.remove();
+  return parses;
+}
+
+// Wrap the rules in @layer and @scope, each only when the browser supports it:
+// - @layer makes it easier to override the rules, without using !important
+// - @scope makes the CSS only affect what's in sigma's container
+var stylesCache = null;
+function getStyles() {
+  if (stylesCache === null) {
+    stylesCache = RULES;
+    if (cssRuleParses("@scope {}")) stylesCache = "@scope {\n".concat(stylesCache, "\n}");
+    if (cssRuleParses("@layer sigma-gesture-hint {}")) stylesCache = "@layer sigma-gesture-hint {\n".concat(stylesCache, "\n}");
+  }
+  return stylesCache;
+}
+var GestureHint = /*#__PURE__*/function () {
+  function GestureHint(container) {
+    loop._classCallCheck(this, GestureHint);
+    loop._defineProperty(this, "hideTimeout", null);
+    this.styleElement = misc.createElement("style");
+    this.styleElement.textContent = getStyles();
+    container.appendChild(this.styleElement);
+    this.element = misc.createElement("div", {
+      opacity: "0"
+    }, {
+      "class": "sigma-gesture-hint"
+    });
+    container.appendChild(this.element);
+  }
+  return loop._createClass(GestureHint, [{
+    key: "show",
+    value: function show(gesture, messages) {
+      var _this = this;
+      var message = gesture === "touch" ? messages.sharedGestureTouchMessage : IS_APPLE_PLATFORM ? messages.sharedGestureAppleWheelMessage : messages.sharedGestureWheelMessage;
+      if (!message) return;
+      this.element.textContent = message;
+      this.element.style.opacity = "1";
+      if (typeof this.hideTimeout === "number") clearTimeout(this.hideTimeout);
+      this.hideTimeout = window.setTimeout(function () {
+        _this.hideTimeout = null;
+        _this.element.style.opacity = "0";
+      }, HIDE_DELAY);
+    }
+  }, {
+    key: "kill",
+    value: function kill() {
+      if (typeof this.hideTimeout === "number") clearTimeout(this.hideTimeout);
+      this.styleElement.remove();
+      this.element.remove();
+    }
+  }]);
+}();
+
+var HoverResolver = /*#__PURE__*/function () {
+  function HoverResolver(options) {
+    loop._classCallCheck(this, HoverResolver);
+    loop._defineProperty(this, "readBuffer", null);
+    loop._defineProperty(this, "fence", null);
+    loop._defineProperty(this, "result", new Uint8Array(4));
+    // Bumped when picking IDs are reallocated: a read started before the bump
+    // would resolve stale pixels through the new lookup, so its result is
+    // dropped (the post-render re-read replaces it).
+    loop._defineProperty(this, "generation", 0);
+    loop._defineProperty(this, "readGeneration", 0);
+    // Latest pointer event, used as read position and event payload
+    loop._defineProperty(this, "lastEvent", null);
+    // No reads while the pointer is off the stage
+    loop._defineProperty(this, "active", false);
+    // A request arrived while a read was in flight
+    loop._defineProperty(this, "dirty", false);
+    loop._defineProperty(this, "rafId", null);
+    loop._defineProperty(this, "killed", false);
+    this.options = options;
+  }
+
+  /** The pointer moved (mouse or touch): remember where, and re-resolve. */
+  return loop._createClass(HoverResolver, [{
+    key: "pointerMoved",
+    value: function pointerMoved(event) {
+      this.lastEvent = event;
+      this.active = true;
+      // Skip if render pending (the next render will trigger the read)
+      if (this.options.isRenderPending()) return;
+      this.request();
+    }
+
+    /** The pointer left the stage: stop resolving until it comes back. */
+  }, {
+    key: "pointerLeft",
+    value: function pointerLeft() {
+      this.active = false;
+      this.dirty = false;
+    }
+
+    /** A frame was rendered: the picking buffer changed, re-resolve. */
+  }, {
+    key: "frameRendered",
+    value: function frameRendered() {
+      this.request();
+    }
+
+    /** Picking IDs were reallocated: in-flight reads are meaningless. */
+  }, {
+    key: "invalidate",
+    value: function invalidate() {
+      this.generation++;
+    }
+  }, {
+    key: "request",
+    value: function request() {
+      if (this.killed || !this.active || !this.lastEvent) return;
+      if (this.fence) {
+        this.dirty = true;
+        return;
+      }
+      this.startRead();
+    }
+  }, {
+    key: "startRead",
+    value: function startRead() {
+      var _this$options = this.options,
+        gl = _this$options.gl,
+        getFrameBuffer = _this$options.getFrameBuffer,
+        getPixelRatio = _this$options.getPixelRatio,
+        getDownSizingRatio = _this$options.getDownSizingRatio;
+      this.readGeneration = this.generation;
+      var event = this.lastEvent;
+      var _pickingPixelCoords = colors.pickingPixelCoords(gl, event.x, event.y, getPixelRatio(), getDownSizingRatio()),
+        _pickingPixelCoords2 = colors._slicedToArray(_pickingPixelCoords, 2),
+        bufferX = _pickingPixelCoords2[0],
+        bufferY = _pickingPixelCoords2[1];
+      if (!this.readBuffer) this.readBuffer = gl.createBuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, getFrameBuffer());
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.readBuffer);
+      gl.bufferData(gl.PIXEL_PACK_BUFFER, 4, gl.STREAM_READ);
+      // With a PIXEL_PACK_BUFFER bound, readPixels does not wait for the GPU
+      gl.readPixels(bufferX, bufferY, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      this.fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+      gl.flush();
+      this.schedulePoll(event);
+    }
+  }, {
+    key: "schedulePoll",
+    value: function schedulePoll(event) {
+      var _this = this;
+      this.rafId = requestAnimationFrame(function () {
+        _this.rafId = null;
+        _this.poll(event);
+      });
+    }
+  }, {
+    key: "poll",
+    value: function poll(event) {
+      var _this$options2 = this.options,
+        gl = _this$options2.gl,
+        onIndex = _this$options2.onIndex;
+      if (this.killed || !this.fence) return;
+      var status = gl.clientWaitSync(this.fence, 0, 0);
+      if (status === gl.TIMEOUT_EXPIRED) {
+        this.schedulePoll(event);
+        return;
+      }
+      gl.deleteSync(this.fence);
+      this.fence = null;
+      if (status !== gl.WAIT_FAILED && this.readGeneration === this.generation) {
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this.readBuffer);
+        gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, this.result);
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+        var _this$result = colors._slicedToArray(this.result, 4),
+          r = _this$result[0],
+          g = _this$result[1],
+          b = _this$result[2],
+          a = _this$result[3];
+        // The pointer may have left the stage during the read
+        if (this.active) onIndex(colors.colorToIndex(r, g, b, a), event);
+      }
+      if (this.dirty) {
+        this.dirty = false;
+        if (this.active && this.lastEvent && !this.options.isRenderPending()) this.startRead();
+      }
+    }
+
+    /** Drops in-flight reads and dead GL objects after a context loss. */
+  }, {
+    key: "reset",
+    value: function reset() {
+      if (this.rafId !== null) cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+      this.fence = null;
+      this.readBuffer = null;
+      this.dirty = false;
+    }
+  }, {
+    key: "kill",
+    value: function kill() {
+      this.killed = true;
+      if (this.rafId !== null) cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+      var gl = this.options.gl;
+      if (this.fence) gl.deleteSync(this.fence);
+      this.fence = null;
+      if (this.readBuffer) gl.deleteBuffer(this.readBuffer);
+      this.readBuffer = null;
+    }
+  }]);
+}();
+
+/**
+ * Sigma.js Labels Heuristics
+ * ===========================
+ *
+ * Miscellaneous heuristics related to label display.
+ * @module
+ */
+/**
+ * Class representing a single candidate for the label grid selection.
+ *
+ * It also describes a deterministic way to compare two candidates to assess
+ * which one is better.
+ */
+var LabelCandidate = /*#__PURE__*/function () {
+  function LabelCandidate(key, size) {
+    loop._classCallCheck(this, LabelCandidate);
+    this.key = key;
+    this.size = size;
+  }
+  return loop._createClass(LabelCandidate, null, [{
+    key: "compare",
+    value: function compare(first, second) {
+      // First we compare by size
+      if (first.size > second.size) return -1;
+      if (first.size < second.size) return 1;
+
+      // Then since no two nodes can have the same key, we use it to
+      // deterministically tie-break by key
+      if (first.key > second.key) return 1;
+
+      // NOTE: this comparator cannot return 0
+      return -1;
+    }
+  }]);
+}();
+/**
+ * Class representing a 2D spatial grid divided into constant-size cells.
+ */
+var LabelGrid = /*#__PURE__*/function () {
+  function LabelGrid() {
+    loop._classCallCheck(this, LabelGrid);
+    loop._defineProperty(this, "width", 0);
+    loop._defineProperty(this, "height", 0);
+    loop._defineProperty(this, "cellSize", 0);
+    loop._defineProperty(this, "columns", 0);
+    loop._defineProperty(this, "rows", 0);
+    loop._defineProperty(this, "cells", {});
+  }
+  return loop._createClass(LabelGrid, [{
+    key: "resizeAndClear",
+    value: function resizeAndClear(dimensions, cellSize) {
+      this.width = dimensions.width;
+      this.height = dimensions.height;
+      this.cellSize = cellSize;
+      this.columns = Math.ceil(dimensions.width / cellSize);
+      this.rows = Math.ceil(dimensions.height / cellSize);
+      this.cells = {};
+    }
+  }, {
+    key: "getIndex",
+    value: function getIndex(pos) {
+      var xIndex = Math.floor(pos.x / this.cellSize);
+      var yIndex = Math.floor(pos.y / this.cellSize);
+      return yIndex * this.columns + xIndex;
+    }
+  }, {
+    key: "add",
+    value: function add(key, size, pos) {
+      var candidate = new LabelCandidate(key, size);
+      var index = this.getIndex(pos);
+      var cell = this.cells[index];
+      if (!cell) {
+        cell = [];
+        this.cells[index] = cell;
+      }
+      cell.push(candidate);
+    }
+  }, {
+    key: "organize",
+    value: function organize() {
+      for (var k in this.cells) {
+        var cell = this.cells[k];
+        cell.sort(LabelCandidate.compare);
+      }
+    }
+
+    /**
+     * Get labels to display based on density and optional viewport culling.
+     *
+     * @param ratio - Camera zoom ratio
+     * @param density - Label density setting
+     * @param viewport - Optional viewport bounds in grid coordinates (null camera space).
+     *                   If provided, only cells intersecting this viewport are queried.
+     */
+  }, {
+    key: "getLabelsToDisplay",
+    value: function getLabelsToDisplay(ratio, density, viewport) {
+      var cellArea = this.cellSize * this.cellSize;
+      var scaledCellArea = cellArea / ratio / ratio;
+      var scaledDensity = scaledCellArea * density / cellArea;
+      var labelsToDisplayPerCell = Math.ceil(scaledDensity);
+      var labels = [];
+      if (viewport) {
+        // Viewport-aware query: only iterate cells within the viewport
+        var minCol = Math.max(0, Math.floor(viewport.x1 / this.cellSize));
+        var maxCol = Math.min(this.columns - 1, Math.floor(viewport.x2 / this.cellSize));
+        var minRow = Math.max(0, Math.floor(viewport.y1 / this.cellSize));
+        var maxRow = Math.min(this.rows - 1, Math.floor(viewport.y2 / this.cellSize));
+        for (var row = minRow; row <= maxRow; row++) {
+          for (var col = minCol; col <= maxCol; col++) {
+            var index = row * this.columns + col;
+            var cell = this.cells[index];
+            if (!cell) continue;
+            for (var i = 0; i < Math.min(labelsToDisplayPerCell, cell.length); i++) {
+              labels.push(cell[i].key);
+            }
+          }
+        }
+      } else {
+        // Original behavior: iterate all cells
+        for (var k in this.cells) {
+          var _cell = this.cells[k];
+          for (var _i = 0; _i < Math.min(labelsToDisplayPerCell, _cell.length); _i++) {
+            labels.push(_cell[_i].key);
+          }
+        }
+      }
+      return labels;
+    }
+  }]);
+}();
+
+/**
+ * Label heuristic selecting edge labels to display, based on displayed node
+ * labels
+ *
+ * @param  {object} params                 - Parameters:
+ * @param  {Set}      displayedNodeLabels  - Currently displayed node labels.
+ * @param  {Set}      highlightedNodes     - Highlighted nodes.
+ * @param  {Graph}    graph                - The rendered graph.
+ * @param  {string}   hoveredNode          - Hovered node (optional)
+ * @return {Array}                         - The selected labels.
+ */
+function edgeLabelsToDisplayFromNodes(params) {
+  var graph = params.graph,
+    hoveredNode = params.hoveredNode,
+    highlightedNodes = params.highlightedNodes,
+    displayedNodeLabels = params.displayedNodeLabels;
+
+  // An edge label shows when an extremity is highlighted or hovered, or when
+  // both extremities show theirs. Scanning adjacencies instead of all edges
+  // keeps the cost tied to what is displayed, not to the graph size.
+  var relevantEdges = new Set();
+  var fullyWorthyNodes = new Set(highlightedNodes);
+  if (hoveredNode) fullyWorthyNodes.add(hoveredNode);
+  var _iterator = colors._createForOfIteratorHelper(fullyWorthyNodes),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var node = _step.value;
+      // States can outlive nodes (or target unknown keys), so check first
+      if (!graph.hasNode(node)) continue;
+      graph.forEachEdge(node, function (edge) {
+        relevantEdges.add(edge);
+      });
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  var _iterator2 = colors._createForOfIteratorHelper(displayedNodeLabels),
+    _step2;
+  try {
+    var _loop = function _loop() {
+      var node = _step2.value;
+      if (fullyWorthyNodes.has(node)) return 1; // continue
+      graph.forEachEdge(node, function (edge, _, source, target) {
+        var other = source === node ? target : source;
+        if (displayedNodeLabels.has(other)) relevantEdges.add(edge);
+      });
+    };
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      if (_loop()) continue;
+    }
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
+  }
+  return Array.from(relevantEdges);
+}
+
+var X_LABEL_MARGIN = 150;
+var Y_LABEL_MARGIN = 50;
+var BACKDROP_AREA_MAP = {
+  both: 0,
+  node: 1,
+  label: 2
+};
+var EDGE_POSITION_MODE_MAP = {
+  over: 0,
+  above: 1,
+  below: 2,
+  auto: 3
+};
+var DEFAULT_EDGE_LABEL_SIZE = 12;
+var DEFAULT_EDGE_LABEL_PADDING = 3;
+
+/**
+ * Owns the label grid and per-frame label sets, and exposes all label, backdrop,
+ * and attachment rendering methods extracted from sigma.
+ */
+var LabelRenderer = /*#__PURE__*/function () {
+  function LabelRenderer(internals) {
+    loop._classCallCheck(this, LabelRenderer);
+    loop._defineProperty(this, "labelGrid", new LabelGrid());
+    loop._defineProperty(this, "edgeAnchorGrid", new LabelGrid());
+    loop._defineProperty(this, "displayedNodeLabels", new Set());
+    loop._defineProperty(this, "displayedEdgeLabels", new Set());
+    /** Per-frame edge-label candidate list, shared by background and label passes. */
+    loop._defineProperty(this, "edgeLabelCandidates", []);
+    loop._defineProperty(this, "renderedNodeLabels", new Set());
+    loop._defineProperty(this, "labelSizeCache", new Map());
+    /** Reusable interleaved [nodeIndex, positionMode, labelAngle] buffer for the frame-pass. */
+    loop._defineProperty(this, "framePassPoints", new Float32Array(0));
+    /**
+     * Set by sigma when data, state, or the camera changed since the last
+     * frame. When false, renderWebGLLabels/renderEdgeLabels skip rebuilding
+     * their GPU buffer and just redraw the one already on the GPU, since the
+     * label buffers only depend on world-space data, not the view matrix.
+     */
+    loop._defineProperty(this, "labelsDirty", true);
+    this.internals = internals;
+  }
+
+  /** Reset per-frame state at the start of render(). */
+  return loop._createClass(LabelRenderer, [{
+    key: "resetFrame",
+    value: function resetFrame() {
+      this.displayedNodeLabels = new Set();
+      this.renderedNodeLabels = new Set();
+      this.labelSizeCache.clear();
+    }
+
+    /** Reset edge label set (called from clearEdgeState). */
+  }, {
+    key: "clearEdgeLabels",
+    value: function clearEdgeLabels() {
+      this.displayedEdgeLabels = new Set();
+    }
+
+    /** Reset the label grids (called from clearNodeIndices). */
+  }, {
+    key: "resetLabelGrid",
+    value: function resetLabelGrid() {
+      this.labelGrid = new LabelGrid();
+      this.edgeAnchorGrid = new LabelGrid();
+    }
+
+    /**
+     * Pre-generate glyphs for all node labels.
+     * Actual label rendering happens per-frame in renderWebGLLabels.
+     */
+  }, {
+    key: "processWebGLLabels",
+    value: function processWebGLLabels(nodes) {
+      var _primitives$nodes;
+      var _this$internals = this.internals,
+        labelProgram = _this$internals.labelProgram,
+        primitives = _this$internals.primitives,
+        nodeDataCache = _this$internals.nodeDataCache;
+      var defaultLabelFont = (primitives === null || primitives === void 0 || (_primitives$nodes = primitives.nodes) === null || _primitives$nodes === void 0 || (_primitives$nodes = _primitives$nodes.label) === null || _primitives$nodes === void 0 || (_primitives$nodes = _primitives$nodes.font) === null || _primitives$nodes === void 0 ? void 0 : _primitives$nodes.family) || "sans-serif";
+      var textsByFont = new Map();
+      for (var i = 0, l = nodes.length; i < l; i++) {
+        var node = nodes[i];
+        var data = nodeDataCache[node];
+        if (data.visibility === "hidden" || !data.label) continue;
+        var fontString = data.labelFont || defaultLabelFont;
+        var existing = textsByFont.get(fontString);
+        if (existing) {
+          existing.push(data.label);
+        } else {
+          textsByFont.set(fontString, [data.label]);
+        }
+      }
+      var _iterator = colors._createForOfIteratorHelper(textsByFont),
+        _step;
+      try {
+        for (_iterator.s(); !(_step = _iterator.n()).done;) {
+          var _step$value = colors._slicedToArray(_step.value, 2),
+            _fontString = _step$value[0],
+            texts = _step$value[1];
+          var _parseFontString = misc.parseFontString(_fontString),
+            family = _parseFontString.family,
+            weight = _parseFontString.weight,
+            style = _parseFontString.style;
+          var fontKey = labelProgram.registerFont(family, weight, style);
+          labelProgram.ensureGlyphsReady(texts, fontKey);
+        }
+      } catch (err) {
+        _iterator.e(err);
+      } finally {
+        _iterator.f();
+      }
+    }
+  }, {
+    key: "measureNodeLabel",
+    value: function measureNodeLabel(data) {
+      var _data$labelSize, _primitives$nodes2;
+      if (!data.label) return {
+        width: 0,
+        height: 0,
+        textHeight: 0
+      };
+      var _this$internals2 = this.internals,
+        labelProgram = _this$internals2.labelProgram,
+        primitives = _this$internals2.primitives;
+      var labelSize = (_data$labelSize = data.labelSize) !== null && _data$labelSize !== void 0 ? _data$labelSize : 14;
+      var fontString = data.labelFont || (primitives === null || primitives === void 0 || (_primitives$nodes2 = primitives.nodes) === null || _primitives$nodes2 === void 0 || (_primitives$nodes2 = _primitives$nodes2.label) === null || _primitives$nodes2 === void 0 || (_primitives$nodes2 = _primitives$nodes2.font) === null || _primitives$nodes2 === void 0 ? void 0 : _primitives$nodes2.family) || "sans-serif";
+      var cacheKey = "".concat(data.label, "|").concat(labelSize, "|").concat(fontString);
+      if (this.labelSizeCache.has(cacheKey)) return this.labelSizeCache.get(cacheKey);
+      var _parseFontString2 = misc.parseFontString(fontString),
+        family = _parseFontString2.family,
+        weight = _parseFontString2.weight,
+        style = _parseFontString2.style;
+      var fontKey = labelProgram.registerFont(family, weight, style);
+      var result = labelProgram.measureLabel(data.label, labelSize, fontKey);
+      this.labelSizeCache.set(cacheKey, result);
+      return result;
+    }
+
+    /**
+     * Axis-aligned bounding box of a node's label in viewport pixels, relative
+     * to the node center (y points down). Mirrors the label vertex shader's
+     * placement (position, margin, angle) and the symmetric
+     * `labelBackgroundPadding` when a background is drawn.
+     * It ignores backdrops/shadows, approximates the node shape as a disc, and
+     * returns null when the node has no visible label.
+     */
+  }, {
+    key: "nodeLabelBox",
+    value: function nodeLabelBox(data, nodeRadius) {
+      var _this$internals$primi, _this$internals$primi2, _data$labelBackground, _data$labelPosition, _data$labelAngle;
+      if (data.visibility === "hidden" || data.labelVisibility === "hidden") return null;
+      var _this$measureNodeLabe = this.measureNodeLabel(data),
+        width = _this$measureNodeLabe.width,
+        height = _this$measureNodeLabe.height,
+        textHeight = _this$measureNodeLabe.textHeight;
+      if (!width) return null;
+      var margin = (_this$internals$primi = (_this$internals$primi2 = this.internals.primitives) === null || _this$internals$primi2 === void 0 || (_this$internals$primi2 = _this$internals$primi2.nodes) === null || _this$internals$primi2 === void 0 || (_this$internals$primi2 = _this$internals$primi2.label) === null || _this$internals$primi2 === void 0 ? void 0 : _this$internals$primi2.margin) !== null && _this$internals$primi !== void 0 ? _this$internals$primi : factory.DEFAULT_LABEL_MARGIN;
+      var start = nodeRadius + margin;
+      var pad = data.labelBackgroundColor ? (_data$labelBackground = data.labelBackgroundPadding) !== null && _data$labelBackground !== void 0 ? _data$labelBackground : factory.DEFAULT_LABEL_BACKGROUND_PADDING : 0;
+      var thw = width / 2;
+      var thh = height / 2;
+      var hw = thw + pad;
+      var hh = thh + pad;
+
+      // Box center offset from the node center, before rotation:
+      var thy = textHeight / 2;
+      var cx = 0;
+      var cy = 0;
+      switch ((_data$labelPosition = data.labelPosition) !== null && _data$labelPosition !== void 0 ? _data$labelPosition : "right") {
+        case "left":
+          cx = -(start + thw);
+          break;
+        case "above":
+          cy = -(start + thy);
+          break;
+        case "below":
+          cy = start + thy;
+          break;
+        case "over":
+          break;
+        default:
+          cx = start + thw;
+      }
+      var angle = (_data$labelAngle = data.labelAngle) !== null && _data$labelAngle !== void 0 ? _data$labelAngle : 0;
+      var _rotateVec = colors.rotateVec2({
+          x: cx,
+          y: cy
+        }, angle),
+        rcx = _rotateVec.x,
+        rcy = _rotateVec.y;
+      var ax = Math.abs(Math.cos(angle));
+      var ay = Math.abs(Math.sin(angle));
+      var ex = ax * hw + ay * hh;
+      var ey = ay * hw + ax * hh;
+      return {
+        minX: rcx - ex,
+        maxX: rcx + ex,
+        minY: rcy - ey,
+        maxY: rcy + ey
+      };
+    }
+
+    /**
+     * Determine which node labels will be displayed this frame.
+     * Must be called before renderWebGLLabels, renderBackdrops, and cacheAttachments.
+     */
+  }, {
+    key: "computeDisplayedNodeLabels",
+    value: function computeDisplayedNodeLabels() {
+      var cameraState = this.internals.getCameraState();
+      var _this$internals$getDi = this.internals.getDimensions(),
+        width = _this$internals$getDi.width,
+        height = _this$internals$getDi.height;
+      var topLeft = this.internals.viewportToFramedGraph({
+        x: -X_LABEL_MARGIN,
+        y: -Y_LABEL_MARGIN
+      });
+      var topRight = this.internals.viewportToFramedGraph({
+        x: width + X_LABEL_MARGIN,
+        y: -Y_LABEL_MARGIN
+      });
+      var bottomLeft = this.internals.viewportToFramedGraph({
+        x: -X_LABEL_MARGIN,
+        y: height + Y_LABEL_MARGIN
+      });
+      var bottomRight = this.internals.viewportToFramedGraph({
+        x: width + X_LABEL_MARGIN,
+        y: height + Y_LABEL_MARGIN
+      });
+      var graphMinX = Math.min(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x);
+      var graphMaxX = Math.max(topLeft.x, topRight.x, bottomLeft.x, bottomRight.x);
+      var graphMinY = Math.min(topLeft.y, topRight.y, bottomLeft.y, bottomRight.y);
+      var graphMaxY = Math.max(topLeft.y, topRight.y, bottomLeft.y, bottomRight.y);
+
+      // LabelGrid uses null-camera viewport space
+      var nullCameraMatrix = colors.matrixFromCamera({
+        x: 0.5,
+        y: 0.5,
+        ratio: 1,
+        angle: 0
+      }, {
+        width: width,
+        height: height
+      }, this.internals.getGraphDimensions(), this.internals.getStagePadding());
+      var toNullCameraViewport = function toNullCameraViewport(framedGraphPos) {
+        var viewportPos = colors.multiplyVec2(nullCameraMatrix, framedGraphPos);
+        return {
+          x: (1 + viewportPos.x) * width / 2,
+          y: (1 - viewportPos.y) * height / 2
+        };
+      };
+      var nc1 = toNullCameraViewport({
+        x: graphMinX,
+        y: graphMinY
+      });
+      var nc2 = toNullCameraViewport({
+        x: graphMaxX,
+        y: graphMinY
+      });
+      var nc3 = toNullCameraViewport({
+        x: graphMinX,
+        y: graphMaxY
+      });
+      var nc4 = toNullCameraViewport({
+        x: graphMaxX,
+        y: graphMaxY
+      });
+      var gridViewport = {
+        x1: Math.min(nc1.x, nc2.x, nc3.x, nc4.x),
+        y1: Math.min(nc1.y, nc2.y, nc3.y, nc4.y),
+        x2: Math.max(nc1.x, nc2.x, nc3.x, nc4.x),
+        y2: Math.max(nc1.y, nc2.y, nc3.y, nc4.y)
+      };
+      var _this$internals3 = this.internals,
+        settings = _this$internals3.settings,
+        nodeDataCache = _this$internals3.nodeDataCache,
+        nodesWithForcedLabels = _this$internals3.nodesWithForcedLabels;
+      var labelsToDisplay = this.labelGrid.getLabelsToDisplay(cameraState.ratio, settings.labelDensity, gridViewport);
+      data.extend(labelsToDisplay, nodesWithForcedLabels);
+      for (var i = 0, l = labelsToDisplay.length; i < l; i++) {
+        var node = labelsToDisplay[i];
+        var data$1 = nodeDataCache[node];
+        if (this.displayedNodeLabels.has(node)) continue;
+        if (data$1.visibility === "hidden" || data$1.labelVisibility === "hidden") continue;
+        if (!data$1.label) continue;
+        if (data$1.x < graphMinX || data$1.x > graphMaxX || data$1.y < graphMinY || data$1.y > graphMaxY) continue;
+        var _this$internals$frame = this.internals.framedGraphToViewport(data$1),
+          x = _this$internals$frame.x,
+          y = _this$internals$frame.y;
+        var size = this.internals.scaleSize(data$1.size);
+        if (!normalization.hasForcedLabel(data$1) && size < settings.labelRenderedSizeThreshold) continue;
+        if (x < -X_LABEL_MARGIN - size || x > width + X_LABEL_MARGIN + size || y < -Y_LABEL_MARGIN - size || y > height + Y_LABEL_MARGIN + size) continue;
+        this.displayedNodeLabels.add(node);
+      }
+    }
+
+    /**
+     * Builds the interleaved point buffer the frame-pass scatters over: one
+     * `[nodeIndex, positionMode, labelAngle]` triple per displayed label. Run in
+     * the pre-pass after computeDisplayedNodeLabels. The frame-pass uses these
+     * to compute each label's edge distance; consumers carry the same values as
+     * their own attributes (from the same source), so nothing can drift.
+     */
+  }, {
+    key: "buildFramePassPoints",
+    value: function buildFramePassPoints() {
+      var _this$internals4 = this.internals,
+        nodeDataCache = _this$internals4.nodeDataCache,
+        nodeDataTexture = _this$internals4.nodeDataTexture;
+      if (!nodeDataTexture) return {
+        data: this.framePassPoints,
+        count: 0
+      };
+      var needed = this.displayedNodeLabels.size * 3;
+      if (this.framePassPoints.length < needed) this.framePassPoints = new Float32Array(needed);
+      var buf = this.framePassPoints;
+      var count = 0;
+      var _iterator2 = colors._createForOfIteratorHelper(this.displayedNodeLabels),
+        _step2;
+      try {
+        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+          var _POSITION_MODE_MAP, _data$labelAngle2;
+          var node = _step2.value;
+          var data = nodeDataCache[node];
+          if (!data) continue;
+          var index = nodeDataTexture.getIndex(node);
+          if (index < 0) continue;
+          buf[count * 3] = index;
+          buf[count * 3 + 1] = (_POSITION_MODE_MAP = factory.POSITION_MODE_MAP[data.labelPosition || types_dist_sigmaTypes.DEFAULT_NODE_DISPLAY_DATA.labelPosition]) !== null && _POSITION_MODE_MAP !== void 0 ? _POSITION_MODE_MAP : 0;
+          buf[count * 3 + 2] = (_data$labelAngle2 = data.labelAngle) !== null && _data$labelAngle2 !== void 0 ? _data$labelAngle2 : 0;
+          count++;
+        }
+      } catch (err) {
+        _iterator2.e(err);
+      } finally {
+        _iterator2.f();
+      }
+      return {
+        data: buf,
+        count: count
+      };
+    }
+
+    /** Render node labels for the given depth layer. */
+  }, {
+    key: "renderWebGLLabels",
+    value: function renderWebGLLabels(params, depth) {
+      var _this$internals5 = this.internals,
+        nodeDataCache = _this$internals5.nodeDataCache,
+        labelProgram = _this$internals5.labelProgram,
+        primitives = _this$internals5.primitives,
+        nodeDataTexture = _this$internals5.nodeDataTexture;
+      var visibleNodes = [];
+      var _iterator3 = colors._createForOfIteratorHelper(this.displayedNodeLabels),
+        _step3;
+      try {
+        for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+          var _node = _step3.value;
+          if (this.renderedNodeLabels.has(_node)) continue;
+          var _data2 = nodeDataCache[_node];
+          if (depth && _data2.labelDepth !== depth) continue;
+          this.renderedNodeLabels.add(_node);
+          visibleNodes.push(_node);
+        }
+
+        // Nothing to show at this depth: skip touching the shared buffer so we
+        // don't clobber another depth's content already built this frame.
+      } catch (err) {
+        _iterator3.e(err);
+      } finally {
+        _iterator3.f();
+      }
+      if (visibleNodes.length === 0) return;
+      if (this.labelsDirty) {
+        var _primitives$nodes$lab, _primitives$nodes3, _primitives$nodes4;
+        var totalCharacters = 0;
+        for (var i = 0, l = visibleNodes.length; i < l; i++) {
+          var data = nodeDataCache[visibleNodes[i]];
+          totalCharacters += data.label.length;
+        }
+        labelProgram.reallocate(totalCharacters);
+
+        // TODO: These defaults should come from the styles system
+        var defaultLabelSize = 14;
+        var defaultLabelMargin = (_primitives$nodes$lab = primitives === null || primitives === void 0 || (_primitives$nodes3 = primitives.nodes) === null || _primitives$nodes3 === void 0 || (_primitives$nodes3 = _primitives$nodes3.label) === null || _primitives$nodes3 === void 0 ? void 0 : _primitives$nodes3.margin) !== null && _primitives$nodes$lab !== void 0 ? _primitives$nodes$lab : factory.DEFAULT_LABEL_MARGIN;
+        var defaultLabelPosition = types_dist_sigmaTypes.DEFAULT_NODE_DISPLAY_DATA.labelPosition;
+        var defaultLabelFont = (primitives === null || primitives === void 0 || (_primitives$nodes4 = primitives.nodes) === null || _primitives$nodes4 === void 0 || (_primitives$nodes4 = _primitives$nodes4.label) === null || _primitives$nodes4 === void 0 || (_primitives$nodes4 = _primitives$nodes4.font) === null || _primitives$nodes4 === void 0 ? void 0 : _primitives$nodes4.family) || "sans-serif";
+        var fontKeyMap = new Map();
+        var characterOffset = 0;
+        for (var _i = 0, _l = visibleNodes.length; _i < _l; _i++) {
+          var _data$labelSize2, _data$labelPosition2, _data$zIndex, _data$labelAngle3;
+          var node = visibleNodes[_i];
+          var _data = nodeDataCache[node];
+          var fontString = _data.labelFont || defaultLabelFont;
+          var fontKey = fontKeyMap.get(fontString);
+          if (fontKey === undefined) {
+            var _parseFontString3 = misc.parseFontString(fontString),
+              family = _parseFontString3.family,
+              weight = _parseFontString3.weight,
+              style = _parseFontString3.style;
+            fontKey = labelProgram.registerFont(family, weight, style);
+            fontKeyMap.set(fontString, fontKey);
+          }
+          var labelData = {
+            text: _data.label,
+            x: _data.x,
+            y: _data.y,
+            size: (_data$labelSize2 = _data.labelSize) !== null && _data$labelSize2 !== void 0 ? _data$labelSize2 : defaultLabelSize,
+            color: _data.labelColor,
+            nodeSize: _data.size,
+            margin: defaultLabelMargin,
+            position: (_data$labelPosition2 = _data.labelPosition) !== null && _data$labelPosition2 !== void 0 ? _data$labelPosition2 : defaultLabelPosition,
+            hidden: false,
+            forceLabel: normalization.hasForcedLabel(_data),
+            type: "default",
+            zIndex: (_data$zIndex = _data.zIndex) !== null && _data$zIndex !== void 0 ? _data$zIndex : 0,
+            parentType: "node",
+            parentKey: node,
+            fontKey: fontKey,
+            labelAngle: (_data$labelAngle3 = _data.labelAngle) !== null && _data$labelAngle3 !== void 0 ? _data$labelAngle3 : 0,
+            nodeIndex: nodeDataTexture.getIndex(node)
+          };
+          var charsProcessed = labelProgram.processLabel(node, characterOffset, labelData);
+          characterOffset += charsProcessed;
+        }
+        labelProgram.invalidateBuffers();
+      }
+      labelProgram.render(params);
+    }
+
+    /** Render backdrops (background + shadow) behind nodes with labels. */
+  }, {
+    key: "renderBackdrops",
+    value: function renderBackdrops(params, depth) {
+      var _this$internals6 = this.internals,
+        backdropProgram = _this$internals6.backdropProgram,
+        nodeDataCache = _this$internals6.nodeDataCache,
+        nodesWithBackdrop = _this$internals6.nodesWithBackdrop,
+        attachmentManager = _this$internals6.attachmentManager,
+        pixelRatio = _this$internals6.pixelRatio,
+        nodeDataTexture = _this$internals6.nodeDataTexture;
+      var nodes = [];
+      var _iterator4 = colors._createForOfIteratorHelper(nodesWithBackdrop),
+        _step4;
+      try {
+        for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+          var _nodeDataTexture$getI;
+          var _key = _step4.value;
+          var _data3 = nodeDataCache[_key];
+          if (!_data3 || _data3.visibility === "hidden") continue;
+          if (depth && _data3.depth !== depth) continue;
+          var _nodeIndex = (_nodeDataTexture$getI = nodeDataTexture === null || nodeDataTexture === void 0 ? void 0 : nodeDataTexture.getIndex(_key)) !== null && _nodeDataTexture$getI !== void 0 ? _nodeDataTexture$getI : -1;
+          if (_nodeIndex < 0) continue;
+          nodes.push({
+            key: _key,
+            nodeIndex: _nodeIndex
+          });
+        }
+      } catch (err) {
+        _iterator4.e(err);
+      } finally {
+        _iterator4.f();
+      }
+      if (nodes.length === 0) return;
+      backdropProgram.reallocate(nodes.length);
+      for (var i = 0; i < nodes.length; i++) {
+        var _data$backdropShadowB, _data$backdropPadding, _data$backdropBorderW, _data$backdropCornerR, _data$backdropLabelPa, _BACKDROP_AREA_MAP, _data$backdropArea, _data$labelAngle4;
+        var _nodes$i = nodes[i],
+          key = _nodes$i.key,
+          nodeIndex = _nodes$i.nodeIndex;
+        var data = nodeDataCache[key];
+        var labelVisible = this.displayedNodeLabels.has(key);
+        var nodeLabelMeasurement = labelVisible ? this.measureNodeLabel(data) : {
+          width: 0,
+          height: 0,
+          textHeight: 0
+        };
+        var textHeight = nodeLabelMeasurement.textHeight;
+        var labelWidth = nodeLabelMeasurement.width;
+        var labelHeight = nodeLabelMeasurement.height;
+        var labelBoxOffsetX = 0;
+        var labelBoxOffsetY = 0;
+        if (labelVisible && data.labelAttachment && attachmentManager) {
+          var entry = attachmentManager.getEntry(key, data.labelAttachment);
+          if (entry) {
+            var placement = data.labelAttachmentPlacement || "below";
+            if (placement === "below" || placement === "above") {
+              var attachH = entry.height / pixelRatio;
+              labelHeight += attachH + factory.ATTACHMENT_GAP;
+              labelWidth = Math.max(labelWidth, entry.width / pixelRatio);
+              labelBoxOffsetY = placement === "below" ? (attachH + factory.ATTACHMENT_GAP) / 2 : -(attachH + factory.ATTACHMENT_GAP) / 2;
+            } else {
+              var attachW = entry.width / pixelRatio;
+              labelWidth += attachW + factory.ATTACHMENT_GAP;
+              labelHeight = Math.max(labelHeight, entry.height / pixelRatio);
+              labelBoxOffsetX = placement === "right" ? (attachW + factory.ATTACHMENT_GAP) / 2 : -(attachW + factory.ATTACHMENT_GAP) / 2;
+            }
+          }
+        }
+        var rawBgColor = data.backdropColor ? colors.colorToArray(data.backdropColor) : [255, 255, 255, 255];
+        var rawShadowColor = data.backdropShadowColor ? colors.colorToArray(data.backdropShadowColor) : [0, 0, 0, 128];
+        var backdropColor = rawBgColor.map(function (c) {
+          return c / 255;
+        });
+        var backdropShadowColor = rawShadowColor.map(function (c) {
+          return c / 255;
+        });
+        var backdropShadowBlur = (_data$backdropShadowB = data.backdropShadowBlur) !== null && _data$backdropShadowB !== void 0 ? _data$backdropShadowB : 12;
+        var backdropPadding = (_data$backdropPadding = data.backdropPadding) !== null && _data$backdropPadding !== void 0 ? _data$backdropPadding : 6;
+        var rawBorderColor = data.backdropBorderColor ? colors.colorToArray(data.backdropBorderColor) : [0, 0, 0, 0];
+        var backdropBorderColor = rawBorderColor.map(function (c) {
+          return c / 255;
+        });
+        var backdropBorderWidth = (_data$backdropBorderW = data.backdropBorderWidth) !== null && _data$backdropBorderW !== void 0 ? _data$backdropBorderW : 0;
+        var backdropCornerRadius = (_data$backdropCornerR = data.backdropCornerRadius) !== null && _data$backdropCornerR !== void 0 ? _data$backdropCornerR : 0;
+        var rawLabelPadding = (_data$backdropLabelPa = data.backdropLabelPadding) !== null && _data$backdropLabelPa !== void 0 ? _data$backdropLabelPa : -1;
+        var backdropLabelPadding = rawLabelPadding < 0 ? backdropPadding : rawLabelPadding;
+        var backdropArea = (_BACKDROP_AREA_MAP = BACKDROP_AREA_MAP[(_data$backdropArea = data.backdropArea) !== null && _data$backdropArea !== void 0 ? _data$backdropArea : "both"]) !== null && _BACKDROP_AREA_MAP !== void 0 ? _BACKDROP_AREA_MAP : 0;
+        var backdropData = {
+          key: key,
+          nodeIndex: nodeIndex,
+          label: data.label,
+          labelWidth: labelWidth,
+          labelHeight: labelHeight,
+          textHeight: textHeight,
+          type: "default",
+          position: data.labelPosition || types_dist_sigmaTypes.DEFAULT_NODE_DISPLAY_DATA.labelPosition,
+          labelAngle: (_data$labelAngle4 = data.labelAngle) !== null && _data$labelAngle4 !== void 0 ? _data$labelAngle4 : 0,
+          backdropColor: backdropColor,
+          backdropShadowColor: backdropShadowColor,
+          backdropShadowBlur: backdropShadowBlur,
+          backdropPadding: backdropPadding,
+          backdropBorderColor: backdropBorderColor,
+          backdropBorderWidth: backdropBorderWidth,
+          backdropCornerRadius: backdropCornerRadius,
+          backdropLabelPadding: backdropLabelPadding,
+          backdropArea: backdropArea,
+          labelBoxOffset: [labelBoxOffsetX, labelBoxOffsetY]
+        };
+        backdropProgram.processBackdrop(i, backdropData);
+      }
+      backdropProgram.invalidateBuffers();
+      backdropProgram.render(params);
+    }
+
+    /** Render label background rectangles (picking + optional visual) for displayed node labels. */
+  }, {
+    key: "renderLabelBackgrounds",
+    value: function renderLabelBackgrounds(params, depth) {
+      var _this$internals7 = this.internals,
+        labelBackgroundProgram = _this$internals7.labelBackgroundProgram,
+        nodeDataCache = _this$internals7.nodeDataCache,
+        nodeDataTexture = _this$internals7.nodeDataTexture;
+      var eventsEnabled = KIND_REGISTRY.nodeLabel.writesPickingThisFrame(this.internals);
+      var nodes = [];
+      var _iterator5 = colors._createForOfIteratorHelper(this.displayedNodeLabels),
+        _step5;
+      try {
+        for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+          var _key2 = _step5.value;
+          var _data4 = nodeDataCache[_key2];
+          if (!_data4 || _data4.visibility === "hidden") continue;
+          if (depth && _data4.labelDepth !== depth) continue;
+          // When events are disabled, skip nodes with no visual background — nothing to render.
+          if (!eventsEnabled && !_data4.labelBackgroundColor) continue;
+          nodes.push(_key2);
+        }
+      } catch (err) {
+        _iterator5.e(err);
+      } finally {
+        _iterator5.f();
+      }
+      if (nodes.length === 0) return;
+      labelBackgroundProgram.reallocate(nodes.length);
+      for (var i = 0; i < nodes.length; i++) {
+        var _nodeDataTexture$getI2, _POSITION_MODE_MAP2, _data$labelAngle5, _data$labelBackground2;
+        var key = nodes[i];
+        var data = nodeDataCache[key];
+        var nodeIndex = (_nodeDataTexture$getI2 = nodeDataTexture === null || nodeDataTexture === void 0 ? void 0 : nodeDataTexture.getIndex(key)) !== null && _nodeDataTexture$getI2 !== void 0 ? _nodeDataTexture$getI2 : -1;
+        if (nodeIndex < 0) continue;
+        var _this$measureNodeLabe2 = this.measureNodeLabel(data),
+          labelWidth = _this$measureNodeLabe2.width,
+          labelHeight = _this$measureNodeLabe2.height,
+          textHeight = _this$measureNodeLabe2.textHeight;
+
+        // In separate mode the label kind has its own range; otherwise the rect
+        // writes the parent node's picking ID so a hit resolves as a node.
+        var pickingIndex = pickingIdOf(this.internals.pickingState, "nodeLabel", key) || pickingIdOf(this.internals.pickingState, "node", key);
+        var bgColor = data.labelBackgroundColor ? colors.floatColor(data.labelBackgroundColor) : colors.floatColor("transparent");
+        var bgData = {
+          nodeIndex: nodeIndex,
+          id: colors.indexToColor(pickingIndex),
+          color: bgColor,
+          labelWidth: labelWidth,
+          labelHeight: labelHeight,
+          textHeight: textHeight,
+          positionMode: (_POSITION_MODE_MAP2 = factory.POSITION_MODE_MAP[data.labelPosition || types_dist_sigmaTypes.DEFAULT_NODE_DISPLAY_DATA.labelPosition]) !== null && _POSITION_MODE_MAP2 !== void 0 ? _POSITION_MODE_MAP2 : 0,
+          labelAngle: (_data$labelAngle5 = data.labelAngle) !== null && _data$labelAngle5 !== void 0 ? _data$labelAngle5 : 0,
+          padding: (_data$labelBackground2 = data.labelBackgroundPadding) !== null && _data$labelBackground2 !== void 0 ? _data$labelBackground2 : factory.DEFAULT_LABEL_BACKGROUND_PADDING
+        };
+        labelBackgroundProgram.processLabelBackground(i, bgData);
+      }
+      labelBackgroundProgram.invalidateBuffers();
+      labelBackgroundProgram.render(params);
+    }
+
+    /**
+     * Cache attachment textures for nodes with visible backdrops.
+     * Must be called before renderBackdrops so backdrop sizing includes them.
+     */
+  }, {
+    key: "cacheAttachments",
+    value: function cacheAttachments(depth) {
+      var _this$internals8 = this.internals,
+        attachmentManager = _this$internals8.attachmentManager,
+        pixelRatio = _this$internals8.pixelRatio,
+        nodeDataCache = _this$internals8.nodeDataCache,
+        nodesWithBackdrop = _this$internals8.nodesWithBackdrop,
+        graph = _this$internals8.graph;
+      if (!attachmentManager) return;
+      var _iterator6 = colors._createForOfIteratorHelper(nodesWithBackdrop),
+        _step6;
+      try {
+        for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+          var key = _step6.value;
+          if (!this.displayedNodeLabels.has(key)) continue;
+          var data = nodeDataCache[key];
+          if (!data || data.visibility === "hidden") continue;
+          if (depth && data.depth !== depth) continue;
+          if (!data.labelAttachment) continue;
+          var attrs = graph.getNodeAttributes(key);
+          var _this$measureNodeLabe3 = this.measureNodeLabel(data),
+            labelWidth = _this$measureNodeLabe3.width,
+            labelHeight = _this$measureNodeLabe3.height;
+          var context = {
+            node: key,
+            attributes: attrs,
+            pixelRatio: pixelRatio,
+            labelWidth: labelWidth,
+            labelHeight: labelHeight
+          };
+          attachmentManager.renderAttachment(key, data.labelAttachment, context);
+        }
+      } catch (err) {
+        _iterator6.e(err);
+      } finally {
+        _iterator6.f();
+      }
+      attachmentManager.regenerateAtlas();
+    }
+
+    /** Render label attachments (icons, badges, etc.) after nodes but before labels. */
+  }, {
+    key: "renderAttachments",
+    value: function renderAttachments(params, depth) {
+      var _this$internals9 = this.internals,
+        attachmentManager = _this$internals9.attachmentManager,
+        attachmentProgram = _this$internals9.attachmentProgram,
+        nodeDataCache = _this$internals9.nodeDataCache,
+        nodesWithBackdrop = _this$internals9.nodesWithBackdrop,
+        pixelRatio = _this$internals9.pixelRatio,
+        nodeDataTexture = _this$internals9.nodeDataTexture;
+      if (!attachmentManager || !attachmentProgram) return;
+      var validCount = 0;
+      attachmentProgram.reallocateAttachments(nodesWithBackdrop.size);
+      var _iterator7 = colors._createForOfIteratorHelper(nodesWithBackdrop),
+        _step7;
+      try {
+        for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+          var _nodeDataTexture$getI3, _ATTACHMENT_PLACEMENT, _POSITION_MODE_MAP3, _data$labelAngle6;
+          var key = _step7.value;
+          if (!this.displayedNodeLabels.has(key)) continue;
+          var data = nodeDataCache[key];
+          if (!data || data.visibility === "hidden") continue;
+          if (depth && data.labelDepth !== depth) continue;
+          if (!data.labelAttachment) continue;
+          var entry = attachmentManager.getEntry(key, data.labelAttachment);
+          if (!entry) continue;
+
+          // Node-data index: the shader reads node position/size + the shared edge
+          // distance from the node-data and frame textures by this index.
+          var nodeIndex = (_nodeDataTexture$getI3 = nodeDataTexture === null || nodeDataTexture === void 0 ? void 0 : nodeDataTexture.getIndex(key)) !== null && _nodeDataTexture$getI3 !== void 0 ? _nodeDataTexture$getI3 : -1;
+          if (nodeIndex < 0) continue;
+          var _this$measureNodeLabe4 = this.measureNodeLabel(data),
+            labelWidth = _this$measureNodeLabe4.width,
+            labelHeight = _this$measureNodeLabe4.height,
+            textHeight = _this$measureNodeLabe4.textHeight;
+          var attachmentPlacement = (_ATTACHMENT_PLACEMENT = factory.ATTACHMENT_PLACEMENT_MAP[data.labelAttachmentPlacement || "below"]) !== null && _ATTACHMENT_PLACEMENT !== void 0 ? _ATTACHMENT_PLACEMENT : 0;
+          attachmentProgram.processAttachment(validCount, {
+            nodeIndex: nodeIndex,
+            atlasX: entry.x,
+            atlasY: entry.y,
+            atlasW: entry.width,
+            atlasH: entry.height,
+            attachWidth: entry.width / pixelRatio,
+            attachHeight: entry.height / pixelRatio,
+            positionMode: (_POSITION_MODE_MAP3 = factory.POSITION_MODE_MAP[data.labelPosition || types_dist_sigmaTypes.DEFAULT_NODE_DISPLAY_DATA.labelPosition]) !== null && _POSITION_MODE_MAP3 !== void 0 ? _POSITION_MODE_MAP3 : 0,
+            attachmentPlacement: attachmentPlacement,
+            labelWidth: labelWidth,
+            labelHeight: labelHeight,
+            textHeight: textHeight,
+            labelAngle: (_data$labelAngle6 = data.labelAngle) !== null && _data$labelAngle6 !== void 0 ? _data$labelAngle6 : 0
+          });
+          validCount++;
+        }
+      } catch (err) {
+        _iterator7.e(err);
+      } finally {
+        _iterator7.f();
+      }
+      if (validCount === 0) return;
+      attachmentProgram.reallocateAttachments(validCount);
+      attachmentManager.bindTexture(factory.ATTACHMENT_TEXTURE_UNIT);
+      attachmentProgram.invalidateBuffers();
+      attachmentProgram.render(params);
+    }
+
+    /**
+     * Compute the per-frame list of edge labels to consider for rendering.
+     * Called once before the depth loop; both `renderEdgeLabels` and
+     * `renderEdgeLabelBackgrounds` consume it with their own depth filter.
+     */
+  }, {
+    key: "computeDisplayedEdgeLabels",
+    value: function computeDisplayedEdgeLabels() {
+      var _this$internals0 = this.internals,
+        graph = _this$internals0.graph,
+        stateManager = _this$internals0.stateManager,
+        settings = _this$internals0.settings,
+        edgesWithForcedLabels = _this$internals0.edgesWithForcedLabels;
+      var highlightedNodes = stateManager.getHighlightedNodes();
+
+      // Anchors are picked over the whole graph, not just the visible part (the
+      // GPU clips offscreen labels anyway)
+      var anchors = settings.edgeLabelAnchors === "allNodes" ? new Set(this.edgeAnchorGrid.getLabelsToDisplay(this.internals.getCameraState().ratio, settings.labelDensity)) : this.displayedNodeLabels;
+      var hovered = stateManager.hovered;
+      var list = edgeLabelsToDisplayFromNodes({
+        graph: graph,
+        hoveredNode: (hovered === null || hovered === void 0 ? void 0 : hovered.kind) === "node" ? hovered.key : null,
+        displayedNodeLabels: anchors,
+        highlightedNodes: highlightedNodes
+      });
+      data.extend(list, edgesWithForcedLabels);
+      this.edgeLabelCandidates = list;
+      this.displayedEdgeLabels = new Set();
+    }
+
+    /**
+     * Returns the edge display data for candidates matching this depth that
+     * should actually render (visibility checks applied). Shared filter logic
+     * used by both the label and background passes.
+     */
+  }, {
+    key: "filterEdgeLabelsForDepth",
+    value: function filterEdgeLabelsForDepth(depth) {
+      var _this$internals1 = this.internals,
+        graph = _this$internals1.graph,
+        nodeDataCache = _this$internals1.nodeDataCache,
+        edgeDataCache = _this$internals1.edgeDataCache;
+      var result = [];
+      var seen = new Set();
+      for (var i = 0, l = this.edgeLabelCandidates.length; i < l; i++) {
+        var edge = this.edgeLabelCandidates[i];
+        if (seen.has(edge)) continue;
+        seen.add(edge);
+        var extremities = graph.extremities(edge);
+        var sourceData = nodeDataCache[extremities[0]];
+        var targetData = nodeDataCache[extremities[1]];
+        var edgeData = edgeDataCache[edge];
+        if (!edgeData || !sourceData || !targetData) continue;
+        if (edgeData.visibility === "hidden" || edgeData.labelVisibility === "hidden" || sourceData.visibility === "hidden" || targetData.visibility === "hidden") continue;
+        if (depth && edgeData.labelDepth !== depth) continue;
+        if (!edgeData.label) continue;
+        result.push(edge);
+      }
+      return result;
+    }
+
+    /** Render edge labels for the given depth layer using WebGL (SDF-based). */
+  }, {
+    key: "renderEdgeLabels",
+    value: function renderEdgeLabels(params, depth) {
+      var _this$internals10 = this.internals,
+        graph = _this$internals10.graph,
+        nodeDataCache = _this$internals10.nodeDataCache,
+        edgeDataCache = _this$internals10.edgeDataCache,
+        primitives = _this$internals10.primitives,
+        edgeLabelProgram = _this$internals10.edgeLabelProgram,
+        nodeDataTexture = _this$internals10.nodeDataTexture,
+        edgeDataTexture = _this$internals10.edgeDataTexture;
+      var edgesToRender = this.filterEdgeLabelsForDepth(depth);
+      var _iterator8 = colors._createForOfIteratorHelper(edgesToRender),
+        _step8;
+      try {
+        for (_iterator8.s(); !(_step8 = _iterator8.n()).done;) {
+          var _edge2 = _step8.value;
+          this.displayedEdgeLabels.add(_edge2);
+        }
+
+        // Nothing to show at this depth: skip touching the shared buffer so we
+        // don't clobber another depth's content already built this frame.
+      } catch (err) {
+        _iterator8.e(err);
+      } finally {
+        _iterator8.f();
+      }
+      if (edgesToRender.length === 0) return;
+      if (this.labelsDirty) {
+        var _primitives$edges$lab, _primitives$edges;
+        var totalCharacters = 0;
+        var _iterator9 = colors._createForOfIteratorHelper(edgesToRender),
+          _step9;
+        try {
+          for (_iterator9.s(); !(_step9 = _iterator9.n()).done;) {
+            var edge = _step9.value;
+            totalCharacters += edgeDataCache[edge].label.length;
+          }
+        } catch (err) {
+          _iterator9.e(err);
+        } finally {
+          _iterator9.f();
+        }
+        edgeLabelProgram.reallocate(totalCharacters);
+        var defaultEdgeLabelMargin = (_primitives$edges$lab = primitives === null || primitives === void 0 || (_primitives$edges = primitives.edges) === null || _primitives$edges === void 0 || (_primitives$edges = _primitives$edges.label) === null || _primitives$edges === void 0 ? void 0 : _primitives$edges.margin) !== null && _primitives$edges$lab !== void 0 ? _primitives$edges$lab : 5;
+        var defaultEdgeLabelPosition = "over";
+        var characterOffset = 0;
+        var _iterator0 = colors._createForOfIteratorHelper(edgesToRender),
+          _step0;
+        try {
+          for (_iterator0.s(); !(_step0 = _iterator0.n()).done;) {
+            var _edgeData$labelPositi, _edgeData$zIndex;
+            var _edge = _step0.value;
+            var extremities = graph.extremities(_edge);
+            var sourceKey = extremities[0];
+            var targetKey = extremities[1];
+            var sourceData = nodeDataCache[sourceKey];
+            var targetData = nodeDataCache[targetKey];
+            var edgeData = edgeDataCache[_edge];
+            var sourceNodeIndex = nodeDataTexture.getIndex(sourceKey);
+            var targetNodeIndex = nodeDataTexture.getIndex(targetKey);
+            var edgeIndex = edgeDataTexture.getIndex(_edge);
+            var labelData = {
+              text: edgeData.label,
+              x: (sourceData.x + targetData.x) / 2,
+              y: (sourceData.y + targetData.y) / 2,
+              size: DEFAULT_EDGE_LABEL_SIZE,
+              color: edgeData.labelColor,
+              nodeSize: 0,
+              nodeIndex: -1,
+              margin: defaultEdgeLabelMargin,
+              position: (_edgeData$labelPositi = edgeData.labelPosition) !== null && _edgeData$labelPositi !== void 0 ? _edgeData$labelPositi : defaultEdgeLabelPosition,
+              hidden: false,
+              forceLabel: normalization.hasForcedLabel(edgeData),
+              type: "default",
+              zIndex: (_edgeData$zIndex = edgeData.zIndex) !== null && _edgeData$zIndex !== void 0 ? _edgeData$zIndex : 0,
+              parentType: "edge",
+              parentKey: _edge,
+              fontKey: "",
+              labelAngle: 0,
+              sourceX: sourceData.x,
+              sourceY: sourceData.y,
+              targetX: targetData.x,
+              targetY: targetData.y,
+              sourceSize: sourceData.size,
+              targetSize: targetData.size,
+              sourceShape: sourceData.shape || "circle",
+              targetShape: targetData.shape || "circle",
+              edgeSize: edgeData.size,
+              offset: 0,
+              edgeAttributes: edgeData,
+              sourceNodeIndex: sourceNodeIndex,
+              targetNodeIndex: targetNodeIndex,
+              edgeIndex: edgeIndex
+            };
+            var charsProcessed = edgeLabelProgram.processEdgeLabel(_edge, characterOffset, labelData);
+            characterOffset += charsProcessed;
+          }
+        } catch (err) {
+          _iterator0.e(err);
+        } finally {
+          _iterator0.f();
+        }
+        edgeLabelProgram.invalidateBuffers();
+      }
+      edgeLabelProgram.render(params);
+    }
+
+    /**
+     * Render ribbons behind edge labels: curves along the same offset path the
+     * label characters follow. Rendered per-depth, before edge labels so the
+     * text paints on top. Renders every candidate when `edgeLabelEvents` is on
+     * (so picking covers transparent ribbons too); otherwise only those with a
+     * visual background fill. Picking writes are further gated by the caller
+     * via `pickingFrameBuffer: null`.
+     */
+  }, {
+    key: "renderEdgeLabelBackgrounds",
+    value: function renderEdgeLabelBackgrounds(params, depth) {
+      var _primitives$edges$lab2, _primitives$edges2;
+      var _this$internals11 = this.internals,
+        edgeLabelBackgroundProgram = _this$internals11.edgeLabelBackgroundProgram,
+        edgeLabelProgram = _this$internals11.edgeLabelProgram,
+        edgeDataCache = _this$internals11.edgeDataCache,
+        primitives = _this$internals11.primitives,
+        edgeDataTexture = _this$internals11.edgeDataTexture;
+      if (!edgeDataTexture) return;
+      var eventsEnabled = KIND_REGISTRY.edgeLabel.writesPickingThisFrame(this.internals);
+      var defaultEdgeLabelMargin = (_primitives$edges$lab2 = primitives === null || primitives === void 0 || (_primitives$edges2 = primitives.edges) === null || _primitives$edges2 === void 0 || (_primitives$edges2 = _primitives$edges2.label) === null || _primitives$edges2 === void 0 ? void 0 : _primitives$edges2.margin) !== null && _primitives$edges$lab2 !== void 0 ? _primitives$edges$lab2 : 5;
+      var defaultEdgeLabelPosition = "over";
+      var candidates = this.filterEdgeLabelsForDepth(depth);
+      var toRender = [];
+      var _iterator1 = colors._createForOfIteratorHelper(candidates),
+        _step1;
+      try {
+        for (_iterator1.s(); !(_step1 = _iterator1.n()).done;) {
+          var _edge3 = _step1.value;
+          // When events are disabled, skip edges with no visual background — nothing to render.
+          if (!eventsEnabled && !edgeDataCache[_edge3].labelBackgroundColor) continue;
+          toRender.push(_edge3);
+        }
+      } catch (err) {
+        _iterator1.e(err);
+      } finally {
+        _iterator1.f();
+      }
+      if (toRender.length === 0) return;
+      edgeLabelBackgroundProgram.reallocate(toRender.length);
+      for (var i = 0; i < toRender.length; i++) {
+        var _edgeData$labelPositi2, _EDGE_POSITION_MODE_M, _edgeData$labelBackgr;
+        var edge = toRender[i];
+        var edgeData = edgeDataCache[edge];
+        var text = edgeData.label;
+        // Measure in atlas units (the unit consumed by the shader).
+        var totalTextWidth = edgeLabelProgram.measureLabelAtlasWidth(text);
+        var position = (_edgeData$labelPositi2 = edgeData.labelPosition) !== null && _edgeData$labelPositi2 !== void 0 ? _edgeData$labelPositi2 : defaultEdgeLabelPosition;
+        var positionMode = typeof position === "string" ? (_EDGE_POSITION_MODE_M = EDGE_POSITION_MODE_MAP[position]) !== null && _EDGE_POSITION_MODE_M !== void 0 ? _EDGE_POSITION_MODE_M : 0 : 0;
+        var pickingIndex = pickingIdOf(this.internals.pickingState, "edgeLabel", edge) || pickingIdOf(this.internals.pickingState, "edge", edge);
+        var bgColor = edgeData.labelBackgroundColor ? colors.floatColor(edgeData.labelBackgroundColor) : colors.floatColor("transparent");
+        var data = {
+          edgeIndex: edgeDataTexture.getIndex(edge),
+          baseFontSize: DEFAULT_EDGE_LABEL_SIZE,
+          totalTextWidth: totalTextWidth,
+          positionMode: positionMode,
+          margin: defaultEdgeLabelMargin,
+          padding: (_edgeData$labelBackgr = edgeData.labelBackgroundPadding) !== null && _edgeData$labelBackgr !== void 0 ? _edgeData$labelBackgr : DEFAULT_EDGE_LABEL_PADDING,
+          color: bgColor,
+          id: colors.indexToColor(pickingIndex),
+          edgeAttributes: edgeData
+        };
+        edgeLabelBackgroundProgram.processEdgeLabelBackground(i, edge, data);
+      }
+      edgeLabelBackgroundProgram.invalidateBuffers();
+      edgeLabelBackgroundProgram.render(params);
+    }
+  }]);
+}();
+
+var StateManager = /*#__PURE__*/function () {
+  function StateManager(scheduleRefresh, customNodeStateDefaults, customEdgeStateDefaults, customGraphStateDefaults) {
+    loop._classCallCheck(this, StateManager);
+    // Per-item state maps (lazily populated on first access).
+    loop._defineProperty(this, "nodeStates", new Map());
+    loop._defineProperty(this, "edgeStates", new Map());
+    // At most one item is hovered at a time, of any kind.
+    loop._defineProperty(this, "hovered", null);
+    // Dirty sets consumed by sigma's refreshState / render cycle.
+    loop._defineProperty(this, "dirtyNodes", new Set());
+    loop._defineProperty(this, "dirtyEdges", new Set());
+    loop._defineProperty(this, "graphStateChanged", false);
+    // True when any item state changed and graph-level flags (hasHovered, etc.)
+    // need to be recomputed before the next flush.
+    loop._defineProperty(this, "graphStateFlagsDirty", false);
+    this.scheduleRefresh = scheduleRefresh;
+    this.customNodeStateDefaults = customNodeStateDefaults;
+    this.customEdgeStateDefaults = customEdgeStateDefaults;
+    this.customGraphStateDefaults = customGraphStateDefaults;
+    this.graphState = types_dist_sigmaTypes.createGraphState(customGraphStateDefaults);
+  }
+
+  // State accessors
+  return loop._createClass(StateManager, [{
+    key: "getNodeState",
+    value: function getNodeState(key) {
+      key = "" + key;
+      var state = this.nodeStates.get(key);
+      if (!state) {
+        state = types_dist_sigmaTypes.createNodeState(this.customNodeStateDefaults);
+        this.nodeStates.set(key, state);
+      }
+      return state;
+    }
+  }, {
+    key: "getEdgeState",
+    value: function getEdgeState(key) {
+      key = "" + key;
+      var state = this.edgeStates.get(key);
+      if (!state) {
+        state = types_dist_sigmaTypes.createEdgeState(this.customEdgeStateDefaults);
+        this.edgeStates.set(key, state);
+      }
+      return state;
+    }
+  }, {
+    key: "getGraphState",
+    value: function getGraphState() {
+      this.flushGraphStateFlags();
+      return this.graphState;
+    }
+  }, {
+    key: "getHighlightedNodes",
+    value: function getHighlightedNodes() {
+      var highlighted = new Set();
+      var _iterator = colors._createForOfIteratorHelper(this.nodeStates),
+        _step;
+      try {
+        for (_iterator.s(); !(_step = _iterator.n()).done;) {
+          var _step$value = colors._slicedToArray(_step.value, 2),
+            key = _step$value[0],
+            state = _step$value[1];
+          if (state.isHighlighted) highlighted.add(key);
+        }
+      } catch (err) {
+        _iterator.e(err);
+      } finally {
+        _iterator.f();
+      }
+      return highlighted;
+    }
+
+    // State mutations (public API, exposed on Sigma)
+  }, {
+    key: "setNodeState",
+    value: function setNodeState(key, state) {
+      key = "" + key;
+      var currentState = this.getNodeState(key);
+      if (!data.hasNewPartialProps(currentState, state)) return;
+      var newState = loop._objectSpread2(loop._objectSpread2({}, currentState), state);
+      this.nodeStates.set(key, newState);
+      this.dirtyNodes.add(key);
+      this.updateHoveredNodeTracking(key, currentState, newState);
+      this.graphStateFlagsDirty = true;
+      this.scheduleRefresh();
+    }
+  }, {
+    key: "setEdgeState",
+    value: function setEdgeState(key, state) {
+      key = "" + key;
+      var currentState = this.getEdgeState(key);
+      if (!data.hasNewPartialProps(currentState, state)) return;
+      var newState = loop._objectSpread2(loop._objectSpread2({}, currentState), state);
+      this.edgeStates.set(key, newState);
+      this.dirtyEdges.add(key);
+      this.updateHoveredEdgeTracking(key, currentState, newState);
+      this.graphStateFlagsDirty = true;
+      this.scheduleRefresh();
+    }
+  }, {
+    key: "setGraphState",
+    value: function setGraphState(state) {
+      if (!data.hasNewPartialProps(this.graphState, state)) return;
+      var merged = loop._objectSpread2(loop._objectSpread2({}, this.graphState), state);
+      merged.isIdle = !merged.isPanning && !merged.isZooming && !merged.isDragging;
+      this.graphState = merged;
+      this.graphStateChanged = true;
+      this.scheduleRefresh();
+    }
+  }, {
+    key: "setNodesState",
+    value: function setNodesState(keys, state) {
+      var changed = false;
+      var _iterator2 = colors._createForOfIteratorHelper(keys),
+        _step2;
+      try {
+        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+          var key = _step2.value;
+          key = "" + key;
+          var currentState = this.getNodeState(key);
+          if (!data.hasNewPartialProps(currentState, state)) continue;
+          var newState = loop._objectSpread2(loop._objectSpread2({}, currentState), state);
+          this.nodeStates.set(key, newState);
+          this.dirtyNodes.add(key);
+          this.updateHoveredNodeTracking(key, currentState, newState);
+          changed = true;
+        }
+      } catch (err) {
+        _iterator2.e(err);
+      } finally {
+        _iterator2.f();
+      }
+      if (changed) {
+        this.graphStateFlagsDirty = true;
+        this.scheduleRefresh();
+      }
+    }
+  }, {
+    key: "setEdgesState",
+    value: function setEdgesState(keys, state) {
+      var changed = false;
+      var _iterator3 = colors._createForOfIteratorHelper(keys),
+        _step3;
+      try {
+        for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+          var key = _step3.value;
+          key = "" + key;
+          var currentState = this.getEdgeState(key);
+          if (!data.hasNewPartialProps(currentState, state)) continue;
+          var newState = loop._objectSpread2(loop._objectSpread2({}, currentState), state);
+          this.edgeStates.set(key, newState);
+          this.dirtyEdges.add(key);
+          this.updateHoveredEdgeTracking(key, currentState, newState);
+          changed = true;
+        }
+      } catch (err) {
+        _iterator3.e(err);
+      } finally {
+        _iterator3.f();
+      }
+      if (changed) {
+        this.graphStateFlagsDirty = true;
+        this.scheduleRefresh();
+      }
+    }
+
+    // Lifecycle: when an item is removed, clear hover for that item and any
+    // dependent kind (e.g. a node's removal clears both `node` and `nodeLabel`).
+  }, {
+    key: "removeNode",
+    value: function removeNode(key) {
+      this.nodeStates["delete"](key);
+      this.dirtyNodes["delete"](key);
+      this.clearHoveredFor("node", key);
+    }
+  }, {
+    key: "removeEdge",
+    value: function removeEdge(key) {
+      this.edgeStates["delete"](key);
+      this.dirtyEdges["delete"](key);
+      this.clearHoveredFor("edge", key);
+    }
+  }, {
+    key: "pruneNodes",
+    value: function pruneNodes(keep) {
+      var _iterator4 = colors._createForOfIteratorHelper(this.nodeStates.keys()),
+        _step4;
+      try {
+        for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+          var key = _step4.value;
+          if (!keep(key)) this.removeNode(key);
+        }
+      } catch (err) {
+        _iterator4.e(err);
+      } finally {
+        _iterator4.f();
+      }
+    }
+  }, {
+    key: "pruneEdges",
+    value: function pruneEdges(keep) {
+      var _iterator5 = colors._createForOfIteratorHelper(this.edgeStates.keys()),
+        _step5;
+      try {
+        for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+          var key = _step5.value;
+          if (!keep(key)) this.removeEdge(key);
+        }
+      } catch (err) {
+        _iterator5.e(err);
+      } finally {
+        _iterator5.f();
+      }
+    }
+  }, {
+    key: "clearNodes",
+    value: function clearNodes() {
+      this.nodeStates.clear();
+      this.dirtyNodes.clear();
+      this.clearHoveredForKinds(kindsDependingOn("node"));
+    }
+  }, {
+    key: "clearEdges",
+    value: function clearEdges() {
+      this.edgeStates.clear();
+      this.dirtyEdges.clear();
+      this.clearHoveredForKinds(kindsDependingOn("edge"));
+    }
+  }, {
+    key: "resetGraphState",
+    value: function resetGraphState() {
+      this.graphState = types_dist_sigmaTypes.createGraphState(this.customGraphStateDefaults);
+      this.graphStateChanged = false;
+      this.graphStateFlagsDirty = false;
+    }
+  }, {
+    key: "clearDirtyTracking",
+    value: function clearDirtyTracking() {
+      this.dirtyNodes.clear();
+      this.dirtyEdges.clear();
+      this.graphStateChanged = false;
+    }
+  }, {
+    key: "setHovered",
+    value: function setHovered(hit) {
+      this.hovered = hit;
+    }
+  }, {
+    key: "clearHoveredFor",
+    value: function clearHoveredFor(target, key) {
+      if (this.hovered && this.hovered.key === key && kindsDependingOn(target).includes(this.hovered.kind)) {
+        this.hovered = null;
+      }
+    }
+  }, {
+    key: "clearHoveredForKinds",
+    value: function clearHoveredForKinds(kinds) {
+      if (this.hovered && kinds.includes(this.hovered.kind)) this.hovered = null;
+    }
+
+    // Graph flag computation
+  }, {
+    key: "updateGraphStateFromNodes",
+    value: function updateGraphStateFromNodes() {
+      var _this$hovered;
+      var hasHovered = false;
+      var hasHighlighted = false;
+      var isDragging = false;
+      var _iterator6 = colors._createForOfIteratorHelper(this.nodeStates),
+        _step6;
+      try {
+        for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+          var _step6$value = colors._slicedToArray(_step6.value, 2),
+            state = _step6$value[1];
+          if (state.isHovered) hasHovered = true;
+          if (state.isHighlighted) hasHighlighted = true;
+          if (state.isDragged) isDragging = true;
+          if (hasHovered && hasHighlighted && isDragging) break;
+        }
+
+        // Also check edges for hover
+      } catch (err) {
+        _iterator6.e(err);
+      } finally {
+        _iterator6.f();
+      }
+      if (!hasHovered && ((_this$hovered = this.hovered) === null || _this$hovered === void 0 ? void 0 : _this$hovered.kind) === "edge") hasHovered = true;
+      var isIdle = !this.graphState.isPanning && !this.graphState.isZooming && !isDragging;
+      if (this.graphState.hasHovered !== hasHovered || this.graphState.hasHighlighted !== hasHighlighted || this.graphState.isDragging !== isDragging || this.graphState.isIdle !== isIdle) {
+        this.graphStateChanged = true;
+      }
+      this.graphState = loop._objectSpread2(loop._objectSpread2({}, this.graphState), {}, {
+        hasHovered: hasHovered,
+        hasHighlighted: hasHighlighted,
+        isDragging: isDragging,
+        isIdle: isIdle
+      });
+    }
+  }, {
+    key: "updateGraphStateFromEdges",
+    value: function updateGraphStateFromEdges() {
+      var _this$hovered2;
+      var hasHovered = ((_this$hovered2 = this.hovered) === null || _this$hovered2 === void 0 ? void 0 : _this$hovered2.kind) === "node";
+      if (!hasHovered) {
+        var _iterator7 = colors._createForOfIteratorHelper(this.edgeStates),
+          _step7;
+        try {
+          for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+            var _step7$value = colors._slicedToArray(_step7.value, 2),
+              state = _step7$value[1];
+            if (state.isHovered) {
+              hasHovered = true;
+              break;
+            }
+          }
+        } catch (err) {
+          _iterator7.e(err);
+        } finally {
+          _iterator7.f();
+        }
+      }
+      if (this.graphState.hasHovered !== hasHovered) {
+        this.graphStateChanged = true;
+      }
+      this.graphState = loop._objectSpread2(loop._objectSpread2({}, this.graphState), {}, {
+        hasHovered: hasHovered
+      });
+    }
+  }, {
+    key: "flushGraphStateFlags",
+    value: function flushGraphStateFlags() {
+      if (!this.graphStateFlagsDirty) return;
+      this.updateGraphStateFromNodes();
+      this.updateGraphStateFromEdges();
+      this.graphStateFlagsDirty = false;
+    }
+
+    // When `isHovered` flips on a node/edge, keep the top-level `hovered` slot
+    // consistent (one body-hovered item at a time).
+  }, {
+    key: "updateHoveredNodeTracking",
+    value: function updateHoveredNodeTracking(key, oldState, newState) {
+      var _this$hovered4;
+      if (oldState.isHovered === newState.isHovered) return;
+      if (newState.isHovered) {
+        var _this$hovered3;
+        if (((_this$hovered3 = this.hovered) === null || _this$hovered3 === void 0 ? void 0 : _this$hovered3.kind) === "node" && this.hovered.key !== key) {
+          var prevKey = this.hovered.key;
+          var prevState = this.getNodeState(prevKey);
+          this.nodeStates.set(prevKey, loop._objectSpread2(loop._objectSpread2({}, prevState), {}, {
+            isHovered: false
+          }));
+          this.dirtyNodes.add(prevKey);
+        }
+        this.hovered = {
+          kind: "node",
+          key: key
+        };
+      } else if (((_this$hovered4 = this.hovered) === null || _this$hovered4 === void 0 ? void 0 : _this$hovered4.kind) === "node" && this.hovered.key === key) {
+        this.hovered = null;
+      }
+    }
+  }, {
+    key: "updateHoveredEdgeTracking",
+    value: function updateHoveredEdgeTracking(key, oldState, newState) {
+      var _this$hovered6;
+      if (oldState.isHovered === newState.isHovered) return;
+      if (newState.isHovered) {
+        var _this$hovered5;
+        if (((_this$hovered5 = this.hovered) === null || _this$hovered5 === void 0 ? void 0 : _this$hovered5.kind) === "edge" && this.hovered.key !== key) {
+          var prevKey = this.hovered.key;
+          var prevState = this.getEdgeState(prevKey);
+          this.edgeStates.set(prevKey, loop._objectSpread2(loop._objectSpread2({}, prevState), {}, {
+            isHovered: false
+          }));
+          this.dirtyEdges.add(prevKey);
+        }
+        this.hovered = {
+          kind: "edge",
+          key: key
+        };
+      } else if (((_this$hovered6 = this.hovered) === null || _this$hovered6 === void 0 ? void 0 : _this$hovered6.kind) === "edge" && this.hovered.key === key) {
+        this.hovered = null;
+      }
+    }
+  }]);
+}();
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
+/**
+ * Constants.
+ */
+// Texture unit for the per-frame edge-frame texture (per-edge clamp vec4)
+var EDGE_FRAME_TEXTURE_UNIT = 1;
+// Texture unit for the per-frame node-frame texture (normalized edge distances)
+var NODE_FRAME_TEXTURE_UNIT = 2;
+// Texture unit for the shared node data texture (position, size, shapeId)
+var NODE_DATA_TEXTURE_UNIT = 3;
+// Texture unit for the shared edge data texture (source/target indices, thickness, curvature, etc.)
+var EDGE_DATA_TEXTURE_UNIT = 4;
+
+/** A custom WebGL layer program; see {@link Sigma#addCustomLayerProgram}. */
+
+/** Builds a custom layer program; re-invoked after a WebGL context restore. */
+
+/** Minimal typing for the EXT_disjoint_timer_query_webgl2 extension, used by DEBUG_gpuTimerQueries. */
+/**
+ * Main class.
+ *
+ * @constructor
+ * @param {Graph}       graph     - Graph to render.
+ * @param {HTMLElement} container - DOM container in which to render.
+ * @param {object}      settings  - Optional settings.
+ */
+var Sigma$1 = /*#__PURE__*/function (_TypedEventEmitter) {
+  function Sigma(graph, container) {
+    var _styles$nodes, _styles$edges, _resolvedPrimitives$d, _resolvedPrimitives$n;
+    var _this;
+    var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+    loop._classCallCheck(this, Sigma);
+    _this = loop._callSuper(this, Sigma);
+
+    // Extract options
+    // Reducers (optional escape hatches for complex styling logic)
+    loop._defineProperty(_this, "nodeReducer", null);
+    loop._defineProperty(_this, "edgeReducer", null);
+    loop._defineProperty(_this, "stageCanvas", null);
+    loop._defineProperty(_this, "mouseLayer", null);
+    loop._defineProperty(_this, "gestureHint", null);
+    loop._defineProperty(_this, "extraElements", {});
+    loop._defineProperty(_this, "webGLContext", null);
+    loop._defineProperty(_this, "pickingFrameBuffer", null);
+    loop._defineProperty(_this, "pickingTexture", null);
+    loop._defineProperty(_this, "pickingDepthBuffer", null);
+    loop._defineProperty(_this, "activeListeners", {});
+    // Variables declared in primitives (for custom layer attributes), pre-cached as entries
+    loop._defineProperty(_this, "nodeVariableEntries", []);
+    loop._defineProperty(_this, "edgeVariableEntries", []);
+    loop._defineProperty(_this, "edgePathsByName", new Map());
+    // Indices to keep track of the index of the item inside programs
+    loop._defineProperty(_this, "nodeProgramIndex", {});
+    loop._defineProperty(_this, "edgeProgramIndex", {});
+    loop._defineProperty(_this, "edgeTextureIndexCache", {});
+    loop._defineProperty(_this, "nodeGraphCoords", {});
+    loop._defineProperty(_this, "nodeExtent", {
+      x: [0, 1],
+      y: [0, 1]
+    });
+    loop._defineProperty(_this, "matrix", colors.identity());
+    loop._defineProperty(_this, "invMatrix", colors.identity());
+    loop._defineProperty(_this, "correctionRatio", 1);
+    loop._defineProperty(_this, "frameId", 0);
+    loop._defineProperty(_this, "customBBox", null);
+    // DEBUG_gpuTimerQueries: EXT_disjoint_timer_query_webgl2 handle (undefined = not
+    // yet resolved, null = unsupported) and the queries currently in flight.
+    loop._defineProperty(_this, "gpuTimerExt", undefined);
+    loop._defineProperty(_this, "activeGpuTimerQuery", null);
+    loop._defineProperty(_this, "pendingGpuTimerQueries", []);
+    loop._defineProperty(_this, "normalizationFunction", normalization.createNormalizationFunction({
+      x: [0, 1],
+      y: [0, 1]
+    }));
+    // Cache:
+    loop._defineProperty(_this, "graphToViewportRatio", 1);
+    // Sole source of truth for picking-ID encoding. The label and partial-refresh
+    // paths query this via `pickingIdOf`; nothing else in sigma touches IDs.
+    loop._defineProperty(_this, "pickingState", createPickingState());
+    loop._defineProperty(_this, "prevNodeVisibilities", {});
+    // Starting dimensions
+    loop._defineProperty(_this, "width", 0);
+    loop._defineProperty(_this, "height", 0);
+    // Frozen when autoRescale:"once" has already captured the initial extent.
+    loop._defineProperty(_this, "autoRescaleFrozen", false);
+    // New v4 API: primitives and styles declarations
+    loop._defineProperty(_this, "stylesDeclaration", null);
+    loop._defineProperty(_this, "resolvedStageStyle", {});
+    // Internal states
+    loop._defineProperty(_this, "renderFrame", null);
+    // True between "webglcontextlost" and the rebuild on "webglcontextrestored"
+    loop._defineProperty(_this, "contextLost", false);
+    loop._defineProperty(_this, "pendingProcess", "full");
+    loop._defineProperty(_this, "needToRefreshState", false);
+    loop._defineProperty(_this, "checkEdgesEventsFrame", null);
+    // Pre-computed style metadata (dependency level, position attribute names)
+    loop._defineProperty(_this, "edgeStyleAnalysis", {
+      dependency: "static",
+      xAttribute: null,
+      yAttribute: null
+    });
+    // Resolved depth layers (fixed at construction, cached to avoid repeated spreading)
+    loop._defineProperty(_this, "depthLayers", loop._toConsumableArray(types.DEFAULT_DEPTH_LAYERS));
+    // Custom layer programs (fullscreen quad effects), keyed by unique id.
+    // The factory rebuilds the program after a context restore.
+    loop._defineProperty(_this, "customLayerPrograms", new Map());
+    // Shape slug for edge clamping (encodes shape name and params)
+    loop._defineProperty(_this, "nodeShapeSlug", null);
+    // WebGL Labels (SDF-based rendering)
+    loop._defineProperty(_this, "sdfAtlas", null);
+    // Track {offset, count} fragment ranges per depth for range-rendering
+    loop._defineProperty(_this, "depthRanges", {
+      nodes: {},
+      edges: {}
+    });
+    // Depth assigned to each item during the last process() call
+    loop._defineProperty(_this, "nodeBaseDepth", {});
+    loop._defineProperty(_this, "edgeBaseDepth", {});
+    var primitives = options.primitives,
+      styles = options.styles,
+      _options$settings = options.settings,
+      settings = _options$settings === void 0 ? {} : _options$settings,
+      nodeReducer = options.nodeReducer,
+      edgeReducer = options.edgeReducer,
+      customNodeState = options.customNodeState,
+      customEdgeState = options.customEdgeState,
+      customGraphState = options.customGraphState;
+
+    // Initialize state manager (owns all per-item and graph-level state)
+    _this.stateManager = new StateManager(function () {
+      return _this.scheduleStateRefresh();
+    }, customNodeState, customEdgeState, customGraphState);
+
+    // Store primitives and styles declarations for v4 API
+    // Use DEFAULT_STYLES when styles not provided, merging at nodes/edges level
+    var resolvedPrimitives = primitives !== null && primitives !== void 0 ? primitives : types_dist_sigmaTypes.DEFAULT_PRIMITIVES;
+    _this.stylesDeclaration = styles ? {
+      nodes: (_styles$nodes = styles.nodes) !== null && _styles$nodes !== void 0 ? _styles$nodes : types_dist_sigmaTypes.DEFAULT_STYLES.nodes,
+      edges: (_styles$edges = styles.edges) !== null && _styles$edges !== void 0 ? _styles$edges : types_dist_sigmaTypes.DEFAULT_STYLES.edges,
+      stage: styles.stage
+    } : types_dist_sigmaTypes.DEFAULT_STYLES;
+
+    // Store reducers
+    _this.nodeReducer = nodeReducer !== null && nodeReducer !== void 0 ? nodeReducer : null;
+    _this.edgeReducer = edgeReducer !== null && edgeReducer !== void 0 ? edgeReducer : null;
+
+    // Analyze style declarations for dependency level and position attribute names.
+    // Reducers are opaque functions that receive state, so force "graph-state".
+    var nodeStyleAnalysis = types_dist_sigmaTypes.analyzeStyleDeclaration(_this.stylesDeclaration.nodes);
+    if (_this.nodeReducer) nodeStyleAnalysis.dependency = "graph-state";
+    _this.edgeStyleAnalysis = types_dist_sigmaTypes.analyzeStyleDeclaration(_this.stylesDeclaration.edges);
+    if (_this.edgeReducer) _this.edgeStyleAnalysis.dependency = "graph-state";
+
+    // Initial stage style evaluation
+    if (_this.stylesDeclaration.stage) {
+      _this.resolvedStageStyle = types_dist_sigmaTypes.evaluateStageStyle(_this.stylesDeclaration.stage, _this.stateManager.graphState);
+    }
+
+    // Resolving settings
+    var resolvedSettings = settings_dist_sigmaSettings.resolveSettings(settings);
+
+    // Validating
+    settings_dist_sigmaSettings.validateSettings(resolvedSettings);
+    if (resolvedSettings.enableNodeDrag) {
+      var xAttribute = nodeStyleAnalysis.xAttribute,
+        yAttribute = nodeStyleAnalysis.yAttribute;
+      if ((!xAttribute || !yAttribute) && !resolvedSettings.dragPositionToAttributes) {
+        throw new Error("Sigma: `enableNodeDrag` is true but position attribute names could not be inferred from styles. " + 'Either use attribute bindings for x/y in your node styles (e.g. `x: { attribute: "x" }`), ' + "or provide a `dragPositionToAttributes` setting.");
+      }
+    }
+    normalization.validateGraph(graph);
+    if (!(container instanceof HTMLElement)) throw new Error("Sigma: container should be an html element.");
+
+    // Properties
+    _this.container = container;
+
+    // Initialize edge group index (tracks parallel edges for spread rendering)
+    _this.edgeGroups = new EdgeGroupIndex(graph, function (edges, count) {
+      for (var i = 0; i < edges.length; i++) {
+        var state = _this.stateManager.getEdgeState(edges[i]);
+        state.parallelIndex = i;
+        state.parallelCount = count;
+      }
+    });
+    var dragManager = new DragManager(graph, _this.viewportToGraph.bind(_this), _this.setNodesState.bind(_this), function (event, payload) {
+      return _this.emit(event, payload);
+    });
+
+    // Cache resolved depth layers (never changes after construction)
+    _this.depthLayers = (_resolvedPrimitives$d = resolvedPrimitives.depthLayers) !== null && _resolvedPrimitives$d !== void 0 ? _resolvedPrimitives$d : loop._toConsumableArray(types.DEFAULT_DEPTH_LAYERS);
+    if (!(styles !== null && styles !== void 0 && styles.nodes) && !types.DEFAULT_NODE_DEPTH_LAYERS.every(function (layer) {
+      return _this.depthLayers.includes(layer);
+    })) throw new Error("Sigma: depthLayers must include ".concat(types.DEFAULT_NODE_DEPTH_LAYERS.join(", "), " for the built-in node styles."));
+    if (!(styles !== null && styles !== void 0 && styles.edges) && !types.DEFAULT_EDGE_DEPTH_LAYERS.every(function (layer) {
+      return _this.depthLayers.includes(layer);
+    })) throw new Error("Sigma: depthLayers must include ".concat(types.DEFAULT_EDGE_DEPTH_LAYERS.join(", "), " for the built-in edge styles."));
+    _this.itemBuckets = {
+      nodes: new edgeDataTexture.DepthBucketCollection(_this.depthLayers),
+      edges: new edgeDataTexture.DepthBucketCollection(_this.depthLayers)
+    };
+
+    // Initializing stage canvas and WebGL context
+    _this.initWebGLContext();
+
+    // Initializing mouse interaction layer
+    _this.mouseLayer = misc.createElement("div", {
+      position: "absolute",
+      touchAction: "none",
+      userSelect: "none"
+    }, {
+      "class": "sigma-mouse"
+    });
+    _this.container.appendChild(_this.mouseLayer);
+
+    // Apply initial stage styles
+    if (_this.resolvedStageStyle.background) {
+      _this.container.style.backgroundColor = _this.resolvedStageStyle.background;
+    }
+    if (_this.resolvedStageStyle.cursor) {
+      _this.container.style.cursor = _this.resolvedStageStyle.cursor;
+    }
+
+    // Initialize node data texture for sharing position/size/shape data between node and edge programs
+    var nodeDataTexture = new edgeDataTexture.NodeDataTexture(_this.webGLContext);
+
+    // Shared label-placement texture: the normalized edge distances written by
+    // the label frame-pass (GPU), node-indexed in lockstep with
+    // nodeDataTexture
+    var nodeFrameTexture = new edgeDataTexture.FrameTexture(_this.webGLContext, {
+      channels: 1
+    });
+
+    // Initialize edge data texture for sharing edge data between edge and edge label programs
+    var edgeDataTexture$1 = new edgeDataTexture.EdgeDataTexture(_this.webGLContext);
+
+    // Shared edge-placement texture: the per-edge clamp vec4 (tStart, tEnd,
+    // straightenFactor, pathLength) written by the edge frame-pass (GPU),
+    // edge-indexed in lockstep with edgeDataTexture
+    var edgeFrameTexture = new edgeDataTexture.FrameTexture(_this.webGLContext, {
+      channels: 4
+    });
+    var gl = _this.webGLContext;
+
+    // Resolves hover from the picking framebuffer, asynchronously
+    var hoverResolver = new HoverResolver({
+      gl: gl,
+      getFrameBuffer: function getFrameBuffer() {
+        return _this.pickingFrameBuffer;
+      },
+      getPixelRatio: function getPixelRatio() {
+        return _this.internals.pixelRatio;
+      },
+      getDownSizingRatio: function getDownSizingRatio() {
+        return _this.internals.settings.pickingDownSizingRatio;
+      },
+      isRenderPending: function isRenderPending() {
+        return _this.renderFrame !== null;
+      },
+      onIndex: function onIndex(index, event) {
+        var _this$pickingState$lo;
+        return updateHover(_this.internals, (_this$pickingState$lo = _this.pickingState.lookup[index]) !== null && _this$pickingState$lo !== void 0 ? _this$pickingState$lo : null, event);
+      }
+    });
+
+    // Generate programs from primitives (uses defaults when not provided)
+    var programs = _this.initPrograms(resolvedPrimitives, resolvedSettings);
+
+    // Create the attachment atlas manager only when attachments are declared.
+    // The shape-aware attachment program comes from the node bundle and renders
+    // only when this manager exists (see LabelRenderer.renderAttachments).
+    var labelAttachments = resolvedPrimitives === null || resolvedPrimitives === void 0 || (_resolvedPrimitives$n = resolvedPrimitives.nodes) === null || _resolvedPrimitives$n === void 0 ? void 0 : _resolvedPrimitives$n.labelAttachments;
+    var attachmentManager = null;
+    if (labelAttachments && Object.keys(labelAttachments).length > 0) {
+      attachmentManager = new edgeDataTexture.AttachmentManager(gl, labelAttachments, function () {
+        return _this.scheduleRender();
+      });
+    }
+
+    // Create the shared internals object. All reassignable fields are plain properties;
+    // satellites hold a reference to this object and see updates via direct assignment.
+    _this.internals = loop._objectSpread2(loop._objectSpread2({
+      nodeDataCache: {},
+      edgeDataCache: {},
+      nodesWithForcedLabels: new Set(),
+      nodesWithBackdrop: new Set(),
+      edgesWithForcedLabels: new Set(),
+      settings: resolvedSettings,
+      primitives: resolvedPrimitives,
+      pixelRatio: misc.getPixelRatio(),
+      graph: graph,
+      stateManager: _this.stateManager,
+      dragManager: dragManager,
+      hoverResolver: hoverResolver,
+      nodeStyleAnalysis: nodeStyleAnalysis,
+      pickingState: _this.pickingState
+    }, programs), {}, {
+      attachmentManager: attachmentManager,
+      nodeDataTexture: nodeDataTexture,
+      nodeFrameTexture: nodeFrameTexture,
+      edgeDataTexture: edgeDataTexture$1,
+      edgeFrameTexture: edgeFrameTexture,
+      getDimensions: function getDimensions() {
+        return _this.getDimensions();
+      },
+      getGraphDimensions: function getGraphDimensions() {
+        return _this.getGraphDimensions();
+      },
+      getStagePadding: function getStagePadding() {
+        return _this.getStagePadding();
+      },
+      getCameraState: function getCameraState() {
+        return _this.camera.getState();
+      },
+      getHitAtPosition: function getHitAtPosition(pos) {
+        return _this.getHitAtPosition(pos);
+      },
+      setNodeState: function setNodeState(key, state) {
+        return _this.setNodeState(key, state);
+      },
+      setEdgeState: function setEdgeState(key, state) {
+        return _this.setEdgeState(key, state);
+      },
+      updateContainerCursor: function updateContainerCursor() {
+        return _this.updateContainerCursor();
+      },
+      scheduleRefresh: function scheduleRefresh() {
+        return _this.scheduleRefresh();
+      },
+      viewportToFramedGraph: function viewportToFramedGraph(coords) {
+        return _this.viewportToFramedGraph(coords);
+      },
+      viewportToGraph: function viewportToGraph(coords) {
+        return _this.viewportToGraph(coords);
+      },
+      framedGraphToViewport: function framedGraphToViewport(coords) {
+        return _this.framedGraphToViewport(coords);
+      },
+      scaleSize: function scaleSize(size) {
+        return _this.scaleSize(size);
+      },
+      emit: function emit(event, payload) {
+        return _this.emit(event, payload);
+      }
+    });
+    _this.labelRenderer = new LabelRenderer(_this.internals);
+
+    // Initial resize
+    _this.resize();
+
+    // Initialize WebGL labels
+    _this.initializeWebGLLabels();
+
+    // Initializing the camera
+    _this.camera = new Camera();
+
+    // Binding camera events
+    _this.bindCameraHandlers();
+
+    // Initializing captors
+    // Cast to Sigma<N, E, G> since captors don't use state generics
+    _this.mouseCaptor = new MouseCaptor(_this.mouseLayer, _this);
+    _this.mouseCaptor.setSettings(_this.internals.settings);
+    _this.touchCaptor = new TouchCaptor(_this.mouseLayer, _this);
+    _this.touchCaptor.setSettings(_this.internals.settings);
+
+    // Binding event handlers
+    _this.bindEventHandlers();
+
+    // Binding graph handlers
+    _this.bindGraphHandlers();
+
+    // Trigger eventual settings-related things
+    _this.handleSettingsUpdate();
+
+    // Processing data for the first time & render
+    _this.refresh();
+    return _this;
+  }
+
+  /**---------------------------------------------------------------------------
+   * Internal methods.
+   **---------------------------------------------------------------------------
+   */
+
+  /**
+   * Internal function used to initialize WebGL labels.
+   * Sets up the SDF atlas.
+   */
+  loop._inherits(Sigma, _TypedEventEmitter);
+  return loop._createClass(Sigma, [{
+    key: "initializeWebGLLabels",
+    value: function initializeWebGLLabels() {
+      // Create SDF Atlas Manager
+      this.sdfAtlas = new factory.SDFAtlasManager();
+
+      // Register default font
+      this.sdfAtlas.registerFont({
+        family: "sans-serif",
+        weight: "normal",
+        style: "normal"
+      });
+    }
+
+    /**
+     * Method (re)binding WebGL textures and buffers for the picking framebuffer.
+     * The picking framebuffer can be at reduced resolution for performance.
+     *
+     * @return {Sigma}
+     */
+  }, {
+    key: "resetWebGLTexture",
+    value: function resetWebGLTexture() {
+      var gl = this.webGLContext;
+      if (!this.pickingFrameBuffer) return this;
+
+      // Calculate picking texture size (can be reduced for performance)
+      var pickingWidth = Math.ceil(this.width * this.internals.pixelRatio / this.internals.settings.pickingDownSizingRatio);
+      var pickingHeight = Math.ceil(this.height * this.internals.pixelRatio / this.internals.settings.pickingDownSizingRatio);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.pickingFrameBuffer);
+
+      // Update picking texture
+      if (this.pickingTexture) gl.deleteTexture(this.pickingTexture);
+      var pickingTexture = gl.createTexture();
+      if (pickingTexture) {
+        gl.bindTexture(gl.TEXTURE_2D, pickingTexture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, pickingWidth, pickingHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pickingTexture, 0);
+        this.pickingTexture = pickingTexture;
+      }
+
+      // Update depth buffer
+      if (this.pickingDepthBuffer) gl.deleteRenderbuffer(this.pickingDepthBuffer);
+      var depthBuffer = gl.createRenderbuffer();
+      if (depthBuffer) {
+        gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+        gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, pickingWidth, pickingHeight);
+        gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
+        this.pickingDepthBuffer = depthBuffer;
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return this;
+    }
+
+    /**
+     * Method binding camera handlers.
+     *
+     * @return {Sigma}
+     */
+  }, {
+    key: "bindCameraHandlers",
+    value: function bindCameraHandlers() {
+      var _this2 = this;
+      this.activeListeners.camera = function () {
+        _this2.refreshMatrices();
+        // The camera ratio/viewport determines which labels get culled in, so
+        // a camera move can change the label buffer even with static data.
+        _this2.labelRenderer.labelsDirty = true;
+        _this2.scheduleRender();
+      };
+      this.activeListeners.cameraAnimationStart = function (_ref) {
+        var from = _ref.from,
+          to = _ref.to;
+        if (from.ratio !== to.ratio) _this2.stateManager.setGraphState({
+          isZooming: true
+        });
+      };
+      this.activeListeners.cameraAnimationEnd = function () {
+        _this2.stateManager.setGraphState({
+          isZooming: false
+        });
+      };
+      this.camera.on("updated", this.activeListeners.camera);
+      this.camera.on("animationStart", this.activeListeners.cameraAnimationStart);
+      this.camera.on("animationEnd", this.activeListeners.cameraAnimationEnd);
+      return this;
+    }
+
+    /**
+     * Method unbinding camera handlers.
+     *
+     * @return {Sigma}
+     */
+  }, {
+    key: "unbindCameraHandlers",
+    value: function unbindCameraHandlers() {
+      this.camera.removeListener("updated", this.activeListeners.camera);
+      this.camera.removeListener("animationStart", this.activeListeners.cameraAnimationStart);
+      this.camera.removeListener("animationEnd", this.activeListeners.cameraAnimationEnd);
+      return this;
+    }
+
+    /**
+     * Returns the topmost pickable hit at a given viewport position, by reading
+     * one pixel of the picking framebuffer and looking it up in the unified
+     * picking table. Returns null if the pixel is empty.
+     */
+  }, {
+    key: "getHitAtPosition",
+    value: function getHitAtPosition(position) {
+      var _this$pickingState$lo2;
+      if (this.contextLost) return null;
+      var gl = this.webGLContext;
+
+      // Read from picking framebuffer (scaled by downSizingRatio)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.pickingFrameBuffer);
+      var color = colors.getPixelColor(gl, this.pickingFrameBuffer, position.x, position.y, this.internals.pixelRatio, this.internals.settings.pickingDownSizingRatio);
+      var index = colors.colorToIndex.apply(void 0, loop._toConsumableArray(color));
+      return (_this$pickingState$lo2 = this.pickingState.lookup[index]) !== null && _this$pickingState$lo2 !== void 0 ? _this$pickingState$lo2 : null;
+    }
+  }, {
+    key: "bindEventHandlers",
+    value: function bindEventHandlers() {
+      bindInteractionHandlers(this.internals, this.mouseCaptor, this.touchCaptor, this.activeListeners);
+      return this;
+    }
+
+    /**
+     * Method binding graph handlers
+     *
+     * @return {Sigma}
+     */
+  }, {
+    key: "bindGraphHandlers",
+    value: function bindGraphHandlers$1() {
+      bindGraphHandlers({
+        graph: this.internals.graph,
+        edgeGroups: this.edgeGroups,
+        addNode: this.addNode.bind(this),
+        updateNode: this.updateNode.bind(this),
+        removeNode: this.removeNode.bind(this),
+        addEdge: this.addEdge.bind(this),
+        updateEdge: this.updateEdge.bind(this),
+        removeEdge: this.removeEdge.bind(this),
+        clearEdgeState: this.clearEdgeState.bind(this),
+        clearNodeState: this.clearNodeState.bind(this),
+        clearEdgeIndices: this.clearEdgeIndices.bind(this),
+        clearNodeIndices: this.clearNodeIndices.bind(this),
+        refresh: this.refresh.bind(this)
+      }, this.activeListeners);
+      return this;
+    }
+
+    /**
+     * Method used to unbind handlers from the graph.
+     *
+     * @return {undefined}
+     */
+  }, {
+    key: "unbindGraphHandlers",
+    value: function unbindGraphHandlers$1() {
+      unbindGraphHandlers(this.internals.graph, this.activeListeners);
+    }
+  }, {
+    key: "getNodeShapeId",
+    value: function getNodeShapeId(data) {
+      if (this.internals.nodeShapeMap && this.internals.nodeGlobalShapeIds && data.shape && data.shape in this.internals.nodeShapeMap) {
+        return this.internals.nodeGlobalShapeIds[this.internals.nodeShapeMap[data.shape]];
+      }
+      return factory.getShapeId(data.shape || "circle");
+    }
+
+    /**
+     * Processes all node data: normalizes coordinates, rebuilds the label grid,
+     * updates the node data texture and vertex buffer. Returns true if any
+     * node's visibility changed since the last process cycle (which means edges
+     * must also be reprocessed).
+     */
+  }, {
+    key: "processNodes",
+    value: function processNodes() {
+      var _this3 = this;
+      var graph = this.internals.graph;
+      var settings = this.internals.settings;
+      var dimensions = this.getDimensions();
+      var autoRescale = settings.autoRescale,
+        autoRescaleContent = settings.autoRescaleContent;
+
+      // Recompute the node extent, unless "once" has already frozen it:
+      var nodeExtent = this.nodeExtent;
+      if (autoRescale === false) {
+        // Without rescaling, 1 graph unit = 1 pixel and the origin sits at the
+        // viewport center: the mapping never depends on the graph's contents.
+        var width = dimensions.width,
+          height = dimensions.height;
+        nodeExtent = {
+          x: [-width / 2, width / 2],
+          y: [-height / 2, height / 2]
+        };
+      } else if (autoRescale !== "once" || !this.autoRescaleFrozen) {
+        nodeExtent = this.computeNodeExtent();
+        // A custom bounding box overrides the node extent, so fitting it is
+        // useless:
+        if (autoRescaleContent !== "positions" && !this.customBBox) nodeExtent = computeFittedExtent({
+          extent: nodeExtent,
+          coords: this.nodeGraphCoords,
+          nodeData: this.internals.nodeDataCache,
+          dimensions: dimensions,
+          stagePadding: this.getStagePadding(),
+          zoomToSizeRatioFunction: settings.zoomToSizeRatioFunction,
+          itemSizesReference: settings.itemSizesReference,
+          fitLabels: autoRescaleContent === "labels",
+          nodeLabelBox: function nodeLabelBox(data, radius) {
+            return _this3.labelRenderer.nodeLabelBox(data, radius);
+          }
+        });
+        if (autoRescale === "once") this.autoRescaleFrozen = true;
+      }
+      this.nodeExtent = nodeExtent;
+      this.normalizationFunction = normalization.createNormalizationFunction(this.customBBox || this.nodeExtent);
+
+      // NOTE: it is important to compute this matrix after computing the node's extent
+      // because #.getGraphDimensions relies on it
+      var nullCamera = new Camera();
+      var nullCameraMatrix = colors.matrixFromCamera(nullCamera.getState(), dimensions, this.getGraphDimensions(), this.getStagePadding());
+      // Resetting the label grid
+      // TODO: it's probably better to do this explicitly or on resizes for layout and anims
+      this.labelRenderer.labelGrid.resizeAndClear(dimensions, settings.labelGridCellSize);
+      this.labelRenderer.edgeAnchorGrid.resizeAndClear(dimensions, settings.labelGridCellSize);
+      var fillEdgeAnchorGrid = settings.renderEdgeLabels && settings.edgeLabelAnchors === "allNodes";
+      var visibilityChanged = false;
+      resetKind(this.pickingState, "node");
+      var nodes = graph.nodes();
+      for (var i = 0, l = nodes.length; i < l; i++) {
+        var node = nodes[i];
+        var data = this.internals.nodeDataCache[node];
+
+        // Restore un-normalized graph coords before normalizing
+        // (nodeDataCache may hold stale normalized values from a previous process cycle)
+        var graphCoords = this.nodeGraphCoords[node];
+        data.x = graphCoords.x;
+        data.y = graphCoords.y;
+        this.normalizationFunction.applyTo(data);
+        if (data.visibility !== this.prevNodeVisibilities[node]) visibilityChanged = true;
+        if (typeof data.label === "string" && data.visibility !== "hidden" && data.labelVisibility !== "hidden") this.labelRenderer.labelGrid.add(node, data.size, this.framedGraphToViewport(data, {
+          matrix: nullCameraMatrix
+        }));
+        if (fillEdgeAnchorGrid && data.visibility !== "hidden") this.labelRenderer.edgeAnchorGrid.add(node, data.size, this.framedGraphToViewport(data, {
+          matrix: nullCameraMatrix
+        }));
+      }
+      this.labelRenderer.labelGrid.organize();
+      this.labelRenderer.edgeAnchorGrid.organize();
+      this.nodeProgram.reallocate(nodes.length);
+      var nodeProcessCount = 0;
+      this.depthRanges.nodes = {};
+      this.nodeBaseDepth = {};
+      var nodeDataCache = this.internals.nodeDataCache;
+      var _iterator = colors._createForOfIteratorHelper(this.depthLayers),
+        _step;
+      try {
+        for (_iterator.s(); !(_step = _iterator.n()).done;) {
+          var depth = _step.value;
+          var items = this.itemBuckets.nodes.getSorted(depth, function (k) {
+            return nodeDataCache[k].zIndex;
+          });
+          if (items.length === 0) continue;
+          this.depthRanges.nodes[depth] = [{
+            offset: nodeProcessCount,
+            count: items.length
+          }];
+          var _iterator3 = colors._createForOfIteratorHelper(items),
+            _step3;
+          try {
+            for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+              var _node = _step3.value;
+              this.nodeBaseDepth[_node] = depth;
+              this.nodeProgram.allocateNode(_node);
+              registerItem(this.pickingState, "node", _node);
+              this.addNodeToProgram(_node, nodeProcessCount++);
+            }
+          } catch (err) {
+            _iterator3.e(err);
+          } finally {
+            _iterator3.f();
+          }
+        }
+      } catch (err) {
+        _iterator.e(err);
+      } finally {
+        _iterator.f();
+      }
+      this.nodeProgram.invalidateBuffers();
+
+      // Track visibility so the next processNodes call can detect changes
+      for (var _i = 0, _l = nodes.length; _i < _l; _i++) {
+        this.prevNodeVisibilities[nodes[_i]] = this.internals.nodeDataCache[nodes[_i]].visibility;
+      }
+      this.labelRenderer.processWebGLLabels(nodes);
+      var _iterator2 = colors._createForOfIteratorHelper(this.customLayerPrograms.values()),
+        _step2;
+      try {
+        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+          var program = _step2.value.program;
+          if (program.cacheData) program.cacheData();
+        }
+      } catch (err) {
+        _iterator2.e(err);
+      } finally {
+        _iterator2.f();
+      }
+      return visibilityChanged;
+    }
+
+    /**
+     * Processes all edge data: updates the edge data texture and vertex buffer.
+     * Picking IDs are assigned by the picking allocator, which reserves edges
+     * a contiguous range right after the node range.
+     * Must be called after processNodes() so node texture indices are available.
+     */
+  }, {
+    key: "processEdges",
+    value: function processEdges() {
+      var graph = this.internals.graph;
+      var edges = graph.edges();
+      this.edgeProgram.reallocate(edges.length);
+      var edgeProcessCount = 0;
+      resetKind(this.pickingState, "edge");
+      this.depthRanges.edges = {};
+      this.edgeBaseDepth = {};
+      var edgeDataCache = this.internals.edgeDataCache;
+      var _iterator4 = colors._createForOfIteratorHelper(this.depthLayers),
+        _step4;
+      try {
+        for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+          var depth = _step4.value;
+          var items = this.itemBuckets.edges.getSorted(depth, function (k) {
+            return edgeDataCache[k].zIndex;
+          });
+          if (items.length === 0) continue;
+          this.depthRanges.edges[depth] = [{
+            offset: edgeProcessCount,
+            count: items.length
+          }];
+          var _iterator5 = colors._createForOfIteratorHelper(items),
+            _step5;
+          try {
+            for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+              var edge = _step5.value;
+              this.edgeBaseDepth[edge] = depth;
+              registerItem(this.pickingState, "edge", edge);
+              this.addEdgeToProgram(edge, edgeProcessCount++);
+            }
+          } catch (err) {
+            _iterator5.e(err);
+          } finally {
+            _iterator5.f();
+          }
+        }
+      } catch (err) {
+        _iterator4.e(err);
+      } finally {
+        _iterator4.f();
+      }
+      this.edgeProgram.invalidateBuffers();
+    }
+
+    /**
+     * Update depth ranges when a node moves between depth layers without
+     * reprocessing the program array.
+     */
+  }, {
+    key: "updateNodeDepthRanges",
+    value: function updateNodeDepthRanges(key, oldDepth, newDepth) {
+      var position = this.nodeProgramIndex[key];
+      if (position === undefined) return;
+      normalization.removePositionFromDepthRanges(this.depthRanges.nodes, oldDepth, position);
+      normalization.addPositionToDepthRanges(this.depthRanges.nodes, newDepth, position);
+    }
+
+    /**
+     * Update depth ranges when an edge moves between depth layers without
+     * reprocessing the program array.
+     */
+  }, {
+    key: "updateEdgeDepthRanges",
+    value: function updateEdgeDepthRanges(key, oldDepth, newDepth) {
+      var position = this.edgeProgramIndex[key];
+      if (position === undefined) return;
+      normalization.removePositionFromDepthRanges(this.depthRanges.edges, oldDepth, position);
+      normalization.addPositionToDepthRanges(this.depthRanges.edges, newDepth, position);
+    }
+
+    /**
+     * Method that backports potential settings updates where it's needed.
+     * @private
+     */
+  }, {
+    key: "handleSettingsUpdate",
+    value: function handleSettingsUpdate() {
+      var _this4 = this;
+      var settings = this.internals.settings;
+      this.camera.minRatio = settings.minCameraRatio;
+      this.camera.maxRatio = settings.maxCameraRatio;
+      this.camera.enabledZooming = settings.enableCameraZooming;
+      this.camera.enabledPanning = settings.enableCameraPanning;
+      this.camera.enabledRotation = settings.enableCameraRotation;
+      if (settings.cameraPanBoundaries) {
+        this.camera.constrainState = function (state) {
+          return _this4.cleanCameraState(state, settings.cameraPanBoundaries && loop._typeof(settings.cameraPanBoundaries) === "object" ? settings.cameraPanBoundaries : {});
+        };
+      } else {
+        this.camera.constrainState = null;
+      }
+      // Re-validate the current state, since the new settings may forbid it:
+      this.camera.setState(this.camera.getState());
+
+      // Native touch scrolling must stay possible when gestures are routed to
+      // the page ("pan-x pan-y" still lets sigma capture two-finger pinches):
+      this.mouseLayer.style.touchAction = settings.gestureTarget === "graph" ? "none" : settings.gestureTarget === "shared" ? "pan-x pan-y" : "auto";
+      if (settings.gestureTarget !== "shared" && this.gestureHint) {
+        this.gestureHint.kill();
+        this.gestureHint = null;
+      }
+
+      // Update captors settings:
+      this.mouseCaptor.setSettings(this.internals.settings);
+      this.touchCaptor.setSettings(this.internals.settings);
+      return this;
+    }
+  }, {
+    key: "cleanCameraState",
+    value: function cleanCameraState(state) {
+      var _ref2 = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {},
+        _ref2$tolerance = _ref2.tolerance,
+        tolerance = _ref2$tolerance === void 0 ? 0 : _ref2$tolerance,
+        boundaries = _ref2.boundaries;
+      var newState = loop._objectSpread2({}, state);
+
+      // Extract necessary properties
+      var _ref3 = boundaries || this.nodeExtent,
+        _ref3$x = colors._slicedToArray(_ref3.x, 2),
+        xMinGraph = _ref3$x[0],
+        xMaxGraph = _ref3$x[1],
+        _ref3$y = colors._slicedToArray(_ref3.y, 2),
+        yMinGraph = _ref3$y[0],
+        yMaxGraph = _ref3$y[1];
+
+      // Transform the four corners of the graph rectangle using the provided camera state
+      var corners = [this.graphToViewport({
+        x: xMinGraph,
+        y: yMinGraph
+      }, {
+        cameraState: state
+      }), this.graphToViewport({
+        x: xMaxGraph,
+        y: yMinGraph
+      }, {
+        cameraState: state
+      }), this.graphToViewport({
+        x: xMinGraph,
+        y: yMaxGraph
+      }, {
+        cameraState: state
+      }), this.graphToViewport({
+        x: xMaxGraph,
+        y: yMaxGraph
+      }, {
+        cameraState: state
+      })];
+
+      // Look for new extents, based on these four corners
+      var xMin = Infinity,
+        xMax = -Infinity,
+        yMin = Infinity,
+        yMax = -Infinity;
+      corners.forEach(function (_ref4) {
+        var x = _ref4.x,
+          y = _ref4.y;
+        xMin = Math.min(xMin, x);
+        xMax = Math.max(xMax, x);
+        yMin = Math.min(yMin, y);
+        yMax = Math.max(yMax, y);
+      });
+
+      // For each dimension, constraint the smaller element (camera or graph) to fit in the larger one:
+      var graphWidth = xMax - xMin;
+      var graphHeight = yMax - yMin;
+      var _this$getDimensions = this.getDimensions(),
+        width = _this$getDimensions.width,
+        height = _this$getDimensions.height;
+      var dx = 0;
+      var dy = 0;
+      if (graphWidth >= width) {
+        if (xMax < width - tolerance) dx = xMax - (width - tolerance);else if (xMin > tolerance) dx = xMin - tolerance;
+      } else {
+        if (xMax > width + tolerance) dx = xMax - (width + tolerance);else if (xMin < -tolerance) dx = xMin + tolerance;
+      }
+      if (graphHeight >= height) {
+        if (yMax < height - tolerance) dy = yMax - (height - tolerance);else if (yMin > tolerance) dy = yMin - tolerance;
+      } else {
+        if (yMax > height + tolerance) dy = yMax - (height + tolerance);else if (yMin < -tolerance) dy = yMin + tolerance;
+      }
+      if (dx || dy) {
+        // Transform [dx, dy] from viewport to graph (using two different point to transform that vector):
+        var origin = this.viewportToFramedGraph({
+          x: 0,
+          y: 0
+        }, {
+          cameraState: state
+        });
+        var delta = this.viewportToFramedGraph({
+          x: dx,
+          y: dy
+        }, {
+          cameraState: state
+        });
+        dx = delta.x - origin.x;
+        dy = delta.y - origin.y;
+        newState.x += dx;
+        newState.y += dy;
+      }
+      return newState;
+    }
+
+    /**
+     * Refreshes the cached matrices and their derived ratios from the current camera state, viewport, graph dimensions
+     * and stage padding.
+     */
+  }, {
+    key: "refreshMatrices",
+    value: function refreshMatrices() {
+      var cameraState = this.camera.getState();
+      var viewportDimensions = this.getDimensions();
+      var graphDimensions = this.getGraphDimensions();
+      var padding = this.getStagePadding();
+      this.matrix = colors.matrixFromCamera(cameraState, viewportDimensions, graphDimensions, padding);
+      this.invMatrix = colors.matrixFromCamera(cameraState, viewportDimensions, graphDimensions, padding, true);
+      this.correctionRatio = colors.getMatrixImpact(this.matrix, cameraState, viewportDimensions);
+      this.graphToViewportRatio = this.getGraphToViewportRatio();
+    }
+
+    /**
+     * Rebuilds the node/edge program buffers from the data caches. Runs whenever
+     * `pendingProcess` is set: on a structural change, or when refreshState()
+     * escalates an in-place refresh that changed an item's render order.
+     */
+  }, {
+    key: "processData",
+    value: function processData() {
+      var _this$internals$attac;
+      this.emit("beforeProcess");
+      (_this$internals$attac = this.internals.attachmentManager) === null || _this$internals$attac === void 0 || _this$internals$attac.clear();
+      var previousIds = loop._objectSpread2({}, this.pickingState.idsByKind);
+      var visibilityChanged = this.processNodes();
+      if (this.pendingProcess === "full" || visibilityChanged) this.processEdges();
+      // Allocate label IDs after node/edge IDs. On a nodes-only refresh the
+      // cached edge IDs in the picking state are preserved.
+      allocateLabelIds(this.pickingState, this.internals);
+      if (!samePickingAllocation(previousIds, this.pickingState.idsByKind)) this.internals.hoverResolver.invalidate();
+      this.pendingProcess = "none";
+      this.emit("afterProcess");
+    }
+
+    /**
+     * Method used to render.
+     *
+     * @return {Sigma}
+     */
+  }, {
+    key: "render",
+    value: function render() {
+      var _this5 = this;
+      // No use rendering while the context is lost, the restore handler refreshes
+      if (this.contextLost) return this;
+      this.emit("beforeRender");
+      var exitRender = function exitRender() {
+        // Re-resolve hover: the scene may have moved under a still pointer
+        _this5.internals.hoverResolver.frameRendered();
+        _this5.emit("afterRender");
+        return _this5;
+      };
+
+      // If a render was scheduled, we cancel it
+      if (this.renderFrame) {
+        cancelAnimationFrame(this.renderFrame);
+        this.renderFrame = null;
+      }
+
+      // First we need to resize
+      this.resize();
+
+      // Reprocessing data or refreshing state can change label text, position,
+      // or styling, so the label buffers must be rebuilt this frame.
+      if (this.pendingProcess !== "none" || this.needToRefreshState) this.labelRenderer.labelsDirty = true;
+
+      // Do we need to reprocess data?
+      if (this.pendingProcess !== "none") this.processData();
+
+      // Do we need to refresh state (styles in-place, no reprocess)?
+      if (this.needToRefreshState) this.refreshState();
+      this.needToRefreshState = false;
+      this.stateManager.clearDirtyTracking();
+
+      // refreshState() can escalate to a reprocess (a zIndex change is a
+      // reordering, which an in-place refresh cannot apply).
+      if (this.pendingProcess !== "none") this.processData();
+
+      // Clearing the canvases
+      this.clear();
+
+      // Prepare the picking texture
+      this.resetWebGLTexture();
+
+      // If we have no nodes we can stop right there
+      if (!this.internals.graph.order) return exitRender();
+
+      // TODO: improve this heuristic or move to the captor itself?
+      // TODO: deal with the touch captor here as well
+      var mouseCaptor = this.mouseCaptor;
+      var moving = this.camera.isAnimating() || mouseCaptor.isMoving || mouseCaptor.draggedEvents || mouseCaptor.currentWheelDirection;
+
+      // The camera-driven update happens via the "updated" listener, but processNodes and resize may have changed
+      // graph/viewport dimensions, so we refresh here too.
+      this.refreshMatrices();
+
+      // [jacomyal]
+      // This comment is related to the one above the `getMatrixImpact` definition:
+      // - `this.correctionRatio` is somehow not completely explained
+      // - `this.graphToViewportRatio` is the ratio of a distance in the viewport divided by the same distance in the
+      //   graph
+      // - `this.normalizationFunction.ratio` is basically `Math.max(graphDX, graphDY)`
+      // And now, I observe that if I multiply these three ratios, I have something constant, which value remains 2, even
+      // when I change the graph, the viewport or the camera. It might be useful later, so I prefer to let this comment:
+      // console.log(this.graphToViewportRatio * this.correctionRatio * this.normalizationFunction.ratio * 2);
+
+      this.frameId++;
+      var debugPrograms = this.internals.settings.DEBUG_logRenderStats ? this.getDebugPrograms() : null;
+      if (debugPrograms) debugPrograms.forEach(function (program) {
+        return program.resetDebugStats();
+      });
+      if (this.internals.settings.DEBUG_gpuTimerQueries) this.beginGpuTimerQuery();
+
+      // Keep the node-frame texture sized to the node-data texture before capturing
+      // render params, so the texture width baked into params (and read by consumers
+      // as texel coordinates) reflects any resize this frame.
+      this.internals.nodeFrameTexture.ensureCapacity(this.internals.nodeDataTexture.getCapacity());
+      this.internals.edgeFrameTexture.ensureCapacity(this.internals.edgeDataTexture.getCapacity());
+      var params = this.getRenderParams();
+      // Skip the edge picking pass when the edge kind isn't pickable this frame.
+      var edgeParams = KIND_REGISTRY.edge.writesPickingThisFrame(this.internals) ? params : loop._objectSpread2(loop._objectSpread2({}, params), {}, {
+        pickingFrameBuffer: null
+      });
+      this.labelRenderer.resetFrame();
+      var gl = this.webGLContext;
+
+      // Clear the picking framebuffer (two-pass rendering: programs render to picking first, then to screen)
+      var pickingWidth = Math.ceil(this.width * this.internals.pixelRatio / this.internals.settings.pickingDownSizingRatio);
+      var pickingHeight = Math.ceil(this.height * this.internals.pixelRatio / this.internals.settings.pickingDownSizingRatio);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.pickingFrameBuffer);
+      gl.viewport(0, 0, pickingWidth, pickingHeight);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+      // Clear the main canvas
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, this.width * this.internals.pixelRatio, this.height * this.internals.pixelRatio);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+      // Upload data textures (must upload both before binding to avoid texture unit conflicts)
+      this.internals.nodeDataTexture.upload();
+      this.internals.edgeDataTexture.upload();
+
+      // Upload layer attribute textures
+      this.nodeProgram.uploadLayerTexture();
+      this.edgeProgram.uploadAttributeTexture();
+
+      // All CPU-side texture uploads are done: GPU-side writers can now write
+      // into the data textures, before anything reads them this frame
+      this.emit("afterTexturesUpload");
+
+      // Bind data textures to their respective texture units
+      this.internals.nodeDataTexture.bind(NODE_DATA_TEXTURE_UNIT);
+      this.internals.edgeDataTexture.bind(EDGE_DATA_TEXTURE_UNIT);
+
+      // Run the edge frame-pass once per frame: it computes each edge's
+      // source/target clamp into the edge-frame texture (unit 1), which the edge
+      // body, labels and label backgrounds all read by edge index.
+      this.edgeFramePass.run(params, this.internals.edgeFrameTexture, this.internals.edgeDataTexture.getHighWaterMark(), this.edgeProgram.getAttributeTexture(), this.nodeProgram.getAttributeTexture());
+      this.internals.edgeFrameTexture.bind(EDGE_FRAME_TEXTURE_UNIT);
+
+      // Pre-compute which node labels will be displayed (needed by both backdrops and labels)
+      if (this.internals.settings.renderLabels) {
+        this.labelRenderer.computeDisplayedNodeLabels();
+        // Run the frame-pass over the displayed labels to write each one's normalized
+        // edge distance into the node-frame texture (unit 2); consumers read it there.
+        var _this$labelRenderer$b = this.labelRenderer.buildFramePassPoints(),
+          data = _this$labelRenderer$b.data,
+          count = _this$labelRenderer$b.count;
+        this.nodeFramePass.run(data, count, this.internals.nodeFrameTexture, params, this.nodeProgram.getAttributeTexture());
+        this.internals.nodeFrameTexture.bind(NODE_FRAME_TEXTURE_UNIT);
+      }
+
+      // Pre-compute edge label candidates (consumed by both the background pass
+      // and the label pass inside the depth loop).
+      if (this.internals.settings.renderEdgeLabels) {
+        this.labelRenderer.computeDisplayedEdgeLabels();
+      }
+
+      // Pre-render pass for custom layers (offscreen work like density splatting)
+      // before the depth loop to avoid framebuffer switching mid-loop.
+      var _iterator6 = colors._createForOfIteratorHelper(this.customLayerPrograms.values()),
+        _step6;
+      try {
+        for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+          var program = _step6.value.program;
+          if (program.preRender) program.preRender(params);
+        }
+
+        // Restore main framebuffer state after any offscreen passes
+      } catch (err) {
+        _iterator6.e(err);
+      } finally {
+        _iterator6.f();
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, this.width * this.internals.pixelRatio, this.height * this.internals.pixelRatio);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      var showLabels = !this.internals.settings.hideLabelsOnMove || !moving;
+      var _iterator7 = colors._createForOfIteratorHelper(this.depthLayers),
+        _step7;
+      try {
+        for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+          var depth = _step7.value;
+          // Custom layer programs registered at this depth, in registration order
+          var _iterator8 = colors._createForOfIteratorHelper(this.customLayerPrograms.values()),
+            _step8;
+          try {
+            for (_iterator8.s(); !(_step8 = _iterator8.n()).done;) {
+              var customLayer = _step8.value;
+              if (customLayer.depth === depth) customLayer.program.render(params);
+            }
+
+            // Edges in this depth
+          } catch (err) {
+            _iterator8.e(err);
+          } finally {
+            _iterator8.f();
+          }
+          var edgeRanges = this.depthRanges.edges[depth];
+          if (edgeRanges && (!this.internals.settings.hideEdgesOnMove || !moving)) {
+            var _iterator9 = colors._createForOfIteratorHelper(edgeRanges),
+              _step9;
+            try {
+              for (_iterator9.s(); !(_step9 = _iterator9.n()).done;) {
+                var _step9$value = _step9.value,
+                  offset = _step9$value.offset,
+                  _count = _step9$value.count;
+                if (_count > 0) this.edgeProgram.render(edgeParams, offset, _count);
+              }
+            } catch (err) {
+              _iterator9.e(err);
+            } finally {
+              _iterator9.f();
+            }
+          }
+
+          // Edge labels for this depth (backgrounds first so they paint under the
+          // text). The background ribbon is the picking hitbox when
+          // edgeLabelEvents is on; picking buffer is skipped otherwise to save
+          // GPU work.
+          if (this.internals.settings.renderEdgeLabels && showLabels) {
+            this.labelRenderer.renderEdgeLabelBackgrounds(KIND_REGISTRY.edgeLabel.writesPickingThisFrame(this.internals) ? params : loop._objectSpread2(loop._objectSpread2({}, params), {}, {
+              pickingFrameBuffer: null
+            }), depth);
+            this.labelRenderer.renderEdgeLabels(params, depth);
+          }
+
+          // Cache attachment textures before backdrops so backdrop sizing includes them
+          this.labelRenderer.cacheAttachments(depth);
+
+          // Backdrops for nodes in this depth (before node programs so they appear behind).
+          // Backdrops are not pickable, so pass null picking buffer to prevent their visual color
+          // from leaking into the picking framebuffer via layout(location=0) out vec4 fragColor.
+          this.labelRenderer.renderBackdrops(loop._objectSpread2(loop._objectSpread2({}, params), {}, {
+            pickingFrameBuffer: null
+          }), depth);
+
+          // Nodes in this depth
+          var nodeRanges = this.depthRanges.nodes[depth];
+          if (nodeRanges) {
+            var _iterator0 = colors._createForOfIteratorHelper(nodeRanges),
+              _step0;
+            try {
+              for (_iterator0.s(); !(_step0 = _iterator0.n()).done;) {
+                var _step0$value = _step0.value,
+                  _offset = _step0$value.offset,
+                  _count2 = _step0$value.count;
+                if (_count2 > 0) this.nodeProgram.render(params, _offset, _count2);
+              }
+            } catch (err) {
+              _iterator0.e(err);
+            } finally {
+              _iterator0.f();
+            }
+          }
+          if (!showLabels) continue;
+
+          // Label attachments for this depth (after nodes, before labels).
+          // Attachments are not pickable, so pass null picking buffer to prevent the atlas texture
+          // from leaking into the picking framebuffer via layout(location=0) out vec4 fragColor.
+          this.labelRenderer.renderAttachments(loop._objectSpread2(loop._objectSpread2({}, params), {}, {
+            pickingFrameBuffer: null
+          }), depth);
+
+          // Label backgrounds for this depth (after nodes so picking overwrites nodes in "over" mode).
+          // Picking is skipped when node label events are disabled; transparent nodes discard in the visual pass.
+          this.labelRenderer.renderLabelBackgrounds(KIND_REGISTRY.nodeLabel.writesPickingThisFrame(this.internals) ? params : loop._objectSpread2(loop._objectSpread2({}, params), {}, {
+            pickingFrameBuffer: null
+          }), depth);
+
+          // Node labels for this depth
+          if (this.internals.settings.renderLabels) {
+            this.labelRenderer.renderWebGLLabels(params, depth);
+          }
+        }
+
+        // Label buffers are now up to date with this frame's data/state/camera.
+      } catch (err) {
+        _iterator7.e(err);
+      } finally {
+        _iterator7.f();
+      }
+      this.labelRenderer.labelsDirty = false;
+
+      // If DEBUG_displayPickingLayer is enabled, blit picking framebuffer to screen
+      if (this.internals.settings.DEBUG_displayPickingLayer) {
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.pickingFrameBuffer);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+        gl.blitFramebuffer(0, 0, pickingWidth, pickingHeight, 0, 0, this.width * this.internals.pixelRatio, this.height * this.internals.pixelRatio, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      }
+      if (this.internals.settings.DEBUG_gpuTimerQueries) this.endGpuTimerQuery();
+      this.pollGpuTimerQueries();
+      if (debugPrograms) this.logRenderStats(debugPrograms);
+      return exitRender();
+    }
+
+    /** DEBUG_logShaders / DEBUG_logRenderStats: every built-in Program instance sigma owns this frame. */
+  }, {
+    key: "getDebugPrograms",
+    value: function getDebugPrograms() {
+      return [this.nodeProgram, this.edgeProgram, this.internals.labelProgram, this.internals.edgeLabelProgram, this.internals.edgeLabelBackgroundProgram, this.internals.backdropProgram, this.internals.labelBackgroundProgram, this.internals.attachmentProgram].filter(function (program) {
+        return program !== null;
+      });
+    }
+
+    /** DEBUG_logRenderStats: logs this frame's counters as a table, keyed by program class name. */
+  }, {
+    key: "logRenderStats",
+    value: function logRenderStats(programs) {
+      var rows = {};
+      var _iterator1 = colors._createForOfIteratorHelper(programs),
+        _step1;
+      try {
+        for (_iterator1.s(); !(_step1 = _iterator1.n()).done;) {
+          var program = _step1.value;
+          rows[program.constructor.name] = loop._objectSpread2({}, program.debugStats);
+        }
+        // eslint-disable-next-line no-console
+      } catch (err) {
+        _iterator1.e(err);
+      } finally {
+        _iterator1.f();
+      }
+      console.log("[sigma] DEBUG_logRenderStats: frame #".concat(this.frameId));
+      // eslint-disable-next-line no-console
+      console.table(rows);
+    }
+
+    /**
+     * DEBUG_gpuTimerQueries: lazily resolves EXT_disjoint_timer_query_webgl2. Returns
+     * null (and warns once) if the browser/driver doesn't support it.
+     */
+  }, {
+    key: "getGpuTimerExtension",
+    value: function getGpuTimerExtension() {
+      if (this.gpuTimerExt === undefined) {
+        this.gpuTimerExt = this.webGLContext.getExtension("EXT_disjoint_timer_query_webgl2");
+        if (!this.gpuTimerExt) {
+          // eslint-disable-next-line no-console
+          console.warn("Sigma: DEBUG_gpuTimerQueries is enabled, but this browser/driver doesn't support EXT_disjoint_timer_query_webgl2.");
+        }
+      }
+      return this.gpuTimerExt;
+    }
+
+    /** DEBUG_gpuTimerQueries: starts a query wrapping every GL call until `endGpuTimerQuery`. */
+  }, {
+    key: "beginGpuTimerQuery",
+    value: function beginGpuTimerQuery() {
+      var ext = this.getGpuTimerExtension();
+      if (!ext) return;
+      var gl = this.webGLContext;
+      var query = gl.createQuery();
+      if (!query) return;
+      gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
+      this.activeGpuTimerQuery = query;
+    }
+
+    /** DEBUG_gpuTimerQueries: closes the query started by `beginGpuTimerQuery` and queues it for polling. */
+  }, {
+    key: "endGpuTimerQuery",
+    value: function endGpuTimerQuery() {
+      if (!this.gpuTimerExt || !this.activeGpuTimerQuery) return;
+      this.webGLContext.endQuery(this.gpuTimerExt.TIME_ELAPSED_EXT);
+      this.pendingGpuTimerQueries.push({
+        query: this.activeGpuTimerQuery,
+        frameId: this.frameId
+      });
+      this.activeGpuTimerQuery = null;
+    }
+
+    /**
+     * DEBUG_gpuTimerQueries: results typically aren't ready the same frame they're
+     * queried, so this drains whichever queued queries have resolved by now.
+     */
+  }, {
+    key: "pollGpuTimerQueries",
+    value: function pollGpuTimerQueries() {
+      if (this.pendingGpuTimerQueries.length === 0) return;
+      var gl = this.webGLContext;
+      var ext = this.gpuTimerExt;
+
+      // Extension/context is gone (e.g. context loss): the queued queries are dead, drop them.
+      if (!ext) {
+        this.pendingGpuTimerQueries.forEach(function (_ref5) {
+          var query = _ref5.query;
+          return gl.deleteQuery(query);
+        });
+        this.pendingGpuTimerQueries = [];
+        return;
+      }
+
+      // A disjoint event invalidates every outstanding query's timing, not just the current one.
+      var disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT);
+      var stillPending = [];
+      var _iterator10 = colors._createForOfIteratorHelper(this.pendingGpuTimerQueries),
+        _step10;
+      try {
+        for (_iterator10.s(); !(_step10 = _iterator10.n()).done;) {
+          var pending = _step10.value;
+          if (!gl.getQueryParameter(pending.query, gl.QUERY_RESULT_AVAILABLE)) {
+            stillPending.push(pending);
+            continue;
+          }
+          if (!disjoint) {
+            var elapsedNs = gl.getQueryParameter(pending.query, gl.QUERY_RESULT);
+            // eslint-disable-next-line no-console
+            console.log("[sigma] DEBUG_gpuTimerQueries: frame #".concat(pending.frameId, " GPU time = ").concat((elapsedNs / 1e6).toFixed(2), "ms"));
+          }
+          gl.deleteQuery(pending.query);
+        }
+      } catch (err) {
+        _iterator10.e(err);
+      } finally {
+        _iterator10.f();
+      }
+      this.pendingGpuTimerQueries = stillPending;
+    }
+
+    /**
+     * Applies position fallback and state fields after evaluateNodeStyle.
+     * evaluateNodeStyle writes style properties directly into `data`; this patches
+     * the remaining fields that come from attributes or state, not from style rules.
+     */
+  }, {
+    key: "postEvaluateNode",
+    value: function postEvaluateNode(data, attrs, nodeState) {
+      // x/y fallback: style rules should provide these (DEFAULT_STYLES binds them to attributes),
+      // but fall back to raw attributes in case no style rule covered position.
+      var d = data;
+      if (d.x === undefined) d.x = attrs.x;
+      if (d.y === undefined) d.y = attrs.y;
+
+      // highlighted comes from node state, not from style rules
+      data.highlighted = nodeState.isHighlighted;
+
+      // Inject declared variables: style > graph attributes > declared default
+      for (var i = 0, l = this.nodeVariableEntries.length; i < l; i++) {
+        var _ref6, _d$varName;
+        var _this$nodeVariableEnt = colors._slicedToArray(this.nodeVariableEntries[i], 2),
+          varName = _this$nodeVariableEnt[0],
+          varDef = _this$nodeVariableEnt[1];
+        d[varName] = (_ref6 = (_d$varName = d[varName]) !== null && _d$varName !== void 0 ? _d$varName : attrs[varName]) !== null && _ref6 !== void 0 ? _ref6 : varDef["default"];
+      }
+    }
+
+    /**
+     * Add a node in the internal data structures.
+     * @private
+     * @param key The node's graphology ID
+     */
+  }, {
+    key: "addNode",
+    value: function addNode(key) {
+      var attrs = this.internals.graph.getNodeAttributes(key);
+      var nodeState = this.stateManager.getNodeState(key);
+
+      // Reuse the existing cached object if available to avoid allocation pressure.
+      // evaluateNodeStyle resets all fields before writing, so stale values don't survive.
+      var data$1 = this.internals.nodeDataCache[key] || {};
+      types_dist_sigmaTypes.evaluateNodeStyle(this.stylesDeclaration.nodes, attrs, nodeState, this.stateManager.graphState, this.internals.graph, data$1);
+      this.postEvaluateNode(data$1, attrs, nodeState);
+
+      // Apply reducer if provided
+      if (this.nodeReducer) {
+        var reduced = this.nodeReducer(key, data$1, attrs, nodeState, this.stateManager.graphState, this.internals.graph);
+        data$1 = loop._objectSpread2(loop._objectSpread2({}, data$1), reduced);
+      }
+
+      // Validate position (after styles + reducer, so all sources have had a chance to provide x/y)
+      if (typeof data$1.x !== "number" || typeof data$1.y !== "number") {
+        throw new Error("Sigma: could not find a valid position (x, y) for node \"".concat(key, "\". ") + "Provide coordinates via node attributes, styles, or a nodeReducer.");
+      }
+
+      // Set shape for edge clamping and multi-shape program selection
+      if (this.internals.nodeShapeMap) {
+        // Multi-shape program: use user-specified shape if valid, otherwise use first shape
+        if (!data$1.shape || !(data$1.shape in this.internals.nodeShapeMap)) {
+          data$1.shape = Object.keys(this.internals.nodeShapeMap)[0];
+        }
+      } else if (this.nodeShapeSlug) {
+        // Single-shape program: use the program's shape slug
+        data$1.shape = this.nodeShapeSlug;
+      }
+      this.internals.nodeDataCache[key] = data$1;
+      this.nodeGraphCoords[key] = {
+        x: data$1.x,
+        y: data$1.y
+      };
+      data.setMembership(this.internals.nodesWithForcedLabels, key, normalization.hasForcedLabel(data$1));
+      data.setMembership(this.internals.nodesWithBackdrop, key, normalization.hasBackdrop(data$1));
+
+      // Place the node in its depth bucket; processNodes() re-sorts each bucket
+      // by zIndex on the next render.
+      this.itemBuckets.nodes.set(key, data$1.depth);
+    }
+
+    /**
+     * Update a node in the internal data structures.
+     * @private
+     * @param key The node's graphology ID
+     */
+  }, {
+    key: "updateNode",
+    value: function updateNode(key) {
+      this.addNode(key);
+
+      // Re-apply normalization on the node
+      var data = this.internals.nodeDataCache[key];
+      this.normalizationFunction.applyTo(data);
+    }
+
+    /**
+     * Remove a node from the internal data structures.
+     * @private
+     * @param key The node's graphology ID
+     */
+  }, {
+    key: "removeNode",
+    value: function removeNode(key) {
+      // Remove from bucket
+      this.itemBuckets.nodes.remove(key);
+      // Remove from node cache
+      delete this.internals.nodeDataCache[key];
+      delete this.nodeGraphCoords[key];
+      // Remove from node program index
+      delete this.nodeProgramIndex[key];
+      this.internals.dragManager.removeNode(key);
+      // Remove from state
+      this.stateManager.removeNode(key);
+      // Remove from forced label
+      this.internals.nodesWithForcedLabels["delete"](key);
+      // Remove from backdrop tracking
+      this.internals.nodesWithBackdrop["delete"](key);
+    }
+
+    /**
+     * Applies variable fallbacks after evaluateEdgeStyle.
+     * evaluateEdgeStyle writes style properties directly into `data`; this patches
+     * declared primitive variables with attribute or default fallbacks.
+     */
+  }, {
+    key: "postEvaluateEdge",
+    value: function postEvaluateEdge(data, attrs) {
+      var d = data;
+      for (var i = 0, l = this.edgeVariableEntries.length; i < l; i++) {
+        var _ref7, _d$varName2;
+        var _this$edgeVariableEnt = colors._slicedToArray(this.edgeVariableEntries[i], 2),
+          varName = _this$edgeVariableEnt[0],
+          varDef = _this$edgeVariableEnt[1];
+        d[varName] = (_ref7 = (_d$varName2 = d[varName]) !== null && _d$varName2 !== void 0 ? _d$varName2 : attrs[varName]) !== null && _ref7 !== void 0 ? _ref7 : varDef["default"];
+      }
+    }
+
+    /**
+     * Computes and injects the spread variable for parallel edges.
+     * Must be called after evaluateEdgeStyle since spread is geometry-derived, not styled.
+     */
+  }, {
+    key: "applyEdgeSpread",
+    value: function applyEdgeSpread(edge, data, edgeState) {
+      var _data$parallelSpread;
+      if (edgeState.parallelCount <= 1) return;
+      var source = this.internals.graph.source(edge);
+      var target = this.internals.graph.target(edge);
+      var isSelfLoop = source === target;
+      var pathName = isSelfLoop ? data.selfLoopPath || data.path : data.parallelPath || data.path;
+      var path = pathName ? this.edgePathsByName.get(pathName) : undefined;
+      if (!(path !== null && path !== void 0 && path.spread)) return;
+      var spreadFactor = (_data$parallelSpread = data.parallelSpread) !== null && _data$parallelSpread !== void 0 ? _data$parallelSpread : 0.25;
+      var spreadValue = path.spread.compute(edgeState.parallelIndex, edgeState.parallelCount, spreadFactor);
+
+      // Correct for reverse-direction non-self-loop edges: swapping source/target
+      // flips the perpendicular direction, so we negate to keep visual consistency.
+      if (!isSelfLoop && this.internals.graph.isDirected(edge) && source > target) {
+        spreadValue = -spreadValue;
+      }
+      data[path.spread.variable] = spreadValue;
+    }
+
+    /**
+     * Add an edge into the internal data structures.
+     * @private
+     * @param key The edge's graphology ID
+     */
+  }, {
+    key: "addEdge",
+    value: function addEdge(key) {
+      var attrs = this.internals.graph.getEdgeAttributes(key);
+      var edgeState = this.stateManager.getEdgeState(key);
+
+      // Evaluate styles directly into a fresh display data object
+      var data$1 = {};
+      types_dist_sigmaTypes.evaluateEdgeStyle(this.stylesDeclaration.edges, attrs, edgeState, this.stateManager.graphState, this.internals.graph, data$1);
+      this.postEvaluateEdge(data$1, attrs);
+
+      // Apply reducer if provided
+      if (this.edgeReducer) {
+        var reduced = this.edgeReducer(key, data$1, attrs, edgeState, this.stateManager.graphState, this.internals.graph);
+        data$1 = loop._objectSpread2(loop._objectSpread2({}, data$1), reduced);
+      }
+
+      // Auto-compute spread variable for parallel edges
+      this.applyEdgeSpread(key, data$1, edgeState);
+      this.internals.edgeDataCache[key] = data$1;
+      data.setMembership(this.internals.edgesWithForcedLabels, key, normalization.hasForcedLabel(data$1));
+
+      // Place the edge in its depth bucket; processEdges() re-sorts each bucket
+      // by zIndex on the next render.
+      this.itemBuckets.edges.set(key, data$1.depth);
+    }
+
+    /**
+     * Update an edge in the internal data structures.
+     * @private
+     * @param key The edge's graphology ID
+     */
+  }, {
+    key: "updateEdge",
+    value: function updateEdge(key) {
+      this.addEdge(key);
+    }
+
+    /**
+     * Remove an edge from the internal data structures.
+     * @private
+     * @param key The edge's graphology ID
+     */
+  }, {
+    key: "removeEdge",
+    value: function removeEdge(key) {
+      // Remove from bucket
+      this.itemBuckets.edges.remove(key);
+      // Remove from edge cache
+      delete this.internals.edgeDataCache[key];
+      // Remove from programId index
+      delete this.edgeProgramIndex[key];
+      delete this.edgeTextureIndexCache[key];
+      // Free edge from edge data texture
+      this.internals.edgeDataTexture.free(key);
+      // Remove from state
+      this.stateManager.removeEdge(key);
+      // Remove from forced label
+      this.internals.edgesWithForcedLabels["delete"](key);
+    }
+
+    /**
+     * Clear all indices related to nodes.
+     * @private
+     */
+  }, {
+    key: "clearNodeIndices",
+    value: function clearNodeIndices() {
+      // labelGrid & nodeExtent are only managed/populated in the process function
+      this.labelRenderer.resetLabelGrid();
+      if (!this.autoRescaleFrozen) this.nodeExtent = {
+        x: [0, 1],
+        y: [0, 1]
+      };
+      this.internals.nodeDataCache = {};
+      this.nodeGraphCoords = {};
+      this.edgeProgramIndex = {};
+      this.internals.nodesWithForcedLabels.clear();
+      this.internals.nodesWithBackdrop.clear();
+      this.prevNodeVisibilities = {};
+      // Clear bucket data
+      this.itemBuckets.nodes.clearAll();
+      this.depthRanges.nodes = {};
+      this.nodeBaseDepth = {};
+    }
+
+    /**
+     * Clear all indices related to edges.
+     * @private
+     */
+  }, {
+    key: "clearEdgeIndices",
+    value: function clearEdgeIndices() {
+      this.internals.edgeDataCache = {};
+      this.edgeProgramIndex = {};
+      this.edgeTextureIndexCache = {};
+      this.internals.edgesWithForcedLabels.clear();
+      resetKind(this.pickingState, "edge");
+      // Clear bucket data
+      this.itemBuckets.edges.clearAll();
+      this.depthRanges.edges = {};
+      this.edgeBaseDepth = {};
+      this.edgeGroups.clear();
+    }
+
+    /**
+     * Clear all indices.
+     * @private
+     */
+  }, {
+    key: "clearIndices",
+    value: function clearIndices() {
+      this.clearEdgeIndices();
+      this.clearNodeIndices();
+    }
+
+    /**
+     * Clear all graph state related to nodes.
+     * @private
+     */
+  }, {
+    key: "clearNodeState",
+    value: function clearNodeState() {
+      this.labelRenderer.resetFrame();
+      this.internals.nodesWithBackdrop.clear();
+      this.internals.dragManager.clear();
+      this.autoRescaleFrozen = false;
+      this.stateManager.clearNodes();
+    }
+
+    /**
+     * Clear all graph state related to edges.
+     * @private
+     */
+  }, {
+    key: "clearEdgeState",
+    value: function clearEdgeState() {
+      this.labelRenderer.clearEdgeLabels();
+      this.stateManager.clearEdges();
+    }
+
+    /**
+     * Clear all graph state.
+     * @private
+     */
+  }, {
+    key: "clearState",
+    value: function clearState() {
+      this.clearEdgeState();
+      this.clearNodeState();
+      this.stateManager.resetGraphState();
+    }
+
+    /**
+     * Add the node data to its program. The picking ID is looked up from the
+     * picking state (callers shouldn't pass it).
+     * @private
+     * @param node The node's graphology ID
+     * @param position The index where to place the node in the program
+     */
+  }, {
+    key: "addNodeToProgram",
+    value: function addNodeToProgram(node, position) {
+      var _ref8;
+      var data = this.internals.nodeDataCache[node];
+      this.internals.nodeDataTexture.allocate(node);
+      (_ref8 = this.internals.nodeDataTexture).updateNode.apply(_ref8, [node, data.x, data.y, data.size, this.getNodeShapeId(data)].concat(loop._toConsumableArray(normalization.nodeRotationFlags(data)), [data.color]));
+      var textureIndex = this.internals.nodeDataTexture.getIndex(node);
+      this.nodeProgram.process(pickingIdOf(this.pickingState, "node", node), position, data, textureIndex, node);
+      this.nodeProgramIndex[node] = position;
+    }
+
+    /**
+     * Add the edge data to its program. The picking ID is looked up from the
+     * picking state (callers shouldn't pass it).
+     * @private
+     * @param edge The edge's graphology ID
+     * @param position The index where to place the edge in the program
+     */
+  }, {
+    key: "addEdgeToProgram",
+    value: function addEdgeToProgram(edge, position) {
+      var _this$stateManager$ge, _this$stateManager$ge2;
+      var data = this.internals.edgeDataCache[edge];
+      var source = this.internals.graph.source(edge);
+      var target = this.internals.graph.target(edge);
+      var edgeTextureIndex = this.internals.edgeDataTexture.allocate(edge);
+      this.edgeTextureIndexCache[edge] = edgeTextureIndex;
+      var isSelfLoop = source === target;
+      var isParallel = !isSelfLoop && ((_this$stateManager$ge = (_this$stateManager$ge2 = this.stateManager.getEdgeState(edge)) === null || _this$stateManager$ge2 === void 0 ? void 0 : _this$stateManager$ge2.parallelCount) !== null && _this$stateManager$ge !== void 0 ? _this$stateManager$ge : 1) > 1;
+      var _this$edgeProgram$res = this.edgeProgram.resolveEdgeIds(data, isSelfLoop, isParallel),
+        pathId = _this$edgeProgram$res.pathId,
+        headId = _this$edgeProgram$res.headId,
+        tailId = _this$edgeProgram$res.tailId,
+        headLengthRatio = _this$edgeProgram$res.headLengthRatio,
+        tailLengthRatio = _this$edgeProgram$res.tailLengthRatio;
+      this.internals.edgeDataTexture.updateEdge(edge, this.internals.nodeDataTexture.getIndex(source), this.internals.nodeDataTexture.getIndex(target), data.size, headLengthRatio, tailLengthRatio, pathId, headId, tailId);
+      this.edgeProgram.process(pickingIdOf(this.pickingState, "edge", edge), position, this.internals.nodeDataCache[source], this.internals.nodeDataCache[target], data, edgeTextureIndex);
+      this.edgeProgramIndex[edge] = position;
+    }
+
+    /**---------------------------------------------------------------------------
+     * Public API.
+     **---------------------------------------------------------------------------
+     */
+
+    /**
+     * Function used to get the render params.
+     *
+     * @return {RenderParams}
+     */
+  }, {
+    key: "getRenderParams",
+    value: function getRenderParams() {
+      return {
+        frameId: this.frameId,
+        matrix: this.matrix,
+        invMatrix: this.invMatrix,
+        width: this.width,
+        height: this.height,
+        pixelRatio: this.internals.pixelRatio,
+        zoomRatio: this.camera.ratio,
+        cameraAngle: this.camera.angle,
+        sizeRatio: 1 / this.scaleSize(),
+        correctionRatio: this.correctionRatio,
+        downSizingRatio: this.internals.settings.pickingDownSizingRatio,
+        minEdgeThickness: this.internals.settings.minEdgeThickness,
+        antiAliasingFeather: this.internals.settings.antiAliasingFeather,
+        nodePickingPadding: this.internals.settings.nodePickingPadding,
+        edgePickingPadding: this.internals.settings.edgePickingPadding,
+        labelPickingPadding: this.internals.settings.labelPickingPadding,
+        nodeDataTextureUnit: NODE_DATA_TEXTURE_UNIT,
+        nodeDataTextureWidth: this.internals.nodeDataTexture.getTextureWidth(),
+        nodeFrameTextureUnit: NODE_FRAME_TEXTURE_UNIT,
+        nodeFrameTextureWidth: this.internals.nodeFrameTexture.getTextureWidth(),
+        edgeDataTextureUnit: EDGE_DATA_TEXTURE_UNIT,
+        edgeDataTextureWidth: this.internals.edgeDataTexture.getTextureWidth(),
+        edgeFrameTextureUnit: EDGE_FRAME_TEXTURE_UNIT,
+        edgeFrameTextureWidth: this.internals.edgeFrameTexture.getTextureWidth(),
+        pickingFrameBuffer: this.pickingFrameBuffer,
+        labelPixelSnapping: this.internals.settings.labelPixelSnapping ? 1.0 : 0.0
+      };
+    }
+
+    /**
+     * Function used to retrieve the actual stage padding value.
+     *
+     * @return {number}
+     */
+  }, {
+    key: "getStagePadding",
+    value: function getStagePadding() {
+      var _this$internals$setti = this.internals.settings,
+        stagePadding = _this$internals$setti.stagePadding,
+        autoRescale = _this$internals$setti.autoRescale;
+      return autoRescale ? stagePadding || 0 : 0;
+    }
+
+    /**
+     * Resolves a layer element by id, checking both built-in layers (stage,
+     * mouse) and extra layers added via createLayer.
+     */
+  }, {
+    key: "getLayerElement",
+    value: function getLayerElement(id) {
+      if (id === "mouse") return this.mouseLayer;
+      var element = this.extraElements[id];
+      if (!element) throw new Error("Sigma: layer \"".concat(id, "\" does not exist"));
+      return element;
+    }
+
+    /**
+     * Initializes the main WebGL 2 context on the stage canvas, with picking
+     * framebuffer.
+     */
+  }, {
+    key: "initWebGLContext",
+    value: function initWebGLContext() {
+      var _this6 = this;
+      var gl = this.createWebGLContext("stage");
+      this.stageCanvas = this.extraElements.stage;
+      this.webGLContext = gl;
+
+      // preventDefault asks the browser to restore the context later, unless sigma was killed
+      this.stageCanvas.addEventListener("webglcontextlost", function (event) {
+        if (!_this6.webGLContext) return;
+        event.preventDefault();
+        _this6.contextLost = true;
+        if (_this6.renderFrame) {
+          cancelAnimationFrame(_this6.renderFrame);
+          _this6.renderFrame = null;
+        }
+        // DEBUG_gpuTimerQueries: the extension handle and any in-flight queries die with the context.
+        _this6.gpuTimerExt = undefined;
+        _this6.activeGpuTimerQuery = null;
+        _this6.pendingGpuTimerQueries = [];
+        _this6.emit("webglContextLost");
+      });
+      this.stageCanvas.addEventListener("webglcontextrestored", function () {
+        // rAF is paused in hidden tabs, so only visible tabs re-acquire contexts
+        requestAnimationFrame(function () {
+          if (_this6.webGLContext && !_this6.webGLContext.isContextLost()) _this6.restoreWebGLContext();
+        });
+      });
+      this.initPickingFramebuffer();
+    }
+
+    /**
+     * (Re)creates the picking framebuffer, at construction and after a context
+     * restore. It starts at 1x1, and resetWebGLTexture sizes it on each render.
+     */
+  }, {
+    key: "initPickingFramebuffer",
+    value: function initPickingFramebuffer() {
+      var gl = this.webGLContext;
+      var frameBuffer = gl.createFramebuffer();
+      if (!frameBuffer) throw new Error("Sigma: cannot create picking frame buffer");
+      gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+
+      // Create picking texture for IDs (single attachment, no blending needed)
+      var pickingTexture = gl.createTexture();
+      if (!pickingTexture) throw new Error("Sigma: cannot create picking texture");
+      gl.bindTexture(gl.TEXTURE_2D, pickingTexture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+      // NEAREST filtering for exact pixel reads (no interpolation)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, pickingTexture, 0);
+
+      // Create depth buffer for proper depth testing during picking
+      var depthBuffer = gl.createRenderbuffer();
+      if (!depthBuffer) throw new Error("Sigma: cannot create picking depth buffer");
+      gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+      gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, 1, 1);
+      gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
+
+      // Verify framebuffer is complete
+      if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+        throw new Error("Sigma: picking framebuffer is not complete");
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      this.pickingFrameBuffer = frameBuffer;
+      this.pickingTexture = pickingTexture;
+      this.pickingDepthBuffer = depthBuffer;
+    }
+
+    /**
+     * (Re)generates node and edge programs from primitives, at construction and
+     * after a context restore. Returns the internals-bound programs.
+     */
+  }, {
+    key: "initPrograms",
+    value: function initPrograms(primitives, settings) {
+      var sigma = this;
+      var gl = this.webGLContext;
+      var _generateNodeProgram = parser.generateNodeProgram(gl, this.pickingFrameBuffer, sigma, primitives === null || primitives === void 0 ? void 0 : primitives.nodes, settings.antialiasNodes),
+        nodeProgram = _generateNodeProgram.nodeProgram,
+        labelProgram = _generateNodeProgram.labelProgram,
+        backdropProgram = _generateNodeProgram.backdropProgram,
+        labelBackgroundProgram = _generateNodeProgram.labelBackgroundProgram,
+        attachmentProgram = _generateNodeProgram.attachmentProgram,
+        framePass = _generateNodeProgram.framePass,
+        nodeShapeSlug = _generateNodeProgram.shapeSlug,
+        nodeShapeMap = _generateNodeProgram.shapeNameToIndex,
+        nodeGlobalShapeIds = _generateNodeProgram.shapeGlobalIds,
+        nodeVariables = _generateNodeProgram.variables;
+      this.nodeProgram = nodeProgram;
+      this.nodeFramePass = framePass;
+      this.nodeVariableEntries = Object.entries(nodeVariables);
+      if (nodeShapeSlug) this.nodeShapeSlug = nodeShapeSlug;
+      var _generateEdgeProgram = parser.generateEdgeProgram(gl, this.pickingFrameBuffer, sigma, primitives === null || primitives === void 0 ? void 0 : primitives.edges, settings.antialiasEdges, primitives === null || primitives === void 0 ? void 0 : primitives.nodes),
+        edgeProgram = _generateEdgeProgram.edgeProgram,
+        edgeLabelProgram = _generateEdgeProgram.labelProgram,
+        edgeLabelBackgroundProgram = _generateEdgeProgram.labelBackgroundProgram,
+        edgeFramePass = _generateEdgeProgram.framePass,
+        edgeVariables = _generateEdgeProgram.variables,
+        edgePaths = _generateEdgeProgram.paths;
+      this.edgeProgram = edgeProgram;
+      this.edgeFramePass = edgeFramePass;
+      this.edgeVariableEntries = Object.entries(edgeVariables);
+      this.edgePathsByName = new Map(edgePaths.map(function (p) {
+        return [p.name, p];
+      }));
+      return {
+        labelProgram: labelProgram,
+        edgeLabelProgram: edgeLabelProgram,
+        edgeLabelBackgroundProgram: edgeLabelBackgroundProgram,
+        backdropProgram: backdropProgram,
+        labelBackgroundProgram: labelBackgroundProgram,
+        attachmentProgram: attachmentProgram,
+        nodeShapeMap: nodeShapeMap !== null && nodeShapeMap !== void 0 ? nodeShapeMap : null,
+        nodeGlobalShapeIds: nodeGlobalShapeIds !== null && nodeGlobalShapeIds !== void 0 ? nodeGlobalShapeIds : null
+      };
+    }
+
+    /**
+     * Rebuilds all GPU resources after a context restore: the context object is
+     * valid again, only its resources died.
+     */
+  }, {
+    key: "restoreWebGLContext",
+    value: function restoreWebGLContext() {
+      var _internals$nodeDataTe, _internals$nodeFrameT, _internals$edgeDataTe, _internals$edgeFrameT, _internals$attachment;
+      var internals = this.internals;
+      this.initPickingFramebuffer();
+      (_internals$nodeDataTe = internals.nodeDataTexture) === null || _internals$nodeDataTe === void 0 || _internals$nodeDataTe.restore();
+      (_internals$nodeFrameT = internals.nodeFrameTexture) === null || _internals$nodeFrameT === void 0 || _internals$nodeFrameT.restore();
+      (_internals$edgeDataTe = internals.edgeDataTexture) === null || _internals$edgeDataTe === void 0 || _internals$edgeDataTe.restore();
+      (_internals$edgeFrameT = internals.edgeFrameTexture) === null || _internals$edgeFrameT === void 0 || _internals$edgeFrameT.restore();
+      (_internals$attachment = internals.attachmentManager) === null || _internals$attachment === void 0 || _internals$attachment.restore();
+      internals.hoverResolver.reset();
+      Object.assign(internals, this.initPrograms(internals.primitives, internals.settings));
+
+      // Custom layer programs are user code: rebuild each from its factory
+      var _iterator11 = colors._createForOfIteratorHelper(this.customLayerPrograms.values()),
+        _step11;
+      try {
+        for (_iterator11.s(); !(_step11 = _iterator11.n()).done;) {
+          var entry = _step11.value;
+          entry.program.kill();
+          entry.program = entry.factory(this.webGLContext);
+        }
+      } catch (err) {
+        _iterator11.e(err);
+      } finally {
+        _iterator11.f();
+      }
+      this.contextLost = false;
+      this.emit("webglContextRestored");
+      this.refresh();
+    }
+
+    /**
+     * Function used to create a layer element.
+     *
+     * @param {string} id - Context's id.
+     * @param {string} tag - The HTML tag to use.
+     * @param options
+     * @return {Sigma}
+     */
+  }, {
+    key: "createLayer",
+    value: function createLayer(id, tag) {
+      var options = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : {};
+      if (this.extraElements[id]) throw new Error("Sigma: a layer named \"".concat(id, "\" already exists"));
+      var element = misc.createElement(tag, {
+        position: "absolute"
+      }, {
+        "class": "sigma-".concat(id)
+      });
+      if (options.style) Object.assign(element.style, options.style);
+      this.extraElements[id] = element;
+      if ("beforeLayer" in options && options.beforeLayer) {
+        this.getLayerElement(options.beforeLayer).before(element);
+      } else if ("afterLayer" in options && options.afterLayer) {
+        this.getLayerElement(options.afterLayer).after(element);
+      } else {
+        this.container.appendChild(element);
+      }
+      return element;
+    }
+
+    /**
+     * Function used to create a canvas element.
+     *
+     * @param {string} id - Context's id.
+     * @param options
+     * @return {Sigma}
+     */
+  }, {
+    key: "createCanvas",
+    value: function createCanvas(id) {
+      var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      return this.createLayer(id, "canvas", options);
+    }
+
+    /**
+     * Creates a new canvas layer registered under `id` (killable via
+     * `killLayer`) and attaches a WebGL 2 context to it.
+     */
+  }, {
+    key: "createWebGLContext",
+    value: function createWebGLContext(id) {
+      var options = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      var canvas = this.createCanvas(id, options);
+      if (options.hidden) canvas.remove();
+      var gl = canvas.getContext("webgl2", loop._objectSpread2({
+        preserveDrawingBuffer: false,
+        antialias: false,
+        depth: true
+      }, options));
+      if (!gl) {
+        throw new Error("Sigma: WebGL 2 is not supported by your browser. " + "Please use a modern browser (Chrome 56+, Firefox 51+, Safari 15+, Edge 79+).");
+      }
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      return gl;
+    }
+
+    /**
+     * Function used to properly kill a layer.
+     *
+     * @param  {string} id - Layer id.
+     * @return {Sigma}
+     */
+  }, {
+    key: "killLayer",
+    value: function killLayer(id) {
+      if (id === "stage" || id === "mouse") throw new Error("Sigma: cannot kill built-in layer \"".concat(id, "\""));
+      var element = this.extraElements[id];
+      if (!element) throw new Error("Sigma: cannot kill layer ".concat(id, ", which does not exist"));
+
+      // Delete layer element
+      element.remove();
+      delete this.extraElements[id];
+      return this;
+    }
+
+    /**
+     * Method returning the main WebGL context used by the renderer.
+     */
+  }, {
+    key: "getWebGLContext",
+    value: function getWebGLContext() {
+      if (!this.webGLContext) throw new Error("Sigma: WebGL context is not available");
+      return this.webGLContext;
+    }
+
+    /**
+     * Returns the shared node data texture (position, size, shapeId per node).
+     * GPU-side position writers can use it to target their writes (see the
+     * "afterTexturesUpload" event). The texture object is recreated when its
+     * capacity grows, so consumers holding a WebGLTexture handle must re-read it
+     * every frame.
+     */
+  }, {
+    key: "getNodeDataTexture",
+    value: function getNodeDataTexture() {
+      if (!this.internals.nodeDataTexture) throw new Error("Sigma: node data texture is not available");
+      return this.internals.nodeDataTexture;
+    }
+
+    /**
+     * Returns the current normalization function, mapping graph coordinates to
+     * the ~[0, 1] framed-graph space stored in the node data texture (and back,
+     * through its `inverse` method).
+     */
+  }, {
+    key: "getNormalizationFunction",
+    value: function getNormalizationFunction() {
+      return this.normalizationFunction;
+    }
+
+    /**
+     * Registers a custom layer program under a unique `id`, so it can later be
+     * removed with {@link Sigma#removeCustomLayerProgram}. It renders at the given
+     * `depth`, which must be declared in the primitives depthLayers array; several
+     * programs may share a depth and render in registration order. Reusing an `id`
+     * disposes the program previously registered under it. The `factory` is
+     * re-invoked when a lost WebGL context is restored.
+     */
+  }, {
+    key: "addCustomLayerProgram",
+    value: function addCustomLayerProgram(id, depth, factory) {
+      var _this$customLayerProg;
+      if (!this.depthLayers.includes(depth)) throw new Error("Sigma: cannot add custom layer program at depth \"".concat(depth, "\", ") + "it must be declared in primitives.depthLayers. Current layers: ".concat(this.depthLayers.join(", ")));
+      (_this$customLayerProg = this.customLayerPrograms.get(id)) === null || _this$customLayerProg === void 0 || _this$customLayerProg.program.kill();
+      this.customLayerPrograms.set(id, {
+        depth: depth,
+        factory: factory,
+        program: factory(this.webGLContext)
+      });
+      this.refresh();
+      return this;
+    }
+
+    /**
+     * Removes (and disposes) the custom layer program registered under the given id.
+     */
+  }, {
+    key: "removeCustomLayerProgram",
+    value: function removeCustomLayerProgram(id) {
+      var entry = this.customLayerPrograms.get(id);
+      if (entry) {
+        entry.program.kill();
+        this.customLayerPrograms["delete"](id);
+        this.scheduleRender();
+      }
+      return this;
+    }
+
+    /**
+     * Method returning the renderer's camera.
+     *
+     * @return {Camera}
+     */
+  }, {
+    key: "getCamera",
+    value: function getCamera() {
+      return this.camera;
+    }
+
+    /**
+     * Method setting the renderer's camera.
+     *
+     * @param  {Camera} camera - New camera.
+     * @return {Sigma}
+     */
+  }, {
+    key: "setCamera",
+    value: function setCamera(camera) {
+      this.camera.cancelAnimation();
+      this.unbindCameraHandlers();
+      this.camera = camera;
+      this.bindCameraHandlers();
+      this.scheduleRender();
+      return this;
+    }
+
+    /**
+     * Method returning the container DOM element.
+     *
+     * @return {HTMLElement}
+     */
+  }, {
+    key: "getContainer",
+    value: function getContainer() {
+      return this.container;
+    }
+
+    /**
+     * Method returning the renderer's graph.
+     *
+     * @return {Graph}
+     */
+  }, {
+    key: "getGraph",
+    value: function getGraph() {
+      return this.internals.graph;
+    }
+
+    /**
+     * Method used to set the renderer's graph.
+     *
+     * @return {Sigma}
+     */
+  }, {
+    key: "setGraph",
+    value: function setGraph(graph) {
+      if (graph === this.internals.graph) return this;
+
+      // Keep states of items that exist in the new graph, drop the rest
+      this.stateManager.pruneNodes(function (node) {
+        return graph.hasNode(node);
+      });
+      this.stateManager.pruneEdges(function (edge) {
+        return graph.hasEdge(edge);
+      });
+
+      // Unbinding handlers on the current graph
+      this.unbindGraphHandlers();
+      if (this.checkEdgesEventsFrame !== null) {
+        cancelAnimationFrame(this.checkEdgesEventsFrame);
+        this.checkEdgesEventsFrame = null;
+      }
+
+      // Installing new graph
+      this.internals.graph = graph;
+
+      // The extent frozen by autoRescale "once" belongs to the previous graph:
+      this.autoRescaleFrozen = false;
+
+      // Binding new handlers
+      this.bindGraphHandlers();
+
+      // Re-rendering now to avoid discrepancies from now to next frame
+      this.refresh();
+      return this;
+    }
+
+    /**
+     * Method returning the mouse captor.
+     *
+     * @return {MouseCaptor}
+     */
+  }, {
+    key: "getMouseCaptor",
+    value: function getMouseCaptor() {
+      return this.mouseCaptor;
+    }
+
+    /**
+     * Method returning the touch captor.
+     *
+     * @return {TouchCaptor}
+     */
+  }, {
+    key: "getTouchCaptor",
+    value: function getTouchCaptor() {
+      return this.touchCaptor;
+    }
+
+    /**
+     * Method returning the current renderer's dimensions.
+     *
+     * @return {Dimensions}
+     */
+  }, {
+    key: "getDimensions",
+    value: function getDimensions() {
+      return {
+        width: this.width,
+        height: this.height
+      };
+    }
+
+    /**
+     * Method returning the current graph's dimensions.
+     *
+     * @return {Dimensions}
+     */
+  }, {
+    key: "getGraphDimensions",
+    value: function getGraphDimensions() {
+      var extent = this.customBBox || this.nodeExtent;
+      return {
+        width: extent.x[1] - extent.x[0] || 1,
+        height: extent.y[1] - extent.y[0] || 1
+      };
+    }
+
+    /**
+     * Method used to get all the sigma node attributes.
+     * It's useful for example to get the position of a node
+     * and to get values that are set by the nodeReducer
+     *
+     * @param  {string} key - The node's key.
+     * @return {NodeDisplayData | undefined} A copy of the desired node's attribute or undefined if not found
+     */
+  }, {
+    key: "getNodeDisplayData",
+    value: function getNodeDisplayData(key) {
+      var node = this.internals.nodeDataCache[key];
+      return node ? Object.assign({}, node) : undefined;
+    }
+
+    /**
+     * Method used to get all the sigma edge attributes.
+     * It's useful for example to get values that are set by the edgeReducer.
+     *
+     * @param  {string} key - The edge's key.
+     * @return {EdgeDisplayData | undefined} A copy of the desired edge's attribute or undefined if not found
+     */
+  }, {
+    key: "getEdgeDisplayData",
+    value: function getEdgeDisplayData(key) {
+      var edge = this.internals.edgeDataCache[key];
+      return edge ? Object.assign({}, edge) : undefined;
+    }
+
+    /**
+     * =========================================================================
+     * STATE MANAGEMENT API
+     * =========================================================================
+     */
+
+    /**
+     * Method returning a node's state.
+     *
+     * @param  {string} key - The node's key.
+     * @return {FullNodeState<NS>} The node's state.
+     */
+  }, {
+    key: "getNodeState",
+    value: function getNodeState(key) {
+      return this.stateManager.getNodeState(key);
+    }
+
+    /**
+     * Method returning an edge's state.
+     *
+     * @param  {string} key - The edge's key.
+     * @return {FullEdgeState<ES>} The edge's state.
+     */
+  }, {
+    key: "getEdgeState",
+    value: function getEdgeState(key) {
+      return this.stateManager.getEdgeState(key);
+    }
+
+    /**
+     * Method returning the graph's state.
+     *
+     * @return {FullGraphState<GS>} The graph's state.
+     */
+  }, {
+    key: "getGraphState",
+    value: function getGraphState() {
+      return this.stateManager.getGraphState();
+    }
+
+    /**
+     * Method to update a node's state.
+     *
+     * @param  {string} key - The node's key.
+     * @param  {Partial<FullNodeState<NS>>} state - Partial state to merge.
+     * @return {this}
+     */
+  }, {
+    key: "setNodeState",
+    value: function setNodeState(key, state) {
+      this.stateManager.setNodeState(key, state);
+      return this;
+    }
+
+    /**
+     * Method to update an edge's state.
+     *
+     * @param  {string} key - The edge's key.
+     * @param  {Partial<FullEdgeState<ES>>} state - Partial state to merge.
+     * @return {this}
+     */
+  }, {
+    key: "setEdgeState",
+    value: function setEdgeState(key, state) {
+      this.stateManager.setEdgeState(key, state);
+      return this;
+    }
+
+    /**
+     * Method to update the graph's state.
+     *
+     * @param  {Partial<FullGraphState<GS>>} state - Partial state to merge.
+     * @return {this}
+     */
+  }, {
+    key: "setGraphState",
+    value: function setGraphState(state) {
+      this.stateManager.setGraphState(state);
+      return this;
+    }
+
+    /**
+     * Internal: toggle the graph-level `isPanning` flag. Called by captors when
+     * the user starts/stops dragging the stage. Not meant for user code, use
+     * `setGraphState` for custom flags instead.
+     */
+  }, {
+    key: "_setPanning",
+    value: function _setPanning(isPanning) {
+      this.stateManager.setGraphState({
+        isPanning: isPanning
+      });
+    }
+
+    /**
+     * Internal: toggle the graph-level `isZooming` flag. Called by captors for
+     * non-animated zoom gestures (e.g. pinch), which bypass `camera.animate`.
+     * Animated zooms are tracked automatically via camera events.
+     */
+  }, {
+    key: "_setZooming",
+    value: function _setZooming(isZooming) {
+      this.stateManager.setGraphState({
+        isZooming: isZooming
+      });
+    }
+
+    /**
+     * Internal: whether a node is being dragged.
+     */
+  }, {
+    key: "_hasNodeDrag",
+    value: function _hasNodeDrag() {
+      var dragManager = this.internals.dragManager;
+      return !!(dragManager.pendingNode || dragManager.session);
+    }
+
+    /**
+     * Internal: display the shared-gestures hint. Called by captors when a plain
+     * gesture reaches the stage while `gestureTarget` is "shared".
+     */
+  }, {
+    key: "_showGestureHint",
+    value: function _showGestureHint(gesture) {
+      var settings = this.internals.settings;
+      if (settings.gestureTarget !== "shared") return;
+      this.gestureHint = this.gestureHint || new GestureHint(this.container);
+      this.gestureHint.show(gesture, settings);
+    }
+
+    /**
+     * Method to update multiple nodes' states at once.
+     *
+     * @param  {string[]} keys - The nodes' keys.
+     * @param  {Partial<FullNodeState<NS>>} state - Partial state to merge.
+     * @return {this}
+     */
+  }, {
+    key: "setNodesState",
+    value: function setNodesState(keys, state) {
+      this.stateManager.setNodesState(keys, state);
+      return this;
+    }
+
+    /**
+     * Method to update multiple edges' states at once.
+     *
+     * @param  {string[]} keys - The edges' keys.
+     * @param  {Partial<FullEdgeState<ES>>} state - Partial state to merge.
+     * @return {this}
+     */
+  }, {
+    key: "setEdgesState",
+    value: function setEdgesState(keys, state) {
+      this.stateManager.setEdgesState(keys, state);
+      return this;
+    }
+
+    /**
+     * Update the container's CSS cursor based on the currently hovered item,
+     * falling back to the stage cursor style. The hovered item's kind owns the
+     * cursor lookup (e.g. node labels read `labelCursor` rather than `cursor`).
+     */
+  }, {
+    key: "updateContainerCursor",
+    value: function updateContainerCursor() {
+      var hit = this.stateManager.hovered;
+      var stage = this.resolvedStageStyle.cursor || "";
+      this.container.style.cursor = hit ? getCursor(this.internals, hit) || stage : stage;
+    }
+
+    /**
+     * Re-evaluate stage styles and apply them to the container.
+     */
+  }, {
+    key: "refreshStageStyle",
+    value: function refreshStageStyle() {
+      this.resolvedStageStyle = types_dist_sigmaTypes.evaluateStageStyle(this.stylesDeclaration.stage, this.stateManager.graphState);
+
+      // Apply background
+      if (this.resolvedStageStyle.background !== undefined) {
+        this.container.style.backgroundColor = this.resolvedStageStyle.background;
+      }
+
+      // Apply cursor (respecting hovered item override)
+      this.updateContainerCursor();
+    }
+
+    /**
+     * Method used to get the set of currently displayed node labels.
+     *
+     * @return {Set<string>} A set of node keys whose label is displayed.
+     */
+  }, {
+    key: "getNodeDisplayedLabels",
+    value: function getNodeDisplayedLabels() {
+      return new Set(this.labelRenderer.displayedNodeLabels);
+    }
+
+    /**
+     * Method used to get the set of currently displayed edge labels.
+     *
+     * @return {Set<string>} A set of edge keys whose label is displayed.
+     */
+  }, {
+    key: "getEdgeDisplayedLabels",
+    value: function getEdgeDisplayedLabels() {
+      return new Set(this.labelRenderer.displayedEdgeLabels);
+    }
+
+    /**
+     * Method returning a copy of the settings collection.
+     *
+     * @return {Settings} A copy of the settings collection.
+     */
+  }, {
+    key: "getSettings",
+    value: function getSettings() {
+      return loop._objectSpread2({}, this.internals.settings);
+    }
+
+    /**
+     * Method returning the current value for a given setting key.
+     *
+     * @param  {string} key - The setting key to get.
+     * @return {any} The value attached to this setting key or undefined if not found
+     */
+  }, {
+    key: "getSetting",
+    value: function getSetting(key) {
+      return this.internals.settings[key];
+    }
+
+    /**
+     * Method returning a copy of the styles declaration, as resolved at
+     * construction (i.e. with the defaults applied when none was given).
+     *
+     * The copy is shallow: the rules it points to are the renderer's own, and
+     * must be treated as read-only. Build new arrays and objects rather than
+     * mutating them in place.
+     *
+     * @return {StylesDeclaration} A copy of the styles declaration.
+     */
+  }, {
+    key: "getStyles",
+    value: function getStyles() {
+      return loop._objectSpread2({}, this.stylesDeclaration);
+    }
+
+    /**
+     * Method returning a copy of the primitives declaration, as resolved at
+     * construction (i.e. with the defaults applied when none was given).
+     *
+     * The copy is shallow: the rules it points to are the renderer's own, and
+     * must be treated as read-only. Build new arrays and objects rather than
+     * mutating them in place.
+     *
+     * @return {PrimitivesDeclaration} A copy of the primitives declaration.
+     */
+  }, {
+    key: "getPrimitives",
+    value: function getPrimitives() {
+      return loop._objectSpread2({}, this.internals.primitives);
+    }
+
+    /**
+     * Method setting the value of a given setting key. Note that this will schedule
+     * a new render next frame.
+     *
+     * @param  {string} key - The setting key to set.
+     * @param  {any}    value - The value to set.
+     * @return {Sigma}
+     */
+  }, {
+    key: "setSetting",
+    value: function setSetting(key, value) {
+      this.internals.settings[key] = value;
+      settings_dist_sigmaSettings.validateSettings(this.internals.settings);
+      this.handleSettingsUpdate();
+      this.scheduleRefresh();
+      return this;
+    }
+
+    /**
+     * Method updating the value of a given setting key using the provided function.
+     * Note that this will schedule a new render next frame.
+     *
+     * @param  {string}   key     - The setting key to set.
+     * @param  {function} updater - The update function.
+     * @return {Sigma}
+     */
+  }, {
+    key: "updateSetting",
+    value: function updateSetting(key, updater) {
+      this.setSetting(key, updater(this.internals.settings[key]));
+      return this;
+    }
+
+    /**
+     * Method setting multiple settings at once.
+     *
+     * @param  {Partial<Settings>} settings - The settings to set.
+     * @return {Sigma}
+     */
+  }, {
+    key: "setSettings",
+    value: function setSettings(settings) {
+      this.internals.settings = loop._objectSpread2(loop._objectSpread2({}, this.internals.settings), settings);
+      settings_dist_sigmaSettings.validateSettings(this.internals.settings);
+      this.handleSettingsUpdate();
+      this.scheduleRefresh();
+      return this;
+    }
+
+    /**
+     * Method used to resize the renderer.
+     *
+     * @param  {boolean} force - If true, then resize is processed even if size is unchanged (optional).
+     * @return {Sigma}
+     */
+  }, {
+    key: "resize",
+    value: function resize(force) {
+      var previousWidth = this.width,
+        previousHeight = this.height;
+      this.width = this.container.offsetWidth;
+      this.height = this.container.offsetHeight;
+      this.internals.pixelRatio = misc.getPixelRatio();
+      if (this.width === 0) {
+        if (this.internals.settings.allowInvalidContainer) this.width = 1;else throw new Error("Sigma: Container has no width. You can set the allowInvalidContainer setting to true to stop seeing this error.");
+      }
+      if (this.height === 0) {
+        if (this.internals.settings.allowInvalidContainer) this.height = 1;else throw new Error("Sigma: Container has no height. You can set the allowInvalidContainer setting to true to stop seeing this error.");
+      }
+
+      // If nothing has changed, we can stop right here
+      if (!force && previousWidth === this.width && previousHeight === this.height) return this;
+
+      // The viewport size affects the label culling grid, so it can change
+      // which labels get displayed even with static data and camera.
+      this.labelRenderer.labelsDirty = true;
+
+      // Sizing dom elements (stage is in extraElements)
+      for (var _i2 = 0, _arr = [this.mouseLayer].concat(loop._toConsumableArray(Object.values(this.extraElements))); _i2 < _arr.length; _i2++) {
+        var element = _arr[_i2];
+        element.style.width = this.width + "px";
+        element.style.height = this.height + "px";
+      }
+
+      // Sizing WebGL context
+      if (this.webGLContext) {
+        this.stageCanvas.setAttribute("width", this.width * this.internals.pixelRatio + "px");
+        this.stageCanvas.setAttribute("height", this.height * this.internals.pixelRatio + "px");
+        this.webGLContext.viewport(0, 0, this.width * this.internals.pixelRatio, this.height * this.internals.pixelRatio);
+      }
+      this.emit("resize");
+      return this;
+    }
+
+    /**
+     * Method used to clear all the canvases.
+     *
+     * @return {Sigma}
+     */
+  }, {
+    key: "clear",
+    value: function clear() {
+      this.emit("beforeClear");
+      this.webGLContext.bindFramebuffer(WebGLRenderingContext.FRAMEBUFFER, null);
+      this.webGLContext.clear(WebGLRenderingContext.COLOR_BUFFER_BIT);
+      this.emit("afterClear");
+      return this;
+    }
+
+    /**
+     * Schedule a state-only refresh: re-evaluate all styles in-place without
+     * rebuilding program arrays. Depth changes are handled via fragmented ranges.
+     */
+  }, {
+    key: "scheduleStateRefresh",
+    value: function scheduleStateRefresh() {
+      this.needToRefreshState = true;
+      this.scheduleRender();
+    }
+
+    /**
+     * Re-evaluate item styles in-place. Uses dependency classification to skip
+     * items whose styles can't have changed.
+     */
+  }, {
+    key: "refreshState",
+    value: function refreshState() {
+      var _this7 = this,
+        _this$stylesDeclarati;
+      // Recompute graph-level flags from node/edge states if needed (deferred from setState calls)
+      this.stateManager.flushGraphStateFlags();
+      var needFullNodeRefresh = this.stateManager.graphStateChanged && this.internals.nodeStyleAnalysis.dependency === "graph-state";
+      var needFullEdgeRefresh = this.stateManager.graphStateChanged && this.edgeStyleAnalysis.dependency === "graph-state";
+
+      // A zIndex change reorders items, which an in-place refresh cannot apply
+      // (render order is buffer order). Track it and escalate to a reprocess below.
+      var orderChanged = false;
+
+      // Nodes
+      if (needFullNodeRefresh) {
+        this.internals.graph.forEachNode(function (node) {
+          if (_this7.refreshNodeState(node)) orderChanged = true;
+        });
+      } else if (this.internals.nodeStyleAnalysis.dependency !== "static") {
+        var _iterator12 = colors._createForOfIteratorHelper(this.stateManager.dirtyNodes),
+          _step12;
+        try {
+          for (_iterator12.s(); !(_step12 = _iterator12.n()).done;) {
+            var node = _step12.value;
+            if (this.refreshNodeState(node)) orderChanged = true;
+          }
+        } catch (err) {
+          _iterator12.e(err);
+        } finally {
+          _iterator12.f();
+        }
+      }
+
+      // Edges
+      if (needFullEdgeRefresh) {
+        this.internals.graph.forEachEdge(function (edge) {
+          if (_this7.refreshEdgeState(edge)) orderChanged = true;
+        });
+      } else if (this.edgeStyleAnalysis.dependency !== "static") {
+        var _iterator13 = colors._createForOfIteratorHelper(this.stateManager.dirtyEdges),
+          _step13;
+        try {
+          for (_iterator13.s(); !(_step13 = _iterator13.n()).done;) {
+            var edge = _step13.value;
+            if (this.refreshEdgeState(edge)) orderChanged = true;
+          }
+        } catch (err) {
+          _iterator13.e(err);
+        } finally {
+          _iterator13.f();
+        }
+      }
+
+      // Stage styles
+      if (this.stateManager.graphStateChanged && (_this$stylesDeclarati = this.stylesDeclaration) !== null && _this$stylesDeclarati !== void 0 && _this$stylesDeclarati.stage) {
+        this.refreshStageStyle();
+      }
+      this.stateManager.clearDirtyTracking();
+
+      // render() runs the escalated reprocess right after refreshState().
+      if (orderChanged) this.pendingProcess = "full";
+    }
+
+    /**
+     * Re-evaluate a single node's style and rewrite its GPU data.
+     * Lean path: patches cache in place, skips unchanged bookkeeping.
+     */
+  }, {
+    key: "refreshNodeState",
+    value: function refreshNodeState(node) {
+      var data$1 = this.internals.nodeDataCache[node];
+
+      // If node not yet cached or a reducer exists, fall back to full path
+      if (!data$1 || this.nodeReducer) {
+        var _this$internals$nodeD, _this$internals$nodeD2, _this$internals$nodeD3, _ref9;
+        var _oldDepth = (_this$internals$nodeD = this.internals.nodeDataCache[node]) === null || _this$internals$nodeD === void 0 ? void 0 : _this$internals$nodeD.depth;
+        var _oldZIndex = (_this$internals$nodeD2 = this.internals.nodeDataCache[node]) === null || _this$internals$nodeD2 === void 0 ? void 0 : _this$internals$nodeD2.zIndex;
+        var _oldAttachment = (_this$internals$nodeD3 = this.internals.nodeDataCache[node]) === null || _this$internals$nodeD3 === void 0 ? void 0 : _this$internals$nodeD3.labelAttachment;
+        this.updateNode(node);
+        var newData = this.internals.nodeDataCache[node];
+        if (this.internals.attachmentManager && newData.labelAttachment !== _oldAttachment) {
+          this.internals.attachmentManager.invalidateNode(node);
+        }
+        var shapeId;
+        if (this.internals.nodeShapeMap && this.internals.nodeGlobalShapeIds && newData.shape && newData.shape in this.internals.nodeShapeMap) {
+          shapeId = this.internals.nodeGlobalShapeIds[this.internals.nodeShapeMap[newData.shape]];
+        } else {
+          shapeId = factory.getShapeId(newData.shape || "circle");
+        }
+        (_ref9 = this.internals.nodeDataTexture).updateNode.apply(_ref9, [node, newData.x, newData.y, newData.size, shapeId].concat(loop._toConsumableArray(normalization.nodeRotationFlags(newData)), [newData.color]));
+        if (_oldDepth && newData.depth !== _oldDepth) {
+          this.updateNodeDepthRanges(node, _oldDepth, newData.depth);
+        }
+        var _programIndex = this.nodeProgramIndex[node];
+        if (_programIndex !== undefined) {
+          this.addNodeToProgram(node, _programIndex);
+          this.nodeProgram.invalidateBuffers();
+        }
+        return _oldZIndex !== undefined && newData.zIndex !== _oldZIndex;
+      }
+
+      // Re-evaluate style directly into the cached display data object
+      var attrs = this.internals.graph.getNodeAttributes(node);
+      var nodeState = this.stateManager.getNodeState(node);
+
+      // Save old values before patching
+      var oldSize = data$1.size;
+      var oldShape = data$1.shape;
+      var oldDepth = data$1.depth;
+      var oldZIndex = data$1.zIndex;
+      var oldAttachment = data$1.labelAttachment;
+      var oldRotationAlignment = data$1.rotationAlignment;
+      var oldLabelRotationAlignment = data$1.labelRotationAlignment;
+      var oldColor = data$1.color;
+      types_dist_sigmaTypes.evaluateNodeStyle(this.stylesDeclaration.nodes, attrs, nodeState, this.stateManager.graphState, this.internals.graph, data$1);
+      this.postEvaluateNode(data$1, attrs, nodeState);
+
+      // Update raw graph coords and normalize
+      var graphCoords = this.nodeGraphCoords[node];
+      var rawPositionChanged = data$1.x !== graphCoords.x || data$1.y !== graphCoords.y;
+      if (rawPositionChanged) {
+        graphCoords.x = data$1.x;
+        graphCoords.y = data$1.y;
+      }
+      // Always re-normalize (data.x/y are raw at this point)
+      this.normalizationFunction.applyTo(data$1);
+
+      // Set shape
+      if (this.internals.nodeShapeMap) {
+        if (!data$1.shape || !(data$1.shape in this.internals.nodeShapeMap)) {
+          data$1.shape = Object.keys(this.internals.nodeShapeMap)[0];
+        }
+      } else if (this.nodeShapeSlug) {
+        data$1.shape = this.nodeShapeSlug;
+      }
+      if (this.internals.attachmentManager && data$1.labelAttachment !== oldAttachment) {
+        this.internals.attachmentManager.invalidateNode(node);
+      }
+      data.setMembership(this.internals.nodesWithForcedLabels, node, normalization.hasForcedLabel(data$1));
+      data.setMembership(this.internals.nodesWithBackdrop, node, normalization.hasBackdrop(data$1));
+
+      // Node data texture only if position/size/shape/rotation/color changed
+      if (rawPositionChanged || data$1.size !== oldSize || data$1.shape !== oldShape || data$1.rotationAlignment !== oldRotationAlignment || data$1.labelRotationAlignment !== oldLabelRotationAlignment || data$1.color !== oldColor) {
+        var _ref0;
+        var _shapeId;
+        if (this.internals.nodeShapeMap && this.internals.nodeGlobalShapeIds && data$1.shape && data$1.shape in this.internals.nodeShapeMap) {
+          _shapeId = this.internals.nodeGlobalShapeIds[this.internals.nodeShapeMap[data$1.shape]];
+        } else {
+          _shapeId = factory.getShapeId(data$1.shape || "circle");
+        }
+        (_ref0 = this.internals.nodeDataTexture).updateNode.apply(_ref0, [node, data$1.x, data$1.y, data$1.size, _shapeId].concat(loop._toConsumableArray(normalization.nodeRotationFlags(data$1)), [data$1.color]));
+      }
+
+      // Update the depth bucket. A depth change is reflected immediately via
+      // depth ranges; a zIndex change is a reordering, escalated by the boolean
+      // returned below.
+      this.itemBuckets.nodes.set(node, data$1.depth);
+      if (data$1.depth !== oldDepth) this.updateNodeDepthRanges(node, oldDepth, data$1.depth);
+
+      // GPU program update
+      var programIndex = this.nodeProgramIndex[node];
+      if (programIndex !== undefined) {
+        this.addNodeToProgram(node, programIndex);
+        this.nodeProgram.invalidateBuffers();
+      }
+      return data$1.zIndex !== oldZIndex;
+    }
+
+    /**
+     * Re-evaluate a single edge's style and rewrite its GPU data.
+     * Lean path: re-evaluates style but patches cache in place, skips
+     * unchanged bookkeeping, and avoids full addEdgeToProgram overhead.
+     */
+  }, {
+    key: "refreshEdgeState",
+    value: function refreshEdgeState(edge) {
+      var data$1 = this.internals.edgeDataCache[edge];
+
+      // If edge not yet cached or a reducer exists, fall back to full path
+      if (!data$1 || this.edgeReducer) {
+        var _oldDepth2 = data$1 === null || data$1 === void 0 ? void 0 : data$1.depth;
+        var _oldZIndex2 = data$1 === null || data$1 === void 0 ? void 0 : data$1.zIndex;
+        this.updateEdge(edge);
+        var newData = this.internals.edgeDataCache[edge];
+        if (_oldDepth2 && newData.depth !== _oldDepth2) {
+          this.updateEdgeDepthRanges(edge, _oldDepth2, newData.depth);
+        }
+        var _programIndex2 = this.edgeProgramIndex[edge];
+        if (_programIndex2 !== undefined) {
+          this.addEdgeToProgram(edge, _programIndex2);
+          this.edgeProgram.invalidateBuffers();
+        }
+        return _oldZIndex2 !== undefined && newData.zIndex !== _oldZIndex2;
+      }
+
+      // Re-evaluate style directly into the cached display data object
+      var attrs = this.internals.graph.getEdgeAttributes(edge);
+      var edgeState = this.stateManager.getEdgeState(edge);
+
+      // Save old values before patching (for skip checks below)
+      var oldDepth = data$1.depth;
+      var oldZIndex = data$1.zIndex;
+      var oldSize = data$1.size;
+      var oldPath = data$1.path;
+      var oldSelfLoopPath = data$1.selfLoopPath;
+      var oldParallelPath = data$1.parallelPath;
+      var oldHead = data$1.head;
+      var oldTail = data$1.tail;
+      types_dist_sigmaTypes.evaluateEdgeStyle(this.stylesDeclaration.edges, attrs, edgeState, this.stateManager.graphState, this.internals.graph, data$1);
+      this.postEvaluateEdge(data$1, attrs);
+
+      // Recompute spread variable for parallel edges
+      this.applyEdgeSpread(edge, data$1, edgeState);
+      data.setMembership(this.internals.edgesWithForcedLabels, edge, normalization.hasForcedLabel(data$1));
+
+      // Update the depth bucket. A depth change is reflected immediately via
+      // depth ranges; a zIndex change is a reordering, escalated by the boolean
+      // returned below.
+      this.itemBuckets.edges.set(edge, data$1.depth);
+      if (data$1.depth !== oldDepth) this.updateEdgeDepthRanges(edge, oldDepth, data$1.depth);
+
+      // GPU update
+      var programIndex = this.edgeProgramIndex[edge];
+      if (programIndex !== undefined) {
+        var structuralDataChanged = data$1.size !== oldSize || data$1.path !== oldPath || data$1.selfLoopPath !== oldSelfLoopPath || data$1.parallelPath !== oldParallelPath || data$1.head !== oldHead || data$1.tail !== oldTail;
+        if (structuralDataChanged) {
+          this.addEdgeToProgram(edge, programIndex);
+          this.edgeProgram.invalidateBuffers();
+        } else {
+          // Fast path: skip edge data texture, only update vertex buffer + attribute texture
+          var source = this.internals.graph.source(edge);
+          var target = this.internals.graph.target(edge);
+          var sourceData = this.internals.nodeDataCache[source];
+          var targetData = this.internals.nodeDataCache[target];
+          var edgeTextureIndex = this.edgeTextureIndexCache[edge];
+          this.edgeProgram.process(pickingIdOf(this.pickingState, "edge", edge), programIndex, sourceData, targetData, data$1, edgeTextureIndex);
+          this.edgeProgram.invalidateBuffers();
+        }
+      }
+      return data$1.zIndex !== oldZIndex;
+    }
+
+    /**
+     * Method used to refresh, i.e. force the renderer to reprocess graph
+     * data and render, but keep the state.
+     * - if a partialGraph is provided, we only reprocess those nodes & edges.
+     * - if schedule is TRUE, we schedule a render instead of sync render
+     * - if skipIndexation is TRUE, then labelGrid & program indexation are skipped (can be used if you haven't modify x, y, zIndex & size)
+     *
+     * @return {Sigma}
+     */
+  }, {
+    key: "refresh",
+    value: function refresh(opts) {
+      var _this8 = this;
+      var skipIndexation = (opts === null || opts === void 0 ? void 0 : opts.skipIndexation) !== undefined ? opts === null || opts === void 0 ? void 0 : opts.skipIndexation : false;
+      var schedule = (opts === null || opts === void 0 ? void 0 : opts.schedule) !== undefined ? opts.schedule : false;
+      var fullRefresh = !opts || !opts.partialGraph;
+      if (fullRefresh) {
+        // Re-index graph data
+        this.clearEdgeIndices();
+        this.clearNodeIndices();
+        this.internals.graph.forEachNode(function (node) {
+          return _this8.addNode(node);
+        });
+        this.edgeGroups.rebuild();
+        this.internals.graph.forEachEdge(function (edge) {
+          return _this8.addEdge(edge);
+        });
+        this.pendingProcess = "full";
+      } else {
+        var _opts$partialGraph, _opts$partialGraph2;
+        var nodes = ((_opts$partialGraph = opts.partialGraph) === null || _opts$partialGraph === void 0 ? void 0 : _opts$partialGraph.nodes) || [];
+        for (var i = 0, l = (nodes === null || nodes === void 0 ? void 0 : nodes.length) || 0; i < l; i++) {
+          var _this$internals$nodeD4, _this$internals$nodeD5;
+          var node = "" + nodes[i];
+          var oldAttachment = (_this$internals$nodeD4 = this.internals.nodeDataCache[node]) === null || _this$internals$nodeD4 === void 0 ? void 0 : _this$internals$nodeD4.labelAttachment;
+          // Recompute node's data (ie. apply reducer)
+          this.updateNode(node);
+          // Invalidate attachment cache since graph attributes may have changed
+          if (this.internals.attachmentManager && ((_this$internals$nodeD5 = this.internals.nodeDataCache[node]) !== null && _this$internals$nodeD5 !== void 0 && _this$internals$nodeD5.labelAttachment || oldAttachment)) {
+            this.internals.attachmentManager.invalidateNode(node);
+          }
+          // Add node to the program if layout is unchanged.
+          // otherwise it will be done in the process function
+          if (skipIndexation) {
+            var programIndex = this.nodeProgramIndex[node];
+            if (programIndex === undefined) throw new Error("Sigma: node \"".concat(node, "\" can't be repaint"));
+            this.addNodeToProgram(node, programIndex);
+          }
+        }
+        if (skipIndexation && nodes.length > 0) {
+          this.nodeProgram.invalidateBuffers();
+          // Reducers may have changed label text/position on these nodes.
+          this.labelRenderer.labelsDirty = true;
+        }
+        var edges = (opts === null || opts === void 0 || (_opts$partialGraph2 = opts.partialGraph) === null || _opts$partialGraph2 === void 0 ? void 0 : _opts$partialGraph2.edges) || [];
+        for (var _i3 = 0, _l2 = edges.length; _i3 < _l2; _i3++) {
+          var edge = "" + edges[_i3];
+          // Recompute edge's data (ie. apply reducer)
+          this.updateEdge(edge);
+          // Add edge to the program
+          // otherwise it will be done in the process function
+          if (skipIndexation) {
+            var _programIndex3 = this.edgeProgramIndex[edge];
+            if (_programIndex3 === undefined) throw new Error("Sigma: edge \"".concat(edge, "\" can't be repaint"));
+            this.addEdgeToProgram(edge, _programIndex3);
+          }
+        }
+        if (skipIndexation && edges.length > 0) {
+          this.edgeProgram.invalidateBuffers();
+          // Reducers may have changed label text/position on these edges.
+          this.labelRenderer.labelsDirty = true;
+        }
+
+        // Determine how much reprocessing is needed on the next render
+        if (!skipIndexation && this.pendingProcess !== "full") {
+          this.pendingProcess = edges.length > 0 ? "full" : "nodes";
+        }
+      }
+      if (schedule) this.scheduleRender();else this.render();
+      return this;
+    }
+
+    /**
+     * Method used to schedule a render at the next available frame.
+     * This method can be safely called on a same frame because it basically
+     * debounces refresh to the next frame.
+     *
+     * @return {Sigma}
+     */
+  }, {
+    key: "scheduleRender",
+    value: function scheduleRender() {
+      var _this9 = this;
+      if (!this.renderFrame) {
+        this.renderFrame = requestAnimationFrame(function () {
+          _this9.render();
+        });
+      }
+      return this;
+    }
+
+    /**
+     * Method used to schedule a refresh (i.e. fully reprocess graph data and render)
+     * at the next available frame.
+     * This method can be safely called on a same frame because it basically
+     * debounces refresh to the next frame.
+     *
+     * @return {Sigma}
+     */
+  }, {
+    key: "scheduleRefresh",
+    value: function scheduleRefresh(opts) {
+      return this.refresh(loop._objectSpread2(loop._objectSpread2({}, opts), {}, {
+        schedule: true
+      }));
+    }
+
+    /**
+     * Method used to (un)zoom, while preserving the position of a viewport point.
+     * Used for instance to zoom "on the mouse cursor".
+     *
+     * @param viewportTarget
+     * @param newRatio
+     * @return {CameraState}
+     */
+  }, {
+    key: "getViewportZoomedState",
+    value: function getViewportZoomedState(viewportTarget, newRatio) {
+      var _this$camera$getState = this.camera.getState(),
+        ratio = _this$camera$getState.ratio,
+        angle = _this$camera$getState.angle,
+        x = _this$camera$getState.x,
+        y = _this$camera$getState.y;
+      var _this$internals$setti2 = this.internals.settings,
+        minCameraRatio = _this$internals$setti2.minCameraRatio,
+        maxCameraRatio = _this$internals$setti2.maxCameraRatio;
+      if (typeof maxCameraRatio === "number") newRatio = Math.min(newRatio, maxCameraRatio);
+      if (typeof minCameraRatio === "number") newRatio = Math.max(newRatio, minCameraRatio);
+      var ratioDiff = newRatio / ratio;
+      var center = {
+        x: this.width / 2,
+        y: this.height / 2
+      };
+      var graphMousePosition = this.viewportToFramedGraph(viewportTarget);
+      var graphCenterPosition = this.viewportToFramedGraph(center);
+      return {
+        angle: angle,
+        x: (graphMousePosition.x - graphCenterPosition.x) * (1 - ratioDiff) + x,
+        y: (graphMousePosition.y - graphCenterPosition.y) * (1 - ratioDiff) + y,
+        ratio: newRatio
+      };
+    }
+
+    /**
+     * Method returning the abstract rectangle containing the graph according
+     * to the camera's state.
+     *
+     * @return {object} - The view's rectangle.
+     */
+  }, {
+    key: "viewRectangle",
+    value: function viewRectangle() {
+      var p1 = this.viewportToFramedGraph({
+          x: 0,
+          y: 0
+        }),
+        p2 = this.viewportToFramedGraph({
+          x: this.width,
+          y: 0
+        }),
+        h = this.viewportToFramedGraph({
+          x: 0,
+          y: this.height
+        });
+      return {
+        x1: p1.x,
+        y1: p1.y,
+        x2: p2.x,
+        y2: p2.y,
+        height: p2.y - h.y
+      };
+    }
+
+    /**
+     * Method returning the coordinates of a point from the framed graph system to the viewport system. It allows
+     * overriding anything that is used to get the translation matrix, or even the matrix itself.
+     *
+     * Be careful if overriding dimensions, padding or cameraState, as the computation of the matrix is not the lightest
+     * of computations.
+     */
+  }, {
+    key: "framedGraphToViewport",
+    value: function framedGraphToViewport(coordinates) {
+      var override = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      var recomputeMatrix = !!override.cameraState || !!override.viewportDimensions || !!override.graphDimensions || !!override.padding;
+      var matrix = override.matrix || (recomputeMatrix ? colors.matrixFromCamera(override.cameraState || this.camera.getState(), override.viewportDimensions || this.getDimensions(), override.graphDimensions || this.getGraphDimensions(), override.padding || this.getStagePadding()) : this.matrix);
+      var viewportPos = colors.multiplyVec2(matrix, coordinates);
+      return {
+        x: (1 + viewportPos.x) * this.width / 2,
+        y: (1 - viewportPos.y) * this.height / 2
+      };
+    }
+
+    /**
+     * Method returning the coordinates of a point from the viewport system to the framed graph system. It allows
+     * overriding anything that is used to get the translation matrix, or even the matrix itself.
+     *
+     * Be careful if overriding dimensions, padding or cameraState, as the computation of the matrix is not the lightest
+     * of computations.
+     */
+  }, {
+    key: "viewportToFramedGraph",
+    value: function viewportToFramedGraph(coordinates) {
+      var override = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      var recomputeMatrix = !!override.cameraState || !!override.viewportDimensions || !!override.graphDimensions || !!override.padding;
+      var invMatrix = override.matrix || (recomputeMatrix ? colors.matrixFromCamera(override.cameraState || this.camera.getState(), override.viewportDimensions || this.getDimensions(), override.graphDimensions || this.getGraphDimensions(), override.padding || this.getStagePadding(), true) : this.invMatrix);
+      var res = colors.multiplyVec2(invMatrix, {
+        x: coordinates.x / this.width * 2 - 1,
+        y: 1 - coordinates.y / this.height * 2
+      });
+      if (isNaN(res.x)) res.x = 0;
+      if (isNaN(res.y)) res.y = 0;
+      return res;
+    }
+
+    /**
+     * Method used to translate a point's coordinates from the viewport system (pixel distance from the top-left of the
+     * stage) to the graph system (the reference system of data as they are in the given graph instance).
+     *
+     * This method accepts an optional camera which can be useful if you need to translate coordinates
+     * based on a different view than the one being currently being displayed on screen.
+     *
+     * @param {Coordinates}                  coordinates
+     * @param {CoordinateConversionOverride} override
+     */
+  }, {
+    key: "viewportToGraph",
+    value: function viewportToGraph(coordinates) {
+      var override = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      return this.normalizationFunction.inverse(this.viewportToFramedGraph(coordinates, override));
+    }
+
+    /**
+     * Method used to translate a point's coordinates from the graph system (the reference system of data as they are in
+     * the given graph instance) to the viewport system (pixel distance from the top-left of the stage).
+     *
+     * This method accepts an optional camera which can be useful if you need to translate coordinates
+     * based on a different view than the one being currently being displayed on screen.
+     *
+     * @param {Coordinates}                  coordinates
+     * @param {CoordinateConversionOverride} override
+     */
+  }, {
+    key: "graphToViewport",
+    value: function graphToViewport(coordinates) {
+      var override = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+      return this.framedGraphToViewport(this.normalizationFunction(coordinates), override);
+    }
+
+    /**
+     * Method used to translate a point's coordinates from the graph system to the framed graph system (the normalized
+     * ~[0, 1] space used by the camera state).
+     */
+  }, {
+    key: "graphToFramedGraph",
+    value: function graphToFramedGraph(coordinates) {
+      return this.normalizationFunction(coordinates);
+    }
+
+    /**
+     * Method used to translate a point's coordinates from the framed graph system (the normalized ~[0, 1] space used by
+     * the camera state) to the graph system.
+     */
+  }, {
+    key: "framedGraphToGraph",
+    value: function framedGraphToGraph(coordinates) {
+      return this.normalizationFunction.inverse(coordinates);
+    }
+
+    /**
+     * Method returning the distance multiplier between the graph system and the
+     * viewport system.
+     */
+  }, {
+    key: "getGraphToViewportRatio",
+    value: function getGraphToViewportRatio() {
+      var graphP1 = {
+        x: 0,
+        y: 0
+      };
+      var graphP2 = {
+        x: 1,
+        y: 1
+      };
+      var graphD = Math.sqrt(Math.pow(graphP1.x - graphP2.x, 2) + Math.pow(graphP1.y - graphP2.y, 2));
+      var viewportP1 = this.graphToViewport(graphP1);
+      var viewportP2 = this.graphToViewport(graphP2);
+      var viewportD = Math.sqrt(Math.pow(viewportP1.x - viewportP2.x, 2) + Math.pow(viewportP1.y - viewportP2.y, 2));
+      return viewportD / graphD;
+    }
+
+    /**
+     * Compute node extent from un-normalized graph coordinates,
+     * which accounts for coordinate remapping via styles.
+     */
+  }, {
+    key: "computeNodeExtent",
+    value: function computeNodeExtent() {
+      var coords = this.nodeGraphCoords;
+      var keys = Object.keys(coords);
+      if (!keys.length) return {
+        x: [0, 1],
+        y: [0, 1]
+      };
+      var xMin = Infinity;
+      var xMax = -Infinity;
+      var yMin = Infinity;
+      var yMax = -Infinity;
+      for (var i = 0, l = keys.length; i < l; i++) {
+        var _coords$keys$i = coords[keys[i]],
+          x = _coords$keys$i.x,
+          y = _coords$keys$i.y;
+        if (x < xMin) xMin = x;
+        if (x > xMax) xMax = x;
+        if (y < yMin) yMin = y;
+        if (y > yMax) yMax = y;
+      }
+      return {
+        x: [xMin, xMax],
+        y: [yMin, yMax]
+      };
+    }
+
+    /**
+     * Method returning the graph's bounding box.
+     *
+     * @return {{ x: Extent, y: Extent }}
+     */
+  }, {
+    key: "getBBox",
+    value: function getBBox() {
+      return this.nodeExtent;
+    }
+
+    /**
+     * Method returning the graph's custom bounding box, if any.
+     *
+     * @return {{ x: Extent, y: Extent } | null}
+     */
+  }, {
+    key: "getCustomBBox",
+    value: function getCustomBBox() {
+      return this.customBBox;
+    }
+
+    /**
+     * Method used to override the graph's bounding box with a custom one. Give `null` as the argument to stop overriding.
+     *
+     * @return {Sigma}
+     */
+  }, {
+    key: "setCustomBBox",
+    value: function setCustomBBox(customBBox) {
+      this.customBBox = customBBox;
+      this.scheduleRender();
+      return this;
+    }
+
+    /**
+     * Method used to shut the container & release event listeners.
+     *
+     * @return {undefined}
+     */
+  }, {
+    key: "kill",
+    value: function kill() {
+      var _this$internals$attac2, _this$internals$attac3, _this$gestureHint;
+      // Emitting "kill" events so that plugins and such can cleanup
+      this.emit("kill");
+
+      // Releasing events
+      this.removeAllListeners();
+
+      // Releasing camera handlers
+      this.camera.cancelAnimation();
+      this.unbindCameraHandlers();
+
+      // Releasing DOM events & captors
+      window.removeEventListener("resize", this.activeListeners.handleResize);
+      this.mouseCaptor.kill();
+      this.touchCaptor.kill();
+      this.internals.hoverResolver.kill();
+
+      // Releasing graph handlers
+      this.unbindGraphHandlers();
+
+      // Releasing cache & state
+      this.clearIndices();
+      this.clearState();
+      this.internals.nodeDataCache = {};
+      this.internals.edgeDataCache = {};
+
+      // Clearing frames
+      if (this.renderFrame) {
+        cancelAnimationFrame(this.renderFrame);
+        this.renderFrame = null;
+      }
+
+      // Destroying canvases
+      var container = this.container;
+      while (container.firstChild) container.removeChild(container.firstChild);
+
+      // Kill programs:
+      this.nodeProgram.kill();
+      this.nodeFramePass.kill();
+      this.edgeProgram.kill();
+      this.edgeFramePass.kill();
+      this.internals.labelProgram.kill();
+      this.internals.edgeLabelProgram.kill();
+      this.internals.edgeLabelBackgroundProgram.kill();
+      this.internals.backdropProgram.kill();
+      this.internals.labelBackgroundProgram.kill();
+      (_this$internals$attac2 = this.internals.attachmentProgram) === null || _this$internals$attac2 === void 0 || _this$internals$attac2.kill();
+      (_this$internals$attac3 = this.internals.attachmentManager) === null || _this$internals$attac3 === void 0 || _this$internals$attac3.kill();
+      this.internals.attachmentProgram = null;
+      this.internals.attachmentManager = null;
+
+      // Kill custom layer programs
+      var _iterator14 = colors._createForOfIteratorHelper(this.customLayerPrograms.values()),
+        _step14;
+      try {
+        for (_iterator14.s(); !(_step14 = _iterator14.n()).done;) {
+          var program = _step14.value.program;
+          program.kill();
+        }
+      } catch (err) {
+        _iterator14.e(err);
+      } finally {
+        _iterator14.f();
+      }
+      this.customLayerPrograms.clear();
+
+      // Cleanup SDF atlas
+      if (this.sdfAtlas) {
+        this.sdfAtlas = null;
+      }
+
+      // Cleanup node data texture
+      if (this.internals.nodeDataTexture) {
+        this.internals.nodeDataTexture.kill();
+        this.internals.nodeDataTexture = null;
+      }
+
+      // Cleanup shared node-frame texture
+      if (this.internals.nodeFrameTexture) {
+        this.internals.nodeFrameTexture.kill();
+        this.internals.nodeFrameTexture = null;
+      }
+
+      // Cleanup edge data texture
+      if (this.internals.edgeDataTexture) {
+        this.internals.edgeDataTexture.kill();
+        this.internals.edgeDataTexture = null;
+      }
+
+      // Cleanup shared edge-frame texture
+      if (this.internals.edgeFrameTexture) {
+        this.internals.edgeFrameTexture.kill();
+        this.internals.edgeFrameTexture = null;
+      }
+
+      // Kill WebGL context
+      if (this.webGLContext) {
+        var _this$webGLContext$ge;
+        (_this$webGLContext$ge = this.webGLContext.getExtension("WEBGL_lose_context")) === null || _this$webGLContext$ge === void 0 || _this$webGLContext$ge.loseContext();
+        this.webGLContext = null;
+      }
+
+      // Remove all DOM elements (stage is in extraElements)
+      (_this$gestureHint = this.gestureHint) === null || _this$gestureHint === void 0 || _this$gestureHint.kill();
+      this.gestureHint = null;
+      this.mouseLayer.remove();
+      for (var id in this.extraElements) {
+        this.extraElements[id].remove();
+      }
+      this.extraElements = {};
+    }
+
+    /**
+     * Method used to scale the given size according to the camera's ratio, i.e.
+     * zooming state.
+     *
+     * @param  {number?} size -        The size to scale (node size, edge thickness etc.).
+     * @param  {number?} cameraRatio - A camera ratio (defaults to the actual camera ratio).
+     * @return {number}              - The scaled size.
+     */
+  }, {
+    key: "scaleSize",
+    value: function scaleSize() {
+      var size = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 1;
+      var cameraRatio = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : this.camera.ratio;
+      return size / this.internals.settings.zoomToSizeRatioFunction(cameraRatio) * (this.getSetting("itemSizesReference") === "positions" ? cameraRatio * this.graphToViewportRatio : 1);
+    }
+
+    /**
+     * Method that returns the stage canvas element.
+     */
+  }, {
+    key: "getStageCanvas",
+    value: function getStageCanvas() {
+      return this.stageCanvas;
+    }
+
+    /**
+     * Returns the mouse interaction layer element.
+     */
+  }, {
+    key: "getMouseLayer",
+    value: function getMouseLayer() {
+      return this.mouseLayer;
+    }
+  }]);
+}(types_dist_sigmaTypes.TypedEventEmitter);
+
+/**
+ * Sigma.js Library Endpoint
+ * =========================
+ *
+ * The library endpoint.
+ * @module sigma
+ */
+var Sigma = Sigma$1;
+
+/** @deprecated Import `DEFAULT_DEPTH_LAYERS` from `"sigma/primitives"` instead. */
+var DEFAULT_DEPTH_LAYERS = types.DEFAULT_DEPTH_LAYERS;
+/** @deprecated Import `DEFAULT_NODE_DEPTH_LAYERS` from `"sigma/primitives"` instead. */
+var DEFAULT_NODE_DEPTH_LAYERS = types.DEFAULT_NODE_DEPTH_LAYERS;
+/** @deprecated Import `DEFAULT_EDGE_DEPTH_LAYERS` from `"sigma/primitives"` instead. */
+var DEFAULT_EDGE_DEPTH_LAYERS = types.DEFAULT_EDGE_DEPTH_LAYERS;
+/** @deprecated Import `easings` from `"sigma/utils"` instead. */
+var easings = easings$1.easings;
+
+exports.DEFAULT_STYLES = types_dist_sigmaTypes.DEFAULT_STYLES;
+exports.DEPTHLESS_STYLES = types_dist_sigmaTypes.DEPTHLESS_STYLES;
+exports.SDFAtlasManager = factory.SDFAtlasManager;
+exports.Camera = Camera;
+exports.DEFAULT_CAMERA_STATE = DEFAULT_CAMERA_STATE;
+exports.DEFAULT_DEPTH_LAYERS = DEFAULT_DEPTH_LAYERS;
+exports.DEFAULT_EDGE_DEPTH_LAYERS = DEFAULT_EDGE_DEPTH_LAYERS;
+exports.DEFAULT_NODE_DEPTH_LAYERS = DEFAULT_NODE_DEPTH_LAYERS;
+exports.MouseCaptor = MouseCaptor;
+exports.Sigma = Sigma$1;
+exports.TouchCaptor = TouchCaptor;
+exports["default"] = Sigma;
+exports.easings = easings;

@@ -1,199 +1,143 @@
-Here is a architectural breakdown and complete, modern `README.md` for migrating the **`briancullinan2/mediaserver`** project from its original PHP/Ampache server-centric architecture to a modern, browser-native JavaScript/TypeScript client-side media server.
 
----
+# Void Zero
 
-### Architectural Transformation Summary
+**Void Zero** (`briancullinan2/Void Zero`) is a 3D meta-programming IDE and browser execution environment that combines a WebAssembly-powered rendering core with a modular layout framework, code editing environment, and custom network tunneling protocols.
 
-| Feature | Legacy PHP Architecture | New Browser-Native JavaScript Architecture |
-| --- | --- | --- |
-| **Runtime & Server** | PHP 7+ Front Controller (`index.php`), Apache/Nginx, SQLite/MySQL | Pure Client-Side SPA (TypeScript/HTML5), Service Workers, Web Workers |
-| **Database & Indexing** | Server-side relational DB via `includes/db.inc` | **OPFS SQLite WASM** via `@sqlite.org/sqlite-wasm` or **IndexedDB** |
-| **Transcoding & Media** | Server FFmpeg / VLC execution via `encode.module` | **FFmpeg.wasm** inside dedicated **Web Workers** for client-side encoding |
-| **File Access & Storage** | Server-side directory crawling (`files.module`, `cron.php`) | **File System Access API** (`window.showDirectoryPicker()`) with OPFS persistence |
-| **Torrents & Downloader** | Server-side downloading (`download.module`) | **WebTorrent** in browser using WebSockets/SOCKS5 proxy signaling |
-| **P2P & Local Sharing** | WebDAV / Ampache API endpoints | **WebRTC DataChannels** for direct P2P mesh browser-to-browser streaming |
-
----
-
-# Modern MediaServer JS
-
-> A 100% client-side, zero-backend media server, stream engine, and P2P distribution network running entirely inside the web browser.
-
-`mediaserver-js` re-imagines the classic monolithic PHP `Atlas/mediaserver` platform as a high-performance, browser-native web application. Utilizing modern Web APIs (WebAssembly, Web Workers, File System Access API, OPFS, WebRTC, and WebSockets), this project indexes local file systems, transcodes media client-side, streams via BitTorrent/WebRTC, and shares files across browsers—without sending media content through a centralized server.
+By marrying a modified WebAssembly engine with TypeScript, Lumino UI docking windows, WebSockets, and SOCKS5 proxy routing, Void Zero allows developers to visualize code in 3D, automate browser interactions, and securely stream local directories or network interfaces directly through browser tabs.
 
 ---
 
 ## Key Features
 
-- 📁 **Local Directory Mounts & Indexing**: Mount local directories directly via the File System Access API. File metadata and media trees are persisted using SQLite compiled to WebAssembly inside Origin Private File System (OPFS).
-- ⚙️ **Client-Side Transcoding (Web Workers)**: Transcode video and audio formats (MKV, AVI, FLAC, AC3) directly in background Web Workers using `@ffmpeg/ffmpeg` (FFmpeg.wasm).
-- 🌐 **BitTorrent over WebSockets**: Connect to the BitTorrent network using client-side WebTorrent routed through WebSocket trackers or custom SOCKS5 proxy adapters.
-- 🔄 **Browser-to-Browser P2P Mesh**: Stream local media directly to other client browser tabs using WebRTC DataChannels for zero-latency local network or remote sharing.
-- ⚡ **Offline-First PWA**: Service Workers cache UI assets, database interfaces, and stream parsers for full offline usage.
+* **3D Spatial Code Visualization:** Integrates a WebAssembly-compiled 3D engine (Quake 3 base) directly into the browser viewport to map source structures, metrics, and execution states in 3D space.
+* **Dockable Lumino/Ace Editor Interface:** Features a desktop-grade UI using Lumino window docking, hosting multi-tab code editors, live command REPLs, and virtual file trees.
+* **PASTA Attribute Metaprogramming:** Uses *Programming with Attributes and Syntax Tree Analysis* (PASTA) to decorate code with meta-directives (`@Template`, `@Framework`) for cross-language generation.
+* **Browser-to-Local Network Tunneling:** Supports WebSocket-to-SOCKS5 reverse proxy bridges, enabling Cloudflare Tunnel configurations and browser-based local directory sharing without manual open ports.
+* **Quine & Self-Hosting Capabilities:** Includes virtualized file systems and in-memory compilation pipelines that allow the environment to edit, recompile, and inspect its own runtime.
 
 ---
 
-## Architecture Overview
+## System Requirements
 
-
-```
-
-```
-                  +-------------------------------------------------------+
-                  |                   Browser Tab (UI)                    |
-                  |  - React/Lit UI Component Tree                        |
-                  |  - HTML5 Video / WebAudio Render Pipeline             |
-                  +-----------+----------------------+--------------------+
-                              |                      |
-        +---------------------+                      +----------------------+
-        |                                                                   |
-        v                                                                   v
-
-```
-
-+-----------------------+                                              +-----------------+
-|   Main Web Worker     |                                              |   Web Worker    |
-| (Database & Engine)   |                                              |  (Transcoder)   |
-|                       |                                              |                 |
-|  - SQLite WASM (OPFS) |                                              |  - FFmpeg.wasm  |
-|  - Metadata Indexer   |                                              |  - Demuxer      |
-|  - Router & API       |                                              |  - Chunk Pipeline
-+-----------+-----------+                                              +-----------------+
-|
-+-----------------------+-----------------------+
-|                       |                       |
-v                       v                       v
-+----------------------+  +-------------------+  +--------------------+
-| File System Access   |  |   WebTorrent /    |  |   WebRTC Peer      |
-|     API / OPFS       |  | WebSocket Proxy   |  |   DataChannels     |
-| (Local Disks & Repos)|  | (BitTorrent Swarm)|  | (Local/Remote P2P) |
-+----------------------+  +-------------------+  +--------------------+
-
-```
+* **Browser:** Chrome/Chromium (v100+) with WebAssembly, WebGL 2.0, and SharedArrayBuffer support.
+* **Build Tooling:** WASI SDK (for C/C++ compilation), Node.js, Webpack, TypeScript compiler.
+* **Extensions (Optional):** Custom Void Zero Chrome DevTools Extension for automated DOM and network interception.
 
 ---
 
-## Core Technologies & Dependencies
+## Core Architecture
 
-* **Language/Bundler**: TypeScript, Vite
-* **Database**: `@sqlite.org/sqlite-wasm` (persisted to OPFS)
-* **Transcoding Engine**: `@ffmpeg/ffmpeg`, `@ffmpeg/util` (FFmpeg compiled to WASM)
-* **Local File System**: File System Access API (`showDirectoryPicker`)
-* **Torrent Engine**: `webtorrent` (configured with WebSocket-to-TCP tracker gateways)
-* **P2P Networking**: WebRTC (`simple-peer` or native `RTCPeerConnection`)
+Void Zero relies on a three-tiered layout:
 
----
+1. **Presentation Layer:** Built with TypeScript and Lumino, handling split viewports, Ace editor instances, file tree navigation, and WebGL context mounting.
+2. **Execution & Engine Layer:** A C-compiled engine compiled via WASI SDK into WebAssembly (`sys_main.c`) communicating across a JavaScript wrapper bridge (`sys_web.js`).
+3. **Network & Proxy Bridge:** Manages WebSocket connections, SOCKS5 proxy layers, and Cloudflare CNAME tunnel routes to mirror local host directories into remote browser tabs.
 
-## Getting Started
-
-### Prerequisites
-
-* Node.js v18.0.0 or higher
-* Modern Chromium-based browser or Firefox (supporting SharedArrayBuffer, Web Assembly, and OPFS)
-
-### Installation
-
-```bash
-# Clone the repository
-git clone [https://github.com/briancullinan2/mediaserver.git](https://github.com/briancullinan2/mediaserver.git)
-cd mediaserver
-
-# Install dependencies
-npm install
-
-# Start local development server with required COOP/COEP headers
-npm run dev
+### High-Level System Architecture
 
 ```
-
-> **Note on SharedArrayBuffer**: Multithreaded FFmpeg.wasm requires Cross-Origin Isolation. The Vite dev server is preconfigured with the following headers:
-> ```http
-> Cross-Origin-Opener-Policy: same-origin
-> Cross-Origin-Embedder-Policy: require-corp
->
-> ```
->
->
-
----
-
-## Module Breakdown
-
-### 1. File Indexer & Storage Layer (`src/core/fs/`)
-
-* Mounts local folders using `window.showDirectoryPicker()`.
-* Recursively walks file paths and stores inode metadata in SQLite WASM.
-* Generates persistent file handles in OPFS for zero-copy stream reading using `FileSystemFileHandle.getFile()`.
-
-### 2. Worker Transcoder (`src/workers/transcoder.worker.ts`)
-
-* Executes inside a dedicated `Worker` context.
-* Consumes binary chunks via `ReadableStream` or `Blob.slice()`.
-* Converts incompatible video containers (e.g., MKV/HEVC to MP4/H.264) on the fly and returns fragmented MP4 streams for MSE (`MediaSource`) consumption.
-
-### 3. BitTorrent WebSocket Gateway (`src/network/torrent/`)
-
-* Uses `webtorrent` in pure client-side mode.
-* Communicates with public BitTorrent swarms via WebSocket-to-TCP bridge proxies or native WebRTC torrent seeds.
-
-### 4. P2P Sharing Subsystem (`src/network/p2p/`)
-
-* Establishes direct WebRTC data pipes between running browser tabs.
-* Allows Tab A (holding local file handles) to serve video segments directly to Tab B without uploading files to a cloud server.
-
----
-
-## Project Structure
-
-```
-mediaserver/
-├── public/
-│   ├── ffmpeg/             # Static WASM binaries for FFmpeg
-│   └── favicon.ico
-├── src/
-│   ├── components/         # UI Elements, Video Player, File Explorer
-│   ├── core/
-│   │   ├── db/             # SQLite WASM initialization & schema migrations
-│   │   ├── fs/             # File System Access API wrappers & OPFS drivers
-│   │   └── media/          # Demuxers, MediaSource Extensions (MSE) pipeline
-│   ├── network/
-│   │   ├── bittorrent/     # WebTorrent integration & proxy client
-│   │   └── p2p/            # WebRTC peer connection manager
-│   ├── workers/
-│   │   ├── indexer.worker.ts
-│   │   └── transcoder.worker.ts
-│   ├── main.ts             # Application entrypoint
-│   └── service-worker.ts   # PWA offline asset caching
-├── package.json
-├── tsconfig.json
-└── vite.config.ts
+ ┌────────────────────────────────────────────────────────────────────────┐
+ │                      Browser Client (Frontend UI)                      │
+ │                                                                        │
+ │  ┌───────────────────────┐  ┌─────────────────┐  ┌──────────────────┐  │
+ │  │   Lumino Workspace    │  │   Ace Editor    │  │ 3D WebGL Canvas  │  │
+ │  │ (Docking & Layouts)   │  │ (Code Views)    │  │  (WASM Engine)   │  │
+ │  └───────────┬───────────┘  └────────┬────────┘  └────────┬─────────┘  │
+ └──────────────┼───────────────────────┼────────────────────┼────────────┘
+                │                       │                    │
+ ┌──────────────▼───────────────────────▼────────────────────▼────────────┐
+ │                      JS Bridge & Systems Layer                         │
+ │                                                                        │
+ │   ┌───────────────────────┐ ┌───────────────────┐ ┌────────────────┐   │
+ │   │ PASTA Attribute Engine│ │ Virtual File Sys  │ │ Network Bridge │   │
+ │   │  (components/repl/*)  │ │ (Memory Storage)  │ │ (SOCKS5/Tunnel)│   │
+ │   └───────────────────────┘ └───────────────────┘ └───────┬────────┘   │
+ └───────────────────────────────────────────────────────────┼────────────┘
+                                                             │
+ ┌───────────────────────────────────────────────────────────▼────────────┐
+ │                     WebAssembly Core & Backend                         │
+ │                                                                        │
+ │   ┌───────────────────────┐           ┌────────────────────────────┐   │
+ │   │  WASI Runtime Engine  │           │  Cloudflare / WebSocket    │   │
+ │   │  (sys_main.c)         │           │  Reverse Proxy Host        │   │
+ │   └───────────────────────┘           └────────────────────────────┘   │
+ └────────────────────────────────────────────────────────────────────────┘
 
 ```
 
 ---
 
-## Production Build & Deployment
+## Key Components
 
-Because `mediaserver-js` is completely client-side, the build output consists of static assets that can be hosted on any static site hosting service (GitHub Pages, Cloudflare Pages, Vercel, or Nginx).
+### WebAssembly Engine
 
-```bash
-# Build the production package
-npm run build
+The WASM core delivers high-performance 3D rendering and state calculation within the browser environment. Compiled using the WASI SDK, it communicates directly with JavaScript runtime bridges:
 
-# Preview production build locally
-npm run preview
+* `engine/wasm/sys_main.c`: Contains core engine entry points, runtime loops, and state management.
+* `engine/wasm/sys_web.js`: Serves as the system interface layer, providing implementations for memory mapping, system calls, file I/O, and WebGL context bindings.
 
-```
+### Frontend & Lumino UI System
 
-### Static Hosting Header Configuration
+The visual layer leverages **Lumino** layout containers to create a flexible, dockable IDE experience:
 
-Ensure your web host provides cross-origin isolation headers for multithreaded WASM support:
+* **3D Game Viewport:** Mounts WebGL contexts directly inside Lumino panel widgets.
+* **Code Editor:** Integrates Ace Editor instances featuring custom syntax highlighting and live syntax tree bindings.
+* **Virtual File System Explorer:** Navigates in-memory and proxied local filesystems seamlessly.
 
-```nginx
-# Nginx configuration snippet
-location / {
-    add_header Cross-Origin-Opener-Policy "same-origin";
-    add_header Cross-Origin-Embedder-Policy "require-corp";
-}
+### PASTA Attribute System
 
-```
+Located in `components/repl/attrib.js`, **PASTA** (*Programming with Attributes and Syntax Tree Analysis*) allows metaprogramming via source annotations:
+
+* Code is decorated with attributes such as `@Template` or `@Framework`.
+* The attribute system parses code syntax trees and applies dynamic code transformations, generation, and cross-compilation without modifying underlying language spec.
+
+### Networking & Tunnel Layer
+
+Void Zero bridges isolated browser environments with external networks using dynamic tunneling logic:
+
+* **WebSocket-to-SOCKS5:** Wraps raw socket connections within WebSockets to bypass browser socket restrictions.
+* **Directory Sharing:** Maps local directories across browser instances using reverse-proxy connections and Cloudflare tunnel endpoints.
+
+---
+
+## Build & Tooling Systems
+
+The system uses a unified build pipeline orchestrated via standard build scripts and compiler configurations:
+
+| File / Log Target | Description |
+| --- | --- |
+| `Makefile` | Controls the compilation of C sources via WASI SDK into target WebAssembly binaries. |
+| `index.html` | Application bootstrapping shell, loading base scripts, styles, and WASM loaders. |
+| `.vscode/targets.log` | Defines build target mappings for WASM, TypeScript, and Webpack passes. |
+| `.vscode/dryrun.log` | Debug execution log tracking WASI SDK compilation flags and symbol outputs. |
+
+---
+
+## Technology Stack
+
+| Component | Technology | Description |
+| --- | --- | --- |
+| **3D Engine** | Quake 3 Engine (WASM Port) | Modified C engine compiled to WebAssembly for spatial code visualization. |
+| **UI Framework** | Lumino + TypeScript | Window management framework providing dockable, split-screen panel layouts. |
+| **Code Editor** | Ace Editor | Embedded text editor with live syntax analysis and attribute highlighting. |
+| **Toolchain** | WASI SDK + Webpack | Toolchain compiling C/C++ to WebAssembly and bundling TypeScript modules. |
+| **Metaprogramming** | PASTA Engine | Custom attribute-based system processing syntax trees and templates. |
+| **Networking** | WebSockets / SOCKS5 | Transport layer for Cloudflare tunneling and local folder sync over HTTP/WS. |
+
+---
+
+## System Integration & Workflow
+
+1. **Bootstrapping:** `index.html` initializes the Lumino UI layout, and instantiates the WASM module via `sys_web.js`.
+2. **File System Mount:** The Virtual File System (VFS) mounts internal assets alongside optional remote directories bound through WebSockets.
+3. **Execution & Editing:** The Ace editor syncs code with the PASTA processor. Modifying attributes immediately updates active metaprogramming targets or updates visual elements in the 3D WebGL viewport.
+4. **Proxy Sync:** Network traffic or local folder requests route through configured SOCKS5 proxies or Cloudflare tunnel endpoints, giving the client full access to external or local development spaces.
+
+---
+
+## Primary Use Cases
+
+* **Spatial Code Analysis:** Render software architectures, dependency graphs, and code metrics in an interactive 3D spatial world.
+* **Metaprogramming & Templating:** Rapidly prototype across languages using PASTA attribute rules and live code generation pipelines.
+* **In-Browser Local Directory Sharing:** Expose local development files to isolated browser environments securely using WebSockets and Cloudflare tunnels.
+* **Interactive Learning & REPLs:** Experiment with low-level WASM systems, custom layouts, and real-time execution in a self-contained browser workspace.
