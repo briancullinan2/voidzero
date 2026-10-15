@@ -4,8 +4,21 @@ import Sigma from 'sigma';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import { WillowWidget } from './widget-willow';
 import * as THREE from 'three';
+import { SemanticWidget } from './widget-semantic';
+import { SearchCodeWidget } from './widget-search';
+import type { WidgetExtensionsWindow } from '../bundle/widget-extensions';
 
-export class CodeWidget extends Widget
+const widgetSelf: WidgetExtensionsWindow & {
+	THREE: typeof THREE;
+	CodeWidget: typeof CodeWidget,
+	WillowWidget: typeof WillowWidget,
+	SemanticWidget: typeof SemanticWidget,
+	SearchCodeWidget: typeof SearchCodeWidget,
+} = self as unknown as any;
+
+widgetSelf.THREE = THREE;
+
+export class CodeWidget extends widgetSelf.GenericSearchableWidget
 {
 	private _graph?: Graph;
 	private _renderer: Sigma | null = null;
@@ -44,7 +57,7 @@ export class CodeWidget extends Widget
 	{
 		super.onAfterAttach(msg);
 		Widget.attach(new WillowWidget, this.node);
-		// this.tryInit();
+		//this.tryInit();
 
 	}
 
@@ -192,15 +205,10 @@ export class CodeWidget extends Widget
 	}
 }
 
-declare var module: {
-	exports: any;
-};
+widgetSelf.CodeWidget = CodeWidget;
 
-if(typeof module !== 'undefined' && module.exports)
-{
-	module.exports = {
-		CodeWidget,
-		WillowWidget,
-		THREE
-	};
-}
+widgetSelf.WillowWidget = WillowWidget;
+
+widgetSelf.SemanticWidget = SemanticWidget;
+
+widgetSelf.SearchCodeWidget = SearchCodeWidget;

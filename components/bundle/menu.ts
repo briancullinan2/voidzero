@@ -96,10 +96,10 @@ export const MODULE_REGISTRY: Record<string, ComponentRoute> = {
 		subtext: 'Depends on isolated sandbox execution contexts, asynchronous evaluation loops, and stdout/stderr capture streams.',
 		description: 'An interactive read-eval-print loop environment that executes code snippets on the fly with immediate feedback and console logging.'
 	},
-	'searchlist': {
-		label: 'Search Files',
-		url: './components/filelist/widget-search.ts',
-		className: 'SearchListWidget',
+	'search': {
+		label: 'Search Code',
+		url: './components/code/code.bundle.js',
+		className: 'SearchCodeWidget',
 		iconClass: 'bx bx-search',
 		subtext: 'Depends on indexed search database endpoints, debounced input triggers, and query-parsing regex modules.',
 		description: 'An indexed filesystem search interface that queries local and remote metadata to rapidly retrieve shared media files, audio tracks, and archives.'
@@ -173,6 +173,14 @@ export const TOOLS_REGISTRY: Record<string, ComponentRoute> = {
 		iconClass: 'bx bx-git-repo-forked',
 		subtext: 'Depends on GitHub REST API wrappers, OAuth token vaults, and local git-credential caching layers.',
 		description: 'A repository integration interface for browsing remote source trees, checking out branches, staging changes, and managing commit logs.'
+	},
+	'semantic': {
+		label: 'Semantic Builder',
+		url: './components/code/code.bundle.js',
+		className: 'SemanticWidget',
+		iconClass: 'bx bx-planet',
+		subtext: 'Depends on AST shape analysis, geometric encoding rules, and circular logogram generators that map structure into meaning-bearing forms.',
+		description: 'An inverse-Arrival semantics constructor that transforms a code tree into a continuous circular infinitum (or novel QR-style glyph) whose geometry itself carries meaning—turning hierarchy, control flow, and relationships into alien visual language.'
 	},
 };
 

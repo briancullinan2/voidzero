@@ -1311,7 +1311,7 @@ async function searchGitHubCode(query, activeRepositories, token)
 	};
 
 	// 1. CommonJS Node environment
-	if(typeof module !== 'undefined' && module.exports)
+	if(typeof module !== 'undefined')
 	{
 		module.exports = exportsObject;
 	}

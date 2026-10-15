@@ -14,6 +14,12 @@ By marrying a modified WebAssembly engine with TypeScript, Lumino UI docking win
 * **PASTA Attribute Metaprogramming:** Uses *Programming with Attributes and Syntax Tree Analysis* (PASTA) to decorate code with meta-directives (`@Template`, `@Framework`) for cross-language generation.
 * **Browser-to-Local Network Tunneling:** Supports WebSocket-to-SOCKS5 reverse proxy bridges, enabling Cloudflare Tunnel configurations and browser-based local directory sharing without manual open ports.
 * **Quine & Self-Hosting Capabilities:** Includes virtualized file systems and in-memory compilation pipelines that allow the environment to edit, recompile, and inspect its own runtime.
+* **Weeping Willow AST Time-Morpher & 3D Code Graph:** An interactive 3D spatial graph featuring horizontal time-morphing (sliding between git commits with ghost diffs and anchor strings), branch/merge navigation, and vertical level-of-detail (LOD) slicing from project roots down to individual JavaScript/TypeScript AST tokens to instantly trace data flows and sink usages (e.g., tracking FS calls).
+* **Precomputed Levenshtein Search Engine:** A reverse search index (FILE_DATA) storing unnormalized word frequencies per path, paired with precomputed Levenshtein distance matrix tiers (A-Z to AA-ZZ) for lightning-fast fuzzy relevance sorting.
+* **LLM Prompt-to-Data Query Engine:** Natural language processing layer that translates developer prompts directly into local database and search index queries.
+* **LiteGraph & 3D REPL Execution Environment:** A visual dataflow and REPL engine combining LiteGraph node networks and 3D rendering to execute, step through, and inspect arbitrary language runtimes in real-time.
+* **3D Test Runner & Complexity Linters:** Spatial test suite runner and custom code complexity tools (such as function-length linters like phil-osophies) visualized in 3D space.
+* **Local Database GitHub Source Explorer:** Repository management interface providing a Jupyter-style GitHub workspace view, built-in fork/clone utilities, and a file explorer grid mapping local databases directly to visual file trees.
 
 ---
 
@@ -32,6 +38,8 @@ Void Zero relies on a three-tiered layout:
 1. **Presentation Layer:** Built with TypeScript and Lumino, handling split viewports, Ace editor instances, file tree navigation, and WebGL context mounting.
 2. **Execution & Engine Layer:** A C-compiled engine compiled via WASI SDK into WebAssembly (`sys_main.c`) communicating across a JavaScript wrapper bridge (`sys_web.js`).
 3. **Network & Proxy Bridge:** Manages WebSocket connections, SOCKS5 proxy layers, and Cloudflare CNAME tunnel routes to mirror local host directories into remote browser tabs.
+4. components/search/: Houses the reverse search indexer, unnormalized path-word frequency caches (FILE_DATA), and precomputed Levenshtein distance matrix stores (A-Z through AA-ZZ) that power instant fuzzy code lookups and relevance sorting.
+5. components/chat/: Natural language query transformer mapping plain-text prompt strings to internal database filters and graph highlight states.
 
 ### High-Level System Architecture
 
@@ -83,6 +91,9 @@ The visual layer leverages **Lumino** layout containers to create a flexible, do
 * **3D Game Viewport:** Mounts WebGL contexts directly inside Lumino panel widgets.
 * **Code Editor:** Integrates Ace Editor instances featuring custom syntax highlighting and live syntax tree bindings.
 * **Virtual File System Explorer:** Navigates in-memory and proxied local filesystems seamlessly.
+* components/code/widget-willow.ts: Implements the 3D Force Graph (3d-force-graph & Three.js) rendering pipeline, custom orbital constraint mathematics, vertical LOD depth zoning, and horizontal commit-timeline sliding.
+* components/workflows/: Visualizes gitflow actions, Makefile dependencies, and linter-driven event streams as interactive spatial workflow graphs.
+
 
 ### PASTA Attribute System
 
@@ -132,6 +143,8 @@ The system uses a unified build pipeline orchestrated via standard build scripts
 2. **File System Mount:** The Virtual File System (VFS) mounts internal assets alongside optional remote directories bound through WebSockets.
 3. **Execution & Editing:** The Ace editor syncs code with the PASTA processor. Modifying attributes immediately updates active metaprogramming targets or updates visual elements in the 3D WebGL viewport.
 4. **Proxy Sync:** Network traffic or local folder requests route through configured SOCKS5 proxies or Cloudflare tunnel endpoints, giving the client full access to external or local development spaces.
+5. components/repl/widget.ts: Integrates LiteGraph node-based execution flows with 3D spatial inspectors for multi-language script evaluation and live program tracing.
+6. components/test/widget.ts: 3D test runner framework providing spatial feedback and status reporting across workspace modules.
 
 ---
 
@@ -183,12 +196,23 @@ call it demonstrable, but i didn't get the actual REPL thing working, the earlie
 worked on the little page injectable widget for monkeying around with the loaded scripts. that
 project actually got sidetracked by scraping FAANG data with selenium remotely, and i ended up
 putting the whole thing in an AWS service and making 5,000 connections on Linkedin after my father
-told me my profile looks bad. whew, that's a lot to take in/put out.
+told me my profile looks bad. whew, that's a lot to take in/put out. what survived from all this
+overthinking? the world needs a 3D code editor.
 
 
-so that's the background. here's the foreground. i've always wanted to do things like, "show me all the functions leading to an FS sink" and this tool will do exactly that with the search widget. i've made a few d3 implementations of this code graph in 2D where the force graph sorts out which nodes gravitate towards each other and minimizes imperfectly the number of overlaps between edge lines. that's cool. now i'm introducing the 3rd version of this, in 3D. i lacked many skills and now i kind of know what to ask for in regards to 3D even though my math is still weak, and obviously the tooling is stellar. i also want to be able to run any language functionally, despite APIs and see like a little stepper program highlight which parts of the program are being used while its running.
+so that's the background. here's the foreground. i've always wanted to do things like, "show me all
+the functions leading to an FS sink" and this tool will do exactly that with the search widget.
+i've made a few d3 implementations of this code graph in 2D where the force graph sorts out which
+nodes gravitate towards each other and minimizes imperfectly the number of overlaps between edge
+lines. that's cool. now i'm introducing the 3rd version of this, in 3D. i lacked many skills and
+now i kind of know what to ask for in regards to 3D even though my math is still weak, and
+obviously the tooling is stellar. i also want to be able to run any language functionally, despite
+APIs and see like a little stepper program highlight which parts of the program are being used
+while its running.
 
-here's what the 3D view is, left click orbits, right click horizontally slides between commits, and vertically slides between "nuance", j/k, code file structures and AST, and EVERYTHING will be linked together properly.
+here's what the 3D view is, left click orbits, right click horizontally slides between commits, and
+vertically slides between "nuance", j/k, code file structures and AST, and EVERYTHING will be
+linked together properly.
 
 #### more goals:
 
@@ -215,4 +239,7 @@ make file visuals, all fresh and great use cases
 jupyter+github view for any repo, download, manage, built in fork clone basically.
 * local database will be the fileview version of github sources, instead of showing commit history
 like fork the git client, local databases shows code files pretty like in the file explorer grid
-
+* 3D code editing, visualize symbol changes as you type
+* local browser based MCP where you press CTRL+Space on the code symbol or something and it shows
+you where in the tree it is used and then you start making edits inside the coverflow on a little
+popup next to the node.

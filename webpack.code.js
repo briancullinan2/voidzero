@@ -80,10 +80,18 @@ module.exports = {
 									globalName: 'CodeWidget',
 									moduleLocalName: 'CodeWidget',
 								},
-								// {
-								// 	globalName: 'LayoutWidget',
-								// 	moduleLocalName: 'LayoutWidget',
-								// },
+								{
+									globalName: 'WillowWidget',
+									moduleLocalName: 'WillowWidget',
+								},
+								{
+									globalName: 'SemanticWidget',
+									moduleLocalName: 'SemanticWidget',
+								},
+								{
+									globalName: 'THREE',
+									moduleLocalName: 'THREE',
+								},
 							],
 						},
 					},
@@ -133,7 +141,7 @@ module.exports = {
 		minimize: true,
 		minimizer: [
 			new TerserPlugin({
-				exclude: /babel\.min\.js$/,
+				exclude: /.*\.min\.js$/,
 				parallel: true,
 				terserOptions: {
 					// Prevents name mangling stripping

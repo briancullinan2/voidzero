@@ -1,11 +1,36 @@
 import { Widget } from '@lumino/widgets';
-import ForceGraph3D, { ForceGraph3DInstance } from '3d-force-graph';
-import * as THREE from 'three';
+import ForceGraph3D, { ForceGraph3DInstance, NodeObject } from '3d-force-graph';
+import type * as THREE from 'three';
+import type { CodeWidget } from './widget';
+import type { SemanticWidget } from './widget-semantic';
+import type { LuminoLayoutWindow } from '../bundle/lumino.d';
+import { Message } from '@lumino/messaging';
+
+export interface WillowNode extends NodeObject
+{
+	id: string;
+	name: string;
+	val: number;
+	color: string;
+	commitX: number;
+	offsetX: number;
+	isGhost: boolean;
+	commitName: string;
+	position?: { x: number, y: number; };
+}
+
+const widgetSelf: {
+	THREE: typeof THREE;
+	CodeWidget: typeof CodeWidget,
+	WillowWidget: typeof WillowWidget,
+	SemanticWidget: typeof SemanticWidget,
+} & LuminoLayoutWindow = self as unknown as any;
 
 export class WillowWidget extends Widget
 {
 	private _container: HTMLDivElement;
 	private _graph: ForceGraph3DInstance | null = null;
+	private hoverNode?: WillowNode;
 
 	constructor()
 	{
@@ -27,13 +52,13 @@ export class WillowWidget extends Widget
 		this.initCustomControls();
 	}
 
-	protected onAfterAttach(msg: any): void
+	protected override onAfterAttach(msg: Message): void
 	{
 		super.onAfterAttach(msg);
 		this.init3DGraph();
 	}
 
-	protected onResize(msg: any): void
+	protected override onResize(msg: Widget.ResizeMessage): void
 	{
 		super.onResize(msg);
 		if(this._graph && this._container)
@@ -43,6 +68,7 @@ export class WillowWidget extends Widget
 		}
 	}
 
+	public static COMMIT_GRAPH_DISTANCE = 450;
 	private _isLeftMouseDown = false;
 	private _isRightMouseDown = false;
 	private _mouseX = 0;
@@ -53,6 +79,47 @@ export class WillowWidget extends Widget
 	private _theta = Math.PI / 4; // Orbit angle horizontal
 	private _phi = Math.PI / 3;   // Orbit angle vertical
 	private _orbitRadius = 500;
+	private _focalX = 0;
+	private _focalY = 0;
+	private _animFrameId: number | null = null;
+	private _centerX2 = 0;
+	private _centerX1 = 0;
+
+	private animateToFocal(targetX: number, targetY: number, duration = 300)
+	{
+		// Cancel any active animation so it instantly interrupts smoothly
+		if(this._animFrameId !== null)
+		{
+			cancelAnimationFrame(this._animFrameId);
+			this._animFrameId = null;
+		}
+
+		const startX = this._focalX;
+		const startY = this._focalY;
+		const startTime = performance.now();
+
+		const step = (now: number) =>
+		{
+			const elapsed = now - startTime;
+			const progress = Math.min(1, elapsed / duration);
+			// Cubic ease-out for a smooth deceleration into the resting focal point
+			const ease = 1 - Math.pow(1 - progress, 3);
+
+			this._focalX = startX + (targetX - startX) * ease;
+			this._focalY = startY + (targetY - startY) * ease;
+			this.updateCameraPosition();
+
+			if(progress < 1)
+			{
+				this._animFrameId = requestAnimationFrame(step);
+			} else
+			{
+				this._animFrameId = null;
+			}
+		};
+
+		this._animFrameId = requestAnimationFrame(step);
+	}
 
 	private initCustomControls()
 	{
@@ -80,6 +147,23 @@ export class WillowWidget extends Widget
 			this._mouseX = e.clientX;
 			this._mouseY = e.clientY;
 
+
+			if(!this._isLeftMouseDown && !this._isRightMouseDown)
+			{
+				if(this.hoverNode)
+				{
+					// 🌟 Smoothly animate toward the node's relative offset using the new animation runner
+					const targetOffsetX = (this.hoverNode.fx ?? 0) - this._centerX;
+					const targetOffsetY = (this.hoverNode.fy ?? 0) - this._centerY;
+					this.animateToFocal(targetOffsetX, targetOffsetY, 250);
+				} else
+				{
+					//this.animateToFocal(0, 0, 250);
+				}
+				return;
+			}
+
+
 			// 1. Left Click: Strictly constrained orbital rotation around center point (cannot flip upside down)
 			if(this._isLeftMouseDown)
 			{
@@ -92,9 +176,23 @@ export class WillowWidget extends Widget
 			// 2. Right Click: Strict Axis Separation (Horizontal time-morph vs Vertical LOD)
 			if(this._isRightMouseDown)
 			{
+				this.animateToFocal(0, 0, 250);
 				if(Math.abs(dx) >= Math.abs(dy))
 				{
-					this._centerX = Math.max(-50, Math.min(500, this._centerX - dx * 2.0));
+					// 1. Primary commit (_centerX): starts with near-zero crawl, then accelerates to slide out of frame
+					this._centerX = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, this._centerX - dx * 1.1));
+
+					const progress = this._centerX / WillowWidget.COMMIT_GRAPH_DISTANCE;
+					if(progress < 0.5)
+					{
+						this._centerX1 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, this._centerX + (progress / 0.5 * WillowWidget.COMMIT_GRAPH_DISTANCE * 0.25)));
+						//this._centerX2 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, ((progress - 0.5) / 0.5 * 2.0 * WillowWidget.COMMIT_GRAPH_DISTANCE)));
+					} else
+					{
+						this._centerX1 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, this._centerX + WillowWidget.COMMIT_GRAPH_DISTANCE * 0.25 - ((progress - 0.5) / 0.5 * (WillowWidget.COMMIT_GRAPH_DISTANCE + WillowWidget.COMMIT_GRAPH_DISTANCE * 0.25))));
+						//this._centerX2 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, 0));
+					}
+
 					this.updateHUD();
 				} else
 				{
@@ -121,29 +219,43 @@ export class WillowWidget extends Widget
 		const timeState = this._centerX < -150 ? 'Previous Commit (v0.9)' : this._centerX > 150 ? 'Future Branch (v1.1)' : 'HEAD (Active Commit)';
 		const tierState = this._centerY > 60 ? 'Project Root & Configs' : this._centerY < -40 ? 'AST Code Tokens & Statements' : 'Modules & Components';
 		hud.textContent = `Timeline: ${timeState} | View: ${tierState}`;
+		widgetSelf.statusBar?.updateStatusItem('env-state', 'Graph: '
+			+ `Mouse: ${this._mouseX}x${this._mouseY}, `
+			+ `Cursor: ${this._centerX}x${this._centerY}x${this._centerZ}, `
+			+ `Radius: ${this._orbitRadius}, `
+			//+ errorInfo
+			+ `Node: ${this.hoverNode?.name}, Commit: ${this.hoverNode?.commitName}`
+		);
+
 	}
 
 	private updateCameraPosition()
 	{
 		if(!this._graph) return;
 
-		// Force a stable upright camera vector so the world never rolls sideways
 		const cam = this._graph.camera();
 		if(cam && (cam as THREE.PerspectiveCamera).up)
 		{
 			(cam as THREE.PerspectiveCamera).up.set(0, 1, 0);
 		}
 
-		const x = this._centerX + this._orbitRadius * Math.sin(this._phi) * Math.cos(this._theta);
-		const y = this._centerY + this._orbitRadius * Math.cos(this._phi);
-		const z = this._centerZ + this._orbitRadius * Math.sin(this._phi) * Math.sin(this._theta);
+		// 🌟 Combine base center with animated focal offsets
+		const targetX = this._centerX + this._focalX;
+		const targetY = this._centerY + this._focalY;
+		const targetZ = this._centerZ;
+
+		const x = targetX + this._orbitRadius * Math.sin(this._phi) * Math.cos(this._theta);
+		const y = targetY + this._orbitRadius * Math.cos(this._phi);
+		const z = targetZ + this._orbitRadius * Math.sin(this._phi) * Math.sin(this._theta);
 
 		this._graph.cameraPosition(
 			{ x, y, z },
-			{ x: this._centerX, y: this._centerY, z: this._centerZ },
-			0 // zero transition duration removes any internal lag/jitter
+			{ x: targetX, y: targetY, z: targetZ },
+			0
 		);
 	}
+
+
 	private init3DGraph()
 	{
 		if(this._container.clientWidth === 0 || this._container.clientHeight === 0)
@@ -157,16 +269,26 @@ export class WillowWidget extends Widget
 		this._graph = new ForceGraph3D(this._container)
 			.graphData(graphData)
 			.enableNavigationControls(false)
-			.nodeThreeObject((node: any) =>
+			.onNodeHover((node: NodeObject | WillowNode | any | null) =>
 			{
-				const size = node.val || 5;
-				const geometry = new THREE.SphereGeometry(size, 16, 16);
-				const material = new THREE.MeshLambertMaterial({
-					color: node.color || '#2ecc71',
+				if(node && node.commitName === 'HEAD')
+				{
+					this.hoverNode = node;
+				} else
+				{
+					this.hoverNode = undefined;
+				}
+			})
+			.nodeThreeObject((node: NodeObject | WillowNode | any | null) =>
+			{
+				const size = node?.val ?? 5;
+				const geometry = new widgetSelf.THREE.SphereGeometry(size, 16, 16);
+				const material = new widgetSelf.THREE.MeshLambertMaterial({
+					color: node?.color ?? '#2ecc71',
 					transparent: true,
 					opacity: 1.0
 				});
-				const mesh = new THREE.Mesh(geometry, material);
+				const mesh = new widgetSelf.THREE.Mesh(geometry, material);
 				(mesh as any).nodeData = node;
 				return mesh;
 			})
@@ -196,6 +318,14 @@ export class WillowWidget extends Widget
 					const node = obj.nodeData;
 					const y = obj.position.y;
 
+					if(node.isGhost)
+					{
+						node.fx = node.commitX + node.offsetX + this._centerX2;
+					} else
+					{
+						node.fx = node.commitX + node.offsetX + this._centerX1;
+					}
+
 					// 🌟 Top-to-bottom vertical fade based on distance from current vertical view center (_centerY)
 					const verticalDistance = Math.abs(y - this._centerY);
 					let opacity = Math.max(0.1, 1.0 - (verticalDistance / 220));
@@ -204,7 +334,8 @@ export class WillowWidget extends Widget
 					if(node.commitX !== undefined)
 					{
 						const distanceToCenter = Math.abs(node.commitX - this._centerX);
-						const fadeFactor = Math.max(0, 1.0 - (distanceToCenter / 400));
+						// const fadeFactor = Math.max(0, 1.0 - (distanceToCenter / 400));
+						const fadeFactor = Math.max(0, 1.0 - (distanceToCenter / (2 * WillowWidget.COMMIT_GRAPH_DISTANCE)));
 						opacity *= fadeFactor;
 					}
 
@@ -215,14 +346,15 @@ export class WillowWidget extends Widget
 					}
 				}
 			});
+			this._graph?.d3ReheatSimulation();
 		};
 
 		this.updateCameraPosition();
 	}
 
-	private generateWillowData(): { links: any[], nodes: any[]; }
+	private generateWillowData(): { links: any[], nodes: WillowNode[]; }
 	{
-		const nodes: any[] = [];
+		const nodes: WillowNode[] = [];
 		const links: any[] = [];
 
 		// Helper to build a complete project hierarchy tree at a specific commit center X coordinate
@@ -236,7 +368,10 @@ export class WillowWidget extends Widget
 				val: 22,
 				color: isGhost ? '#eab308' : '#3b82f6', // Yellow for v0.9, Blue for HEAD
 				fx: centerX, fy: 150, fz: isGhost ? -60 : 0, // Ghost tree angled slightly behind (Z: -60)
-				commitX: centerX
+				commitX: centerX,
+				offsetX: 0,
+				isGhost: isGhost,
+				commitName
 			});
 
 			// ---------- Tier 1: Major folders / hubs (ring just under root) ----------
@@ -261,7 +396,10 @@ export class WillowWidget extends Widget
 					fx: centerX + Math.cos(angle) * radius,
 					fy: 100,
 					fz: (isGhost ? -60 : 0) + Math.sin(angle) * radius * 0.45,
-					commitX: centerX
+					commitX: centerX,
+					offsetX: Math.cos(angle) * radius,
+					isGhost: isGhost,
+					commitName
 				});
 				links.push({ source: rootId, target: h.id });
 			});
@@ -289,10 +427,13 @@ export class WillowWidget extends Widget
 					name: c.name,
 					val: 11,
 					color: isGhost ? '#ca8a04' : '#34d399',
-					fx: parent.fx + c.dx,
+					fx: (parent.fx ?? 0) + c.dx,
 					fy: 40,
-					fz: parent.fz + c.dz,
-					commitX: centerX
+					fz: (parent.fz ?? 0) + c.dz,
+					commitX: centerX,
+					offsetX: parent.offsetX + c.dx,
+					isGhost: isGhost,
+					commitName
 				});
 				links.push({ source: c.parent, target: c.id });
 			});
@@ -323,10 +464,13 @@ export class WillowWidget extends Widget
 						name: isBranch ? (t % 2 === 0 ? `if (...)` : `return`) : `AST Token ${t}`,
 						val: isBranch ? 5 : 3.5,
 						color: isGhost ? '#fde047' : (isBranch ? '#818cf8' : '#a78bfa'),
-						fx: file.fx + (t - count / 2) * 12 + (Math.random() - 0.5) * 8,
+						fx: (file.fx ?? 0) + (t - count / 2) * 12 + (Math.random() - 0.5) * 8,
 						fy: -20 - t * 18 - Math.random() * 10,
-						fz: file.fz + (Math.random() - 0.5) * 20,
-						commitX: centerX
+						fz: (file.fz ?? 0) + (Math.random() - 0.5) * 20,
+						commitX: centerX,
+						offsetX: file.offsetX + (t - count / 2) * 12 + (Math.random() - 0.5) * 8,
+						isGhost: isGhost,
+						commitName
 					});
 					links.push({ source: fileId, target: astId, isToken: true });
 				}
