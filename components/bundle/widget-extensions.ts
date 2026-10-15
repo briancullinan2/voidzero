@@ -383,7 +383,12 @@ export abstract class WithChangingWidget<TMain extends WithChangingWidget<TMain,
 
 	protected subSelected: (_: Widget, item: TList | string) => any = (_, item) =>
 	{
-		const t = this.items?.find(t => 'id' in t && t.id === this._selectedItemId);
+		const t = this.items?.find(t => t === item
+			|| 'id' in t
+			&& typeof item === 'object'
+			&& 'id' in item
+			&& t.id === item.id);
+		this._selectedItem = t;
 		if(typeof item === 'object' && 'id' in item && typeof item.id === 'string')
 		{
 			this._selectedItemId = item.id;

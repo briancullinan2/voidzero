@@ -212,7 +212,7 @@ class QVM:
         #Keys are syscall numbers(all negative), values are syscall names(trap_* or actual system calls or math functions)
         self.syscalls = {}
 
-        print 'Parsing header...'
+        print('Parsing header...')
         self.readHeader()
 
         #sanity check #2...
@@ -230,17 +230,17 @@ class QVM:
             sys.stdout.write('Invalid QVM file: DATA segment not 4-byte aligned')
             sys.exit()
 
-        print 'Done! Getting instruction pointers...'
+        print('Done! Getting instruction pointers...')
         self.getInstructionPointers()
-        print 'Done! Locating procedures...'
+        print('Done! Locating procedures...')
         self.locateProcedures()
-        print 'Done! Resolving code xrefs...'
+        print('Done! Resolving code xrefs...')
         self.resolveCodeXRefs()
-        print 'Done! Locating strings...'
+        print('Done! Locating strings...')
         self.locateStrings()
-        print 'Done! Loading syscalls...'
+        print('Done! Loading syscalls...')
         self.loadSyscalls(self.syscallsFileName)
-        print 'Done!'
+        print('Done!')
 
 
     def readHeader(self):
@@ -310,7 +310,7 @@ class QVM:
                     index += 1
                     continue
                 else:
-                    print "Could not find procedure at instruction %i [0x%08x]" % (index, self.instructionPointers[index])
+                    print("Could not find procedure at instruction %i [0x%08x]" % (index, self.instructionPointers[index]))
                     sys.exit()
 
             elif opcode == 8 and readU1(self.codeSegment[self.instructionPointers[index + 1]]) == 5:

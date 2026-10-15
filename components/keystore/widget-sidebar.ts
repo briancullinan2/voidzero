@@ -1,7 +1,5 @@
-import { Widget } from "@lumino/widgets";
 import type { CredentialRecord, CredentialType, KeystoreWidget } from "./widget";
 import { KeyParser } from "./key-parser";
-import { ISignal, Signal } from "@lumino/signaling";
 import { Message } from "@lumino/messaging";
 import type { LuminoLayoutWindow } from "../bundle/lumino.d";
 import type { IMainpanelOptions, WidgetExtensionsWindow } from "../bundle/widget-extensions";
@@ -114,9 +112,10 @@ export class PasswordsSidebar extends widgetSelf.SidebarChangeWidget<KeystoreWid
 		this.filteredCredentials = query ? this.items?.filter(item =>
 		{
 			const matchesType = typeFilter === 'all' || item.type === typeFilter;
-			const matchesQuery = item.title.toLowerCase().includes(query) ||
-				item.domain.toLowerCase().includes(query) ||
-				item.fields.some(f => f.name.toLowerCase().includes(query) || f.value.toLowerCase().includes(query));
+			const matchesQuery = item.title.toLowerCase().includes(query)
+				|| item.domain.toLowerCase().includes(query)
+				|| item.fields.some(f => f.name.toLowerCase().includes(query)
+					|| f.value.toLowerCase().includes(query));
 			return matchesType && matchesQuery;
 		}) ?? [] : this.items ?? [];
 

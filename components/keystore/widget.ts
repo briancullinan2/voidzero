@@ -64,13 +64,13 @@ export class KeystoreWidget extends widgetSelf.WithChangingWidget<KeystoreWidget
 		this.node.innerHTML = `
 			<!-- PIN Overlay -->
 			<div class="pwm-pin-overlay" id="pwmPinOverlay">
-				<div class="pwm-pin-box">
+				<form autocomplete="off" class="pwm-pin-box" data-lpignore="true">
 					<i class="bx bx-shield-quarter pwm-pin-icon"></i>
 					<h2>Vault Locked</h2>
 					<p>Enter your 4-digit PIN to reveal credentials (default: 1234)</p>
-					<input type="password" id="pwmPinInput" maxlength="4" placeholder="••••" />
+					<input autocomplete="one-time-code" type="password" id="pwmPinInput" maxlength="4" placeholder="••••" />
 					<button id="pwmUnlockBtn" class="pwm-btn primary">Unlock Vault</button>
-				</div>
+				</form>
 			</div>
 
 			<!-- Main Content / Editor View -->
@@ -107,7 +107,6 @@ export class KeystoreWidget extends widgetSelf.WithChangingWidget<KeystoreWidget
 		{
 			this.isUnlocked = true;
 			this.pinOverlayEl.style.display = 'none';
-			this.loadCredentials();
 			if(!this._sidebarWidget)
 			{
 				this._sidebarWidget = new PasswordsSidebar(undefined, {
@@ -115,6 +114,8 @@ export class KeystoreWidget extends widgetSelf.WithChangingWidget<KeystoreWidget
 				});
 			}
 			this.openSidebar();
+			this.resubscribeSidebar();
+			this.loadCredentials();
 			this.filterAndRender();
 		} else
 		{
@@ -166,7 +167,6 @@ export class KeystoreWidget extends widgetSelf.WithChangingWidget<KeystoreWidget
 		};
 		await KeyParser.saveCredentialToDB(sample);
 		await this.loadCredentials();
-
 	}
 
 

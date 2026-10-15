@@ -1,4 +1,6 @@
 
+// @ts-check
+
 import './rosetta.js';
 import mime from 'mime';
 self.mime = mime;

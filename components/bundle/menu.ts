@@ -126,6 +126,22 @@ export const TOOLS_REGISTRY: Record<string, ComponentRoute> = {
 		subtext: 'Depends on test runner harness integration, worker process isolation, and asynchronous assertions output streams.',
 		description: 'A dedicated testing dashboard for executing unit, integration, and end-to-end suites with live status tracking and stack trace reporting.'
 	},
+	'keystore': {
+		label: 'Keystore Manager',
+		url: './components/keystore/widget.ts',
+		className: 'KeystoreWidget',
+		iconClass: 'bx bx-key',
+		subtext: 'Depends on IndexedDB encrypted blob stores, WebCrypto subtle encryption APIs, PIN verification overlays, and credential form-autofill parsers.',
+		description: 'A secure vault manager providing PIN-protected credential storage, customizable form-field autofill mapping, drag-and-drop file ingestion (CSV, JSON, HTML, API keys), and encrypted export backups.'
+	},
+	'languages': {
+		label: 'Supported Languages',
+		url: './components/code/code.bundle.js',
+		className: 'LanguagesWidget',
+		iconClass: 'bx bx-code-alt',
+		subtext: 'Depends on Emscripten WebAssembly modules, WASI SDK toolchains, V8 worker runtime bindings, and local IndexedDB module caches.',
+		description: 'An OS-style runtime provisioning manager providing interactive installation, sandboxed WebAssembly compilation pipelines, and active state management for multi-language developer stacks (TypeScript, Python, C++, Rust).'
+	},
 	'complexity': {
 		label: 'Code Complexity',
 		url: './components/code/widget-complexity.ts',

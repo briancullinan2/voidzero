@@ -1,11 +1,20 @@
 
+// @ts-check
+
+
+
+/** @type {Worker & import('./rosetta.d').RosettaWorker} */
+const workerSelf = /** @type {any} */ (self);
+
 if(typeof window === 'undefined')
 {
 	const window = {
 
 	};
-	self.window = window;
+	workerSelf.window = window;
 }
+
+
 
 // Add these to your Diagnostic Bridge configuration
 const DIAGNOSTIC_PARSERS = [
@@ -13,6 +22,12 @@ const DIAGNOSTIC_PARSERS = [
 		name: "clang_lcc",
 		// Matches: code/game/g_main.c:25: error: missing semi-colon
 		pattern: /^([^:\n]+):(\d+):\s*(error|warning):\s*(.+)$/i,
+		/**
+		 *
+		 * @param {RegExpMatchArray} match
+		 * @param {*} bridge
+		 * @returns
+		 */
 		resolve: function (match, bridge)
 		{
 			return {

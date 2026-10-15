@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { SemanticWidget } from './widget-semantic';
 import { SearchCodeWidget } from './widget-search';
 import type { WidgetExtensionsWindow } from '../bundle/widget-extensions';
+import { LanguagesWidget } from './widget-languages';
 
 const widgetSelf: WidgetExtensionsWindow & {
 	THREE: typeof THREE;
@@ -14,6 +15,7 @@ const widgetSelf: WidgetExtensionsWindow & {
 	WillowWidget: typeof WillowWidget,
 	SemanticWidget: typeof SemanticWidget,
 	SearchCodeWidget: typeof SearchCodeWidget,
+	LanguagesWidget: typeof LanguagesWidget,
 } = self as unknown as any;
 
 widgetSelf.THREE = THREE;
@@ -212,3 +214,5 @@ widgetSelf.WillowWidget = WillowWidget;
 widgetSelf.SemanticWidget = SemanticWidget;
 
 widgetSelf.SearchCodeWidget = SearchCodeWidget;
+
+widgetSelf.LanguagesWidget = LanguagesWidget;

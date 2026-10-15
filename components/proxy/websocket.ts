@@ -533,5 +533,4 @@ export class WebSocketMonitor
 if(!widgetSelf.WebSocketMonitor)
 {
 	widgetSelf.WebSocketMonitor = WebSocketMonitor;
-	widgetSelf.WebSocketMonitor.initQ3Socks5Networking();
 }
