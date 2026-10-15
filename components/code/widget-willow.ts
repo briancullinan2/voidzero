@@ -58,15 +58,26 @@ export class WillowWidget extends Widget
 		this.init3DGraph();
 	}
 
+
 	protected override onResize(msg: Widget.ResizeMessage): void
 	{
 		super.onResize(msg);
 		if(this._graph && this._container)
 		{
-			this._graph.width(this._container.clientWidth);
-			this._graph.height(this._container.clientHeight);
+			const width = msg.width >= 0 ? msg.width : this._container.clientWidth;
+			const height = msg.height >= 0 ? msg.height : this._container.clientHeight;
+
+			if(width > 0 && height > 0)
+			{
+				requestAnimationFrame(() =>
+				{
+					this._graph?.width(width);
+					this._graph?.height(height);
+				});
+			}
 		}
 	}
+
 
 	public static COMMIT_GRAPH_DISTANCE = 450;
 	private _isLeftMouseDown = false;
@@ -285,18 +296,61 @@ export class WillowWidget extends Widget
 					this.hoverNode = undefined;
 				}
 			})
-			.nodeThreeObject((node: NodeObject | WillowNode | any | null) =>
+			.nodeThreeObject((node: any) =>
 			{
-				const size = node?.val ?? 5;
+				const group = new widgetSelf.THREE.Group();
+
+				// 1. Node Sphere
+				const size = node.val || 5;
 				const geometry = new widgetSelf.THREE.SphereGeometry(size, 16, 16);
 				const material = new widgetSelf.THREE.MeshLambertMaterial({
-					color: node?.color ?? '#2ecc71',
+					color: node.color || '#2ecc71',
 					transparent: true,
 					opacity: 1.0
 				});
 				const mesh = new widgetSelf.THREE.Mesh(geometry, material);
-				(mesh as any).nodeData = node;
-				return mesh;
+				group.add(mesh);
+
+				// 2. Permanent Text Label Sprite
+				const canvas = document.createElement('canvas');
+				const context = canvas.getContext('2d');
+				if(context)
+				{
+					context.font = '20px sans-serif';
+					const textMeasure: TextMetrics = context.measureText(node.name);
+					const textHeight = (textMeasure.actualBoundingBoxAscent ?? 0) + (textMeasure.actualBoundingBoxDescent ?? 20);
+					const textWidth = textMeasure.width;
+					const textAspect = textHeight / textWidth;
+					canvas.width = Math.max(64, (textHeight + 12) / textAspect);
+					canvas.height = textHeight + 12;
+
+					context.font = '20px sans-serif';
+					context.fillStyle = 'rgba(15, 23, 42, 0.8)';
+					context.fillRect(0, 0, canvas.width, canvas.height);
+
+					context.fillStyle = '#f8fafc';
+					context.fillText(node.name, 8, 22);
+
+					const texture = new widgetSelf.THREE.CanvasTexture(canvas);
+					const spriteMaterial = new widgetSelf.THREE.SpriteMaterial({
+						map: texture,
+						transparent: true,
+						depthWrite: false // Prevents sorting artifacts with transparency
+					});
+					const sprite = new widgetSelf.THREE.Sprite(spriteMaterial);
+
+					const scale = Math.max(0.5, this._orbitRadius / 250.0);
+					(sprite as any).textAspect = textAspect;
+					(sprite as any).textHeight = textHeight;
+					(sprite as any).textWidth = textWidth;
+					const maxHeight = Math.min(22, size * scale);
+					sprite.scale.set(maxHeight / textAspect, maxHeight, 1);
+					sprite.position.set(0, maxHeight + 6, 0);
+					group.add(sprite);
+				}
+
+				(group as any).nodeData = node;
+				return group;
 			})
 			.nodeLabel('name')
 			.linkColor((link: any) =>
@@ -333,7 +387,7 @@ export class WillowWidget extends Widget
 		{
 			scene.traverse((obj: any) =>
 			{
-				if(obj.isMesh && obj.nodeData)
+				if(obj.nodeData)
 				{
 					const node = obj.nodeData;
 					const y = obj.position.y;
@@ -362,8 +416,32 @@ export class WillowWidget extends Widget
 					if(obj.material)
 					{
 						obj.material.opacity = opacity;
+						obj.material.transparent = true;
+						obj.material.needsUpdate = true;
 						obj.visible = opacity > 0.05;
 					}
+
+					obj.traverse((child: any) =>
+					{
+						if(child.material)
+						{
+							child.material.opacity = opacity;
+							child.material.transparent = true;
+							child.material.needsUpdate = true;
+							child.visible = opacity > 0.05;
+						}
+
+						if(child instanceof widgetSelf.THREE.Sprite)
+						{
+							const size = node.val || 5;
+							const scale = Math.max(0.5, this._orbitRadius / 250.0);
+							const maxHeight = Math.min(22, size * scale);
+							child.scale.set(maxHeight / (child as any).textAspect, maxHeight, 1);
+							child.position.set(0, maxHeight + 6, 0);
+							child.material.opacity = Math.max(0.1, 1.0 - (verticalDistance / 100));
+							child.visible = child.material.opacity > 0.05;
+						}
+					});
 				}
 			});
 			this._graph?.d3ReheatSimulation();
@@ -387,7 +465,7 @@ export class WillowWidget extends Widget
 				name: isGhost ? '📁 Project Root (v0.9 - Previous)' : '🚀 Project Root (HEAD)',
 				val: 22,
 				color: isGhost ? '#eab308' : '#3b82f6', // Yellow for v0.9, Blue for HEAD
-				fx: centerX, fy: 150, fz: isGhost ? -60 : 0, // Ghost tree angled slightly behind (Z: -60)
+				fx: centerX, fy: 150, fz: 0,  //isGhost ? -60 : 0, // Ghost tree angled slightly behind (Z: -60)
 				commitX: centerX,
 				offsetX: 0,
 				isGhost: isGhost,
@@ -415,7 +493,7 @@ export class WillowWidget extends Widget
 					color: h.color,
 					fx: centerX + Math.cos(angle) * radius,
 					fy: 100,
-					fz: (isGhost ? -60 : 0) + Math.sin(angle) * radius * 0.45,
+					fz: /* (isGhost ? -60 : 0) +*/ Math.sin(angle) * radius * 0.45,
 					commitX: centerX,
 					offsetX: Math.cos(angle) * radius,
 					isGhost: isGhost,
