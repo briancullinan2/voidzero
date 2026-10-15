@@ -1,9 +1,13 @@
 
 // @ts-check
 
+/** @type {Worker & import('./rosetta.d').RosettaWorker} */
+const workerSelf = /** @type {any} */ (self);
+
 // =====================================================================
 // TEXT & SYNTAX-LEVEL DETERMINATIONS WATERFALL REGISTRY
 // =====================================================================
+/** @type { import('./rosetta.d').TextDetector[] } */
 const TEXT_LANGUAGE_DETECTOR_WATERFALL = [
 	// ─── 1. BINARY & VIRTUAL MACHINE CORE SIGNATURES ───
 	{ id: "wat", match: (s, b) => s.trim().startsWith('(module') || s.includes('(func ') || s.includes('(import "env"') },
@@ -109,11 +113,12 @@ const TEXT_LANGUAGE_DETECTOR_WATERFALL = [
 	{ id: "c", match: (s, b) => s.includes('#include') || s.includes('printf(') || s.includes('struct ') || s.includes('int main(') || s.includes('NULL') || s.includes('extern ') }
 ];
 
-self.TEXT_LANGUAGE_DETECTOR_WATERFALL = TEXT_LANGUAGE_DETECTOR_WATERFALL;
+workerSelf.TEXT_LANGUAGE_DETECTOR_WATERFALL = TEXT_LANGUAGE_DETECTOR_WATERFALL;
 
 // =====================================================================
 // 1. TOP-LEVEL GLOBAL MICRO-UTILITY FUNCTIONS
 // =====================================================================
+/** @type {Record<string, string>} */
 const EXTENSION_TO_PARSER_ID = {
 	'abap': 'abap',
 	'abc': 'abc',
@@ -314,11 +319,34 @@ const EXTENSION_TO_PARSER_ID = {
 	'cam': 'q3camera',
 	'shader': 'q3shader',
 	'shaderx': 'q3shader',
-	'cam': 'q3camera',
 	'map': 'q3map', // Or 'quakemap' if targeting your legacy BSP parser
 	'arena': 'q3arena',
 	'menu': 'q3menu',
 	'skin': 'q3skin',
 };
 
-self.EXTENSION_TO_PARSER_ID = EXTENSION_TO_PARSER_ID;
+
+workerSelf.EXTENSION_TO_PARSER_ID = EXTENSION_TO_PARSER_ID;
+
+/**
+ *
+ * @param {string} fileText
+ * @param {Buffer} fileBuffer
+ * @returns
+ */
+function autodetectLanguage(fileText, fileBuffer)
+{
+	const textContent = fileText || "";
+	const cleanBuffer = fileBuffer || (typeof Uint8Array !== 'undefined' ? new Uint8Array(0) : []);
+
+	// Sequentially execute the array matches; returns the first absolute hit or defaults to text
+	const matchedLanguageNode = TEXT_LANGUAGE_DETECTOR_WATERFALL.find(lang => lang.match(textContent, cleanBuffer));
+
+	const resolvedLanguageId = matchedLanguageNode ? matchedLanguageNode.id : "text";
+	console.log(`[AUTODETECT SUCCESS] File classified cleanly as: ${resolvedLanguageId}`);
+
+	return resolvedLanguageId;
+}
+
+workerSelf.autodetectLanguage = autodetectLanguage;
+

@@ -22,11 +22,11 @@ const DIAGNOSTIC_PARSERS = [
 		name: "clang_lcc",
 		// Matches: code/game/g_main.c:25: error: missing semi-colon
 		pattern: /^([^:\n]+):(\d+):\s*(error|warning):\s*(.+)$/i,
+
 		/**
-		 *
 		 * @param {RegExpMatchArray} match
-		 * @param {*} bridge
-		 * @returns
+		 * @param {import('./rosetta.d').DiagnosticBridge} bridge
+		 * @returns {import('./rosetta.d').DiagnosticsParser}
 		 */
 		resolve: function (match, bridge)
 		{
@@ -43,6 +43,11 @@ const DIAGNOSTIC_PARSERS = [
 		// Matches: WARNING: expecting '{', found 'INVALID' instead in shader 'textures/gothic/floor'
 		// Or: WARNING: unknown general shader parameter 'bad_keyword' in 'scripts/sfx.shader'
 		pattern: /WARNING:\s*([^'\n]+)'\s*instead\s*in\s*shader\s*'([^']+)'|WARNING:\s*unknown\s*general\s*shader\s*parameter\s*'([^']+)'\s*in\s*'([^']+)'/i,
+		/**
+		 * @param {RegExpMatchArray} match
+		 * @param {import('./rosetta.d').DiagnosticBridge} bridge
+		 * @returns {import('./rosetta.d').DiagnosticsParser}
+		 */
 		resolve: function (match, bridge)
 		{
 			// Check which capture group hit based on the Printf outputs in ParseShader
@@ -65,6 +70,11 @@ const DIAGNOSTIC_PARSERS = [
 		// Matches: Couldn't find image file for shader gfx/2d/sunflare
 		// Or: WARNING: models/mapobjects/energy.tga not present, using .jpg instead
 		pattern: /(?:Couldn't find image file for shader|WARNING:)\s*([^\s\n]+)(?:\s*not present)?/i,
+		/**
+		 * @param {RegExpMatchArray} match
+		 * @param {import('./rosetta.d').DiagnosticBridge} bridge
+		 * @returns {import('./rosetta.d').DiagnosticsParser}
+		 */
 		resolve: function (match, bridge)
 		{
 			let assetPath = match[1];
@@ -83,6 +93,11 @@ const DIAGNOSTIC_PARSERS = [
 		name: "quake_skin_failure",
 		// Matches: Torso skin load failure: models/players/doom/upper_red.skin
 		pattern: /(Leg|Torso|Head)\s*skin\s*load\s*failure:\s*([^\s\n]+)/i,
+		/**
+		 * @param {RegExpMatchArray} match
+		 * @param {import('./rosetta.d').DiagnosticBridge} bridge
+		 * @returns {import('./rosetta.d').DiagnosticsParser}
+		 */
 		resolve: function (match, bridge)
 		{
 			let component = match[1];
