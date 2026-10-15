@@ -76,8 +76,8 @@ export class WillowWidget extends Widget
 	private _centerX = 0;
 	private _centerY = 0;
 	private _centerZ = 0; // Level of Detail / Z-Height axis
-	private _theta = Math.PI / 4; // Orbit angle horizontal
-	private _phi = Math.PI / 3;   // Orbit angle vertical
+	private _theta = Math.PI / 5 * 3; // Orbit angle horizontal
+	private _phi = Math.PI / 5 * 2;   // Orbit angle vertical
 	private _orbitRadius = 500;
 	private _focalX = 0;
 	private _focalY = 0;
@@ -153,7 +153,7 @@ export class WillowWidget extends Widget
 				if(this.hoverNode)
 				{
 					// 🌟 Smoothly animate toward the node's relative offset using the new animation runner
-					const targetOffsetX = (this.hoverNode.fx ?? 0) - this._centerX;
+					const targetOffsetX = (this.hoverNode.fx ?? 0) - this._centerX - this.hoverNode.offsetX;
 					const targetOffsetY = (this.hoverNode.fy ?? 0) - this._centerY;
 					this.animateToFocal(targetOffsetX, targetOffsetY, 250);
 				} else
@@ -180,17 +180,23 @@ export class WillowWidget extends Widget
 				if(Math.abs(dx) >= Math.abs(dy))
 				{
 					// 1. Primary commit (_centerX): starts with near-zero crawl, then accelerates to slide out of frame
-					this._centerX = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, this._centerX - dx * 1.1));
+					this._centerX = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, this._centerX - dx * 1.0));
 
 					const progress = this._centerX / WillowWidget.COMMIT_GRAPH_DISTANCE;
-					if(progress < 0.5)
+					if(progress < 0.75)
 					{
-						this._centerX1 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, this._centerX + (progress / 0.5 * WillowWidget.COMMIT_GRAPH_DISTANCE * 0.25)));
-						//this._centerX2 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, ((progress - 0.5) / 0.5 * 2.0 * WillowWidget.COMMIT_GRAPH_DISTANCE)));
+						this._centerX1 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, this._centerX + progress / 0.75 * WillowWidget.COMMIT_GRAPH_DISTANCE / 2));
 					} else
 					{
-						this._centerX1 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, this._centerX + WillowWidget.COMMIT_GRAPH_DISTANCE * 0.25 - ((progress - 0.5) / 0.5 * (WillowWidget.COMMIT_GRAPH_DISTANCE + WillowWidget.COMMIT_GRAPH_DISTANCE * 0.25))));
-						//this._centerX2 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, 0));
+						this._centerX1 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, this._centerX + WillowWidget.COMMIT_GRAPH_DISTANCE / 2 - ((progress - 0.75) / 0.25 * (WillowWidget.COMMIT_GRAPH_DISTANCE + WillowWidget.COMMIT_GRAPH_DISTANCE / 2))));
+					}
+
+					if(progress < 0.5)
+					{
+						this._centerX2 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, -(progress / 0.50 * WillowWidget.COMMIT_GRAPH_DISTANCE)));
+					} else
+					{
+						this._centerX2 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, -(1 - (progress - 0.50) / 0.50) * WillowWidget.COMMIT_GRAPH_DISTANCE));
 					}
 
 					this.updateHUD();
@@ -294,10 +300,24 @@ export class WillowWidget extends Widget
 			})
 			.nodeLabel('name')
 			.linkColor((link: any) =>
-				link.isAnchor ? 'rgba(239, 68, 68, 0.9)' :
-					link.isToken ? 'rgba(99, 102, 241, 0.8)' :
-						'rgba(59, 130, 246, 0.75)' // 🌟 Vibrant, highly visible link color
-			)
+			{
+				// Retrieve source/target node objects to calculate midpoints and distances
+				const srcNode = typeof link.source === 'object' ? link.source : null;
+				const tgtNode = typeof link.target === 'object' ? link.target : null;
+
+				const nodeY = srcNode ? srcNode.y : 0;
+				const nodeCommitX = srcNode ? (srcNode.commitX ?? 0) : 0;
+
+				const verticalDistance = Math.abs(nodeY - this._centerY);
+				const distanceToCenter = Math.abs(nodeCommitX - this._centerX1);
+				const fadeFactor = Math.max(0, 1.0 - (distanceToCenter / (2 * WillowWidget.COMMIT_GRAPH_DISTANCE)));
+				const opacity = Math.max(0.1, (1.0 - (verticalDistance / 220)) * fadeFactor);
+
+				// Fixed template string with proper multiplication (*) operators
+				return link.isAnchor ? `rgba(239, 68, 68, ${0.9 * opacity})` :
+					link.isToken ? `rgba(99, 102, 241, ${0.8 * opacity})` :
+						`rgba(59, 130, 246, ${0.75 * opacity})`;
+			})
 			.linkWidth((link: any) =>
 				link.isAnchor ? 2.5 :
 					link.isToken ? 1.2 :
