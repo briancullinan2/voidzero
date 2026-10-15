@@ -1,6 +1,6 @@
 // @ts-check
 
-
+/** @type {Record<string, import("./rosetta").BlockDetector>} */
 const ROSETTA_BLOCK_ASSOCIATIONS = {
 	// ─── C-STYLE LANGUAGES: BRACE MATCHING WITH TYPE HEADERS ───
 	c: {
@@ -153,7 +153,13 @@ ROSETTA_BLOCK_ASSOCIATIONS['postgresql'] = ROSETTA_BLOCK_ASSOCIATIONS['sql'];
 ROSETTA_BLOCK_ASSOCIATIONS['sqlite'] = ROSETTA_BLOCK_ASSOCIATIONS['sql'];
 
 
-
+/**
+ *
+ * @param {string} codeStr
+ * @param {number} lineNumber
+ * @param {string} langId
+ * @returns
+ */
 function extractCurrentBlock(codeStr, lineNumber, langId)
 {
 	const lines = codeStr.split('\n');
@@ -165,6 +171,7 @@ function extractCurrentBlock(codeStr, lineNumber, langId)
 		return { text: codeStr, startLine: 1, endLine: totalLines, startIndex: 0, endIndex: codeStr.length };
 	}
 
+	/** @type {number[]} */
 	const lineOffsets = [];
 	let currentOffset = 0;
 	lines.forEach(line =>
@@ -297,9 +304,12 @@ function extractCurrentBlock(codeStr, lineNumber, langId)
  */
 class AntlrBlockCollectorVisitor
 {
+
+	/** @param {import('antlr4').Parser} parser */
 	constructor(parser)
 	{
 		this.parser = parser;
+		/** @type {import("./rosetta").BlockResult[]} */
 		this.blocks = [];
 
 		// Explicit list of known block-defining rule signatures across your 40 languages
@@ -365,4 +375,64 @@ class AntlrBlockCollectorVisitor
 			}
 		}
 	}
+}
+
+
+/**
+ *
+ * @param {string} sourceText
+ * @param {string} languageKey
+ * @returns
+ */
+function getFoldRegions(sourceText, languageKey)
+{
+	const lexer = createLexerInstance(sourceText, languageKey);
+	if(!lexer) return [];
+
+	const folds = [];
+	const braceStack = [];
+	const preprocessorStack = [];
+	let token = lexer.nextToken();
+	const eof = AntlrRegistry.antlr4.Token.EOF;
+
+	while(token.type !== eof)
+	{
+		const typeName = _resolveTokenTypeName(lexer, token.type);
+		const row = token.line - 1;
+
+		if(typeName === 'OpenCurlyBracket' || token.text === '{')
+		{
+			braceStack.push(row);
+		} else if(typeName === 'CloseCurlyBracket' || token.text === '}')
+		{
+			if(braceStack.length > 0)
+			{
+				const startRow = braceStack.pop() ?? 0;
+				if(row > startRow) folds.push({ startRow, endRow: row, type: 'brace' });
+			}
+		}
+
+		if(token.text.startsWith('#if') || token.text.startsWith('#ifdef'))
+		{
+			preprocessorStack.push(row);
+		} else if(token.text.startsWith('#endif'))
+		{
+			if(preprocessorStack.length > 0)
+			{
+				const startRow = preprocessorStack.pop() ?? 0;
+				if(row > startRow) folds.push({ startRow, endRow: row, type: 'preprocessor' });
+			}
+		}
+
+		if(token.channel === 1 || ['BlockComment', 'MULTI_LINE_COMMENT'].includes(typeName))
+		{
+			const textLines = token.text.split('\n');
+			if(textLines.length > 1)
+			{
+				folds.push({ startRow: row, endRow: row + textLines.length - 1, type: 'comment' });
+			}
+		}
+		token = lexer.nextToken();
+	}
+	return folds;
 }

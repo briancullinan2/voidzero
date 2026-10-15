@@ -4,7 +4,7 @@
 
 /** @type {Record<string, string[]>} */
 
-const ROSETTA_CMAKE_MAPPING = {
+export const ROSETTA_CMAKE_MAPPING = {
 	// =====================================================================
 	// 1. HIGHER-LEVEL PARSER EXPR/RULE CONTEXTS (Parser Rules -> C Rules)
 	// =====================================================================
@@ -47,7 +47,7 @@ const ROSETTA_CMAKE_MAPPING = {
 
 /** @type {Record<string, string[]>} */
 
-const ROSETTA_MAKE_MAPPING = {
+export const ROSETTA_MAKE_MAPPING = {
 	// =====================================================================
 	// MAKEFILE PARSER SYMBOL MAPPINGS (MakefileParser.g4 -> C AST Rules)
 	// =====================================================================

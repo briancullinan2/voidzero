@@ -1,7 +1,11 @@
 // @ts-check
 
+/** @type {Worker & import('./rosetta.d').RosettaWorker} */
+const workerSelf = /** @type {any} */ (self);
 
-const ROSETTA_NEIGHBORHOOD_ASSOCIATIONS = {
+
+/** @type {Record<string, import("./rosetta").RosettaNeighbors>} */
+export const ROSETTA_NEIGHBORHOOD_ASSOCIATIONS = {
 	// =====================================================================
 	// 1. SYSTEM BASE COMPILATION & PRECOMPILER PIPELINES (6.10)
 	// =====================================================================
@@ -14,7 +18,7 @@ const ROSETTA_NEIGHBORHOOD_ASSOCIATIONS = {
 		{
 			const cleanTarget = match[1].trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_');
 			const win = typeof window !== 'undefined' ? window : null;
-			return tag + `.target_${cleanTarget}` + ((!win?.__missingHeaders || win.__missingHeaders.has(match[1].trim())) ? ".status_resolved" : ".status_missing.annotation_required");
+			return tag + `.target_${cleanTarget}` + ((!workerSelf.__missingHeaders || workerSelf.__missingHeaders.has(match[1].trim())) ? ".status_resolved" : ".status_missing.annotation_required");
 		}
 		return tag + ".err_malformed";
 	},

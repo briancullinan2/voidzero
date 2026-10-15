@@ -5,7 +5,7 @@
 
 /** @type {Record<string, string[]>} */
 
-const ROSETTA_JSON_MAPPING = {
+export const ROSETTA_JSON_MAPPING = {
 	// =====================================================================
 	// 1. HIGHER-LEVEL PARSER EXPR/RULE CONTEXTS (Parser Rules -> C Rules)
 	// =====================================================================

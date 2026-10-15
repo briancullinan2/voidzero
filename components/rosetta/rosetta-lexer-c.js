@@ -5,7 +5,7 @@
 // ace 9 highlights lexons not tokens, tokens are parsed, lexons are lexed.
 
 /** @type {Record<string, string>} */
-const ROSETTA_LEXER_MATRIX = {
+export const ROSETTA_LEXER_MATRIX = {
 	// --- Compiler Extensions & Intrinsic Built-Ins ---
 	"Attribute": "meta.attribute.gcc.extension.compiler.specific.annotation",
 	"KW__builtin_offsetof": "function.builtin.offsetof.macro.native.compiler.support",

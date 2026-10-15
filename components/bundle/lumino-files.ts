@@ -4,7 +4,7 @@ import { filesRepo, GitHubFileEntry, trees } from "./github-types";
 import { FS } from "./global";
 import { DB_STORE_NAME, getDatabaseMetadata, getRecord } from "./local";
 import type { FileRecord } from './local.d';
-import { AssetInspector, hasSequentialBinaryRegex, hexDump } from "../rosetta/binary.mjs";
+import { AssetInspector, hasSequentialBinaryRegex, hexDump } from "../rosetta/rosetta.bundle.js";
 import { triggerPanelRoute } from "./menu";
 import type { LuminoFilesWindow } from "./lumino.d";
 import type { EditorWindow } from "../editor/widget.d";

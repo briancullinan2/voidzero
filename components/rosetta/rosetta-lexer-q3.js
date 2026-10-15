@@ -5,7 +5,7 @@
 
 /** @type {Record<string, string[]>} */
 
-const ROSETTA_Q3_MAPPING = {
+export const ROSETTA_Q3_MAPPING = {
 
 	// =====================================================================
 	// 1. HIGHER-LEVEL PARSER TRANSLATION UNITS & GLOBAL FILE ROOTS

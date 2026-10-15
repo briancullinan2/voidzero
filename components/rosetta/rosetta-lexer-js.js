@@ -4,7 +4,7 @@
 
 /** @type {Record<string, string[]>} */
 
-const ROSETTA_JAVASCRIPT_MAPPING = {
+export const ROSETTA_JAVASCRIPT_MAPPING = {
 	// =====================================================================
 	// 1. HIGHER-LEVEL TRANSLATION ROOTS & GLOBALS
 	// =====================================================================

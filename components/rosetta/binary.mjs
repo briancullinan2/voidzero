@@ -1,13 +1,24 @@
 
 // @ts-check
-
-import './rosetta.js';
 import mime from 'mime';
+import
+{
+	getWasmObjectHeader, renderWasmDisassemblySuite,
+	getWasmFinalHeader, renderWasmDisassembly
+} from './binary-wasm';
+import
+{
+	renderMd3DisassemblySuite,
+	renderBspDisassemblySuite, renderAasDisassemblySuite,
+	parseQ3FontDat
+} from './binary-q3';
+import { parseDM3Telemetry } from './binary-q3net';
+import { getQVMHeader } from './binary-qvm';
+
 
 /** @type {import('./rosetta.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 workerSelf.mime = mime;
-
 
 
 /**
@@ -118,21 +129,6 @@ export function arrayBufferToDataUri(buffer, filename)
 	}
 	const base64 = btoa(binary);
 	return `data:${type};base64,${base64}`;
-}
-
-
-
-/**
- * Quick helper to evaluate header buffers using your existing magics
- * @param {Buffer} bytes
- * @returns
- */
-export function isQuakeBinaryMagic(bytes)
-{
-	const magicStr = Array.from(bytes.subarray(0, 4)).map(b => String.fromCharCode(b)).join('');
-	// "IBSP" = Map, "IDP3" = Mesh, "EAAS" = Bot AI navigation
-	return ['IBSP', 'IDP3', 'EAAS'].includes(magicStr) ||
-		(bytes[0] === 0x44 && bytes[1] === 0x14 && bytes[2] === 0x72 && bytes[3] === 0x12); // QVM
 }
 
 

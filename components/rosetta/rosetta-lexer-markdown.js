@@ -4,7 +4,7 @@
 
 /** @type {Record<string, string[]>} */
 
-const ROSETTA_CREOLE_MAPPING = {
+export const ROSETTA_CREOLE_MAPPING = {
 
 	// =====================================================================
 	// CREOLE PARSER & LEXER MAPPINGS (creole.g4 -> C AST Rules)

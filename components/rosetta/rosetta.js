@@ -2,9 +2,25 @@
 
 // @ts-check
 
+import { ROSETTA_RULE_MATRIX } from './rosetta-rules';
+import { ROSETTA_LEXER_MATRIX } from './rosetta-lexer-c';
+import { GRAMMAR_CLASSIFIER_MATRIX } from './rosetta-grammars';
+import { ROSETTA_NEIGHBORHOOD_ASSOCIATIONS } from "./rosetta-neighbors";
+import { ROSETTA_JAVASCRIPT_MAPPING } from './rosetta-lexer-js';
+import { ROSETTA_JSON_MAPPING } from './rosetta-lexer-json';
+import { ROSETTA_MAKE_MAPPING, ROSETTA_CMAKE_MAPPING } from './rosetta-lexer-make';
+import { ROSETTA_CREOLE_MAPPING } from './rosetta-lexer-markdown';
+import { ROSETTA_Q3_MAPPING } from './rosetta-lexer-q3';
 
-
-
+/** @type {Record<string, string[]>} */
+const ROSETTA_CROSS_LANGUAGE_MAPPING = {
+	...ROSETTA_JAVASCRIPT_MAPPING,
+	...ROSETTA_JSON_MAPPING,
+	...ROSETTA_MAKE_MAPPING,
+	...ROSETTA_CMAKE_MAPPING,
+	...ROSETTA_CREOLE_MAPPING,
+	...ROSETTA_Q3_MAPPING,
+};
 
 // Compiled straight from your CSS tokens to prioritize class positions natively
 const ACE_COLORED_CLASSES = [
@@ -22,9 +38,15 @@ const ACE_COLORED_CLASSES = [
 ];
 
 
-
+/**
+ *
+ * @param {string} ruleName
+ * @param {string} lexerSymbolicName
+ * @returns
+ */
 function toRosettaNonRecursive(ruleName, lexerSymbolicName)
 {
+	/** @type {string[]} */
 	const parts = [];
 	if(ruleName && ROSETTA_RULE_MATRIX[ruleName])
 	{
@@ -38,6 +60,12 @@ function toRosettaNonRecursive(ruleName, lexerSymbolicName)
 }
 
 
+/**
+ *
+ * @param {string[]} array
+ * @param {string} tag
+ * @returns
+ */
 function structuralPartsAccumulatorPush(array, tag)
 {
 	if(!tag) return;
@@ -53,10 +81,20 @@ function structuralPartsAccumulatorPush(array, tag)
 
 
 
-
+/**
+ *
+ * @param {string} symbolicName
+ * @param {string} ruleName
+ * @param {import('antlr4').Lexer} lexer
+ * @param {import('antlr4').Parser} parser
+ * @param {import('./rosetta.d').AntlrToken} ctxOrToken
+ * @param {*} tokenStream
+ * @returns
+ */
 function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, tokenStream)
 {
 	// 1. Setup localized token parsing payload state natively
+	/** @type {import('./rosetta.d').AntlrToken} */
 	const state = {
 		symbolicName: symbolicName || "", ruleName: ruleName || "",
 		typeInt: null, literalText: "", tokenChannel: 0,
@@ -76,7 +114,7 @@ function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, token
 		state.ruleHistory = ctxOrToken.ruleHistory || [];
 	}
 
-	const vocab = lexer?.vocabulary || lexer?.constructor?.vocabulary;
+	const vocab = lexer?.vocabulary ?? lexer?.constructor?.vocabulary;
 	if(vocab && state.typeInt !== null)
 	{
 		state.lexerSymbolicName = vocab.getSymbolicName(state.typeInt) || "";
@@ -225,7 +263,12 @@ function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, token
 
 
 
-
+/**
+ *
+ * @param {*} lexer
+ * @param {string} tokenType
+ * @returns
+ */
 function _resolveTokenTypeName(lexer, tokenType)
 {
 	const Ctor = lexer.constructor;
@@ -240,6 +283,14 @@ function _resolveTokenTypeName(lexer, tokenType)
 
 /**
  * Builds the comprehensive token payload combined with verified grammar metadata
+ * @param {import('./rosetta.d').AntlrToken} token
+ * @param {string} rawTypeName
+ * @param {string} classification
+ * @param {string} lowerType
+ * @param {*} lexer
+ * @param {*} parser
+ * @param {*} ctx
+ * @returns
  */
 function _buildTokenPayload(token, rawTypeName, classification, lowerType, lexer, parser, ctx)
 {
@@ -287,89 +338,4 @@ function _buildTokenPayload(token, rawTypeName, classification, lowerType, lexer
 	};
 }
 
-
-
-
-
-// A minimal lookahead map of tokens that CANNOT start a expression line
-// without a preceding semicolon safely in place.
-// TODO: make C do this on save
-const UNSAFE_LINE_STARTERS = ['[', '(', '`', '/', '+', '-'];
-
-function processJavaScriptASI(tokenStream)
-{
-	const tokens = tokenStream.getTokens();
-	const modifiedTokens = [];
-	const asiErrors = []; // Collect discovered bugs here for your UX
-
-	for(let i = 0; i < tokens.length; i++)
-	{
-		const currentToken = tokens[i];
-		const nextToken = tokens[i + 1];
-
-		modifiedTokens.push(currentToken);
-
-		// Check if we are crossing a line break between two valid tokens
-		if(nextToken && currentToken.line < nextToken.line)
-		{
-
-			// BUG DETECTION 1: The Restricted Production Rule (return, break, continue, throw)
-			if(['return', 'break', 'continue', 'throw'].includes(currentToken.text))
-			{
-				asiErrors.push({
-					line: currentToken.line,
-					column: currentToken.column,
-					message: `Critical ASI Warning: Inline split after '${currentToken.text}'. Semicolon automatically inserted here, making subsequent code unreachable.`
-				});
-
-				// Synthesize a real semicolon token for your Pass-2 parser
-				modifiedTokens.push({ type: PreprocessorLexer.SEMICOLON, text: ";" });
-				continue;
-			}
-
-			// BUG DETECTION 2: The Unsafe Continuation Danger Zone
-			if(UNSAFE_LINE_STARTERS.includes(nextToken.text))
-			{
-				// If the current line does NOT end with an explicit semicolon,
-				// and the next line starts with an unsafe character, it's a critical hazard.
-				if(currentToken.text !== ';' && currentToken.text !== '}')
-				{
-					asiErrors.push({
-						line: nextToken.line,
-						column: nextToken.column,
-						message: `Potential Code Breaking Bug: Missing semicolon before leading '${nextToken.text}'. JS engine will attempt to parse this as a continuation of the previous line.`
-					});
-				}
-			}
-
-			// STANDARD ASI INSIGHT: Tagging normal missing semis for AST alignment
-			if(requiresImplicitSemicolon(currentToken, nextToken))
-			{
-				modifiedTokens.push({
-					type: PreprocessorLexer.SEMICOLON,
-					text: ";",
-					isVirtual: true // Flagged so you can recognize it down the line
-				});
-			}
-		}
-	}
-
-	// Expose detected bugs out to your UX panel or worker messenger
-	if(asiErrors.length > 0)
-	{
-		self.postMessage({ type: "asiDiagnosticsDiscovered", errors: asiErrors });
-	}
-
-	return new antlr4.CommonTokenStream(new VirtualTokenSource(modifiedTokens));
-}
-
-function requiresImplicitSemicolon(current, next)
-{
-	// Avoid double semicolons or inserting after structural blocks
-	if([';', '{', '}'].includes(current.text) || ['}'].includes(next.text)) return false;
-
-	// Core check: If the upcoming token cannot natively chain off the current token
-	// (e.g., an identifier followed by another identifier on a new line)
-	return (current.type === PreprocessorLexer.IDENTIFIER && next.type === PreprocessorLexer.IDENTIFIER);
-}
 

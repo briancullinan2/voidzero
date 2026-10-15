@@ -7,7 +7,7 @@
 // colorful
 
 /** @type {Record<string, string>} */
-const ROSETTA_RULE_MATRIX = {
+export const ROSETTA_RULE_MATRIX = {
 	// =====================================================================
 	// 1. SYSTEM BASE COMPILATION & TRANSLATION ROOTS (Clean Fallthroughs)
 	// =====================================================================
@@ -180,3 +180,4 @@ const ROSETTA_RULE_MATRIX = {
 	"ws": "text",                                  // Maps 'WS' tokens directly to native ace_text
 	"type_text": "text",
 };
+

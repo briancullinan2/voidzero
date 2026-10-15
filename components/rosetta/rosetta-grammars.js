@@ -4,7 +4,7 @@
 
 /** @type {Record<string, string>} */
 
-const GRAMMAR_CLASSIFIER_MATRIX = {
+export const GRAMMAR_CLASSIFIER_MATRIX = {
 
 	// =====================================================================
 	// 1. COMPILATION UNIT ROOTS & GLOBAL TRANSLATION ENGINES
