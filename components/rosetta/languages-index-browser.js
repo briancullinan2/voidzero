@@ -137,7 +137,7 @@ import quake3_Q3SkinParser from '../../../jupyter_ops/Resources/Parsers/quake3/s
 // =====================================================================
 // 3. CONSOLIDATE THE CORE REGISTRY OBJECT (MATCHES WORKER DYNAMIC RESOLUTION)
 // =====================================================================
-/** @type {Record<string, typeof antlr4.Parser | typeof antlr4.Lexer>} */
+/** @type {({antlr4?: typeof antlr4}) & Record<string, typeof antlr4.Parser | typeof antlr4.Lexer>} */
 const AntlrRegistry = {
 	// Explicit Lowercase Flat Index Matrix
 	"c_lexer": c_CLexer, "c_parser": c_CParser,

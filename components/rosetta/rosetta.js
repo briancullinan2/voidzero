@@ -119,7 +119,7 @@ export function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken
 		state.ruleHistory = ctxOrToken.ruleHistory || [];
 	}
 
-	const vocab = lexer?.vocabulary ?? /** @type {import('./rosetta-types.d').ImplementedLexer} */ (lexer?.constructor)?.vocabulary;
+	const vocab = lexer?.vocabulary ?? /** @type {any} */ (lexer?.constructor)?.vocabulary;
 	if(vocab && state.typeInt)
 	{
 		state.lexerSymbolicName = vocab.getSymbolicName(state.typeInt) || "";
@@ -281,9 +281,9 @@ export function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken
  * @param {string} rawTypeName
  * @param {string} classification
  * @param {string} lowerType
- * @param {import('antlr4').Lexer & import('./rosetta-types.d').ImplementedLexer} lexer
- * @param {import('antlr4').Parser & import('./rosetta-types.d').ImplementedLexer} parser
- * @param {import('antlr4').ParserRuleContext} ctx
+ * @param {import('./rosetta-types.d').ImplementedLexer} lexer
+ * @param {import('./rosetta-types.d').ImplementedParser} parser
+ * @param {import('./rosetta-types.d').ImplementedContext} ctx
  * @returns
  */
 function _buildTokenPayload(token, rawTypeName, classification, lowerType, lexer, parser, ctx)
@@ -295,8 +295,8 @@ function _buildTokenPayload(token, rawTypeName, classification, lowerType, lexer
 	const ruleIndex = ctx ? ctx.ruleIndex : null;
 
 	// Extract vocabulary managers natively from the runtime engine instances
-	const lexerVocab = lexer?.vocabulary ?? /** @type {import('./rosetta-types.d').ImplementedLexer} */ (lexer?.constructor)?.vocabulary;
-	const parserVocab = parser?.vocabulary ?? /** @type {import('./rosetta-types.d').ImplementedLexer} */ (parser?.constructor)?.vocabulary;
+	const lexerVocab = lexer?.vocabulary ?? /** @type {any} */ (lexer?.constructor)?.vocabulary;
+	const parserVocab = parser?.vocabulary ?? /** @type {any} */ (parser?.constructor)?.vocabulary;
 
 	// Resolve the clean, authentic symbolic rule names via the vocabulary contracts
 	const trueLexerRuleName = lexerVocab ? lexerVocab.getSymbolicName(tokenType) : "Text";
@@ -318,7 +318,11 @@ function _buildTokenPayload(token, rawTypeName, classification, lowerType, lexer
 		// =====================================================================
 		tokenIndex: typeof token.tokenIndex === 'number' ? token.tokenIndex : null, // ◄ Physical index in file stream
 		tokenType: tokenType,                                                       // ◄ The ANTLR numerical ID (e.g., 134)
-		tokenMode: lexer && lexer.constructor?.modeNames ? lexer.constructor.modeNames[lexer._mode] : "default",
+		tokenMode: lexer && lexer._mode && lexer.modeNames
+			? lexer.modeNames[lexer._mode] ?? 'default'
+			: lexer._mode && 'modeNames' in lexer.constructor
+				? /** @type {any} */ (lexer.constructor).modeNames[lexer._mode]
+				: "default",
 
 		// Vocabulary lookups resolve names correctly by absolute vocabulary contract bounds
 		tokenNames: lexerVocab ? lexerVocab.getLiteralName(tokenType) : null,

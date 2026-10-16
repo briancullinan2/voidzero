@@ -151,12 +151,12 @@ function processSyntaxError(lines, annotations, syntaxError)
 /**
  *
  * @param {string[]} lines
- * @param {import('antlr4').CommonTokenStream} tokenStream
+ * @param {import('./rosetta-types.d').ImplementedStream} tokenStream
  * @param {string} languageKey
  * @param {import('./rosetta-types.d').ParserEvent[]} annotations
- * @param {import('antlr4').Lexer} lexer
+ * @param {import('./rosetta-types.d').ImplementedLexer} lexer
  * @param {*} emitter
- * @returns
+ * @returns {([Map<number, string>, import('./rosetta-types.d').ImplementedParser | null] | undefined)}
  */
 function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations, lexer, emitter)
 {
@@ -169,7 +169,8 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 	let ParserCtor = /** @type {any} */ (workerSelf.AntlrRegistry[lookupKey]);
 	if(!ParserCtor) return [semanticOverrides, null];
 
-	const parser = new ParserCtor(tokenStream);
+	/** @type {import('./rosetta-types.d').ImplementedParser} */
+	const parser = /** @type {any} */ (new ParserCtor(tokenStream));
 	parser.removeErrorListeners();
 
 	if(parser._interp && workerSelf.AntlrRegistry.antlr4?.PredictionMode)
@@ -210,50 +211,48 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 
 
 	// --- STEP 2: CUSTOM ERROR STRATEGY FOR SOFT ERROR ABSORPTION ---
-	const BaseStrategy = workerSelf.AntlrRegistry.antlr4?.DefaultErrorStrategy ?? {};
+	/** @type {import('antlr4').ErrorStrategy | undefined} */
+	let customStrategyInstance = workerSelf.AntlrRegistry.antlr4
+		? new workerSelf.AntlrRegistry.antlr4.BailErrorStrategy
+		: undefined;
 
-	let customStrategyInstance;
-
-	if(BaseStrategy)
+	if(!workerSelf.AntlrRegistry.antlr4)
 	{
-		// Use modern ES6 class syntax to inherit safely from native class constructors
-		class SoftErrorRecoveryStrategy extends BaseStrategy
+		return;
+	}
+
+	// Use modern ES6 class syntax to inherit safely from native class constructors
+	class SoftErrorRecoveryStrategy extends workerSelf.AntlrRegistry.antlr4.ErrorStrategy
+	{
+		constructor()
 		{
-			constructor()
-			{
-				super();
-			}
-
-			// Override to handle minor structural deviations quietly
-			/**
-			 *
-			 * @param {import('antlr4').Parser} recognizer
-			 * @param {import('antlr4').RecognitionException} e
-			 */
-			reportNoViableAlternative(recognizer, e)
-			{
-				// Quietly absorb soft alternatives during structural pass
-			}
-
-			// Override to absorb inline token insertion errors silently
-			/**
-			 *
-			 * @param {import('antlr4').Parser} recognizer
-			 * @param {import('antlr4').RecognitionException} e
-			 */
-			reportUnwantedToken(recognizer, e)
-			{
-				// Soft error: keep UX feedback clean by overriding default logging
-			}
+			super();
 		}
 
-		customStrategyInstance = new SoftErrorRecoveryStrategy();
-	} else
-	{
-		// Safe fallback if the registry isn't fully structured
-		const BailStrategy = workerSelf.AntlrRegistry.antlr4.BailErrorStrategy;
-		customStrategyInstance = BailStrategy ? new BailStrategy() : null;
+		// Override to handle minor structural deviations quietly
+		/**
+		 *
+		 * @param {import('antlr4').Parser} recognizer
+		 * @param {import('antlr4').RecognitionException} e
+		 */
+		reportNoViableAlternative(recognizer, e)
+		{
+			// Quietly absorb soft alternatives during structural pass
+		}
+
+		// Override to absorb inline token insertion errors silently
+		/**
+		 *
+		 * @param {import('antlr4').Parser} recognizer
+		 * @param {import('antlr4').RecognitionException} e
+		 */
+		reportUnwantedToken(recognizer, e)
+		{
+			// Soft error: keep UX feedback clean by overriding default logging
+		}
 	}
+
+	customStrategyInstance = new SoftErrorRecoveryStrategy();
 
 	if(customStrategyInstance)
 	{
@@ -265,12 +264,16 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 	let tree = null;
 	try
 	{
-		const targetRules = parser.ruleNames || (parser.constructor && parser.constructor.ruleNames);
-		if(targetRules && targetRules[0] && typeof parser[targetRules[0]] === 'function')
+		const targetRules = parser.ruleNames ?? (/** @type {any} */ (parser.constructor).ruleNames);
+		if(targetRules && targetRules[0]
+			&& targetRules[0] in parser)
 		{
-			const rootRuleName = targetRules[0]; // Resolves straight to "json" or "compilationUnit"
-			console.log(`[Worker] Dynamic execution target acquired: parser.${rootRuleName}()`);
-			tree = parser[rootRuleName]();
+			const handler = /** @type {any} */ (parser)[targetRules[0]];
+			console.log(`[Worker] Dynamic execution target acquired: parser.${targetRules[0]}()`);
+			if(typeof handler === 'function')
+			{
+				tree = handler();
+			}
 		}
 	} catch(err)
 	{
@@ -304,7 +307,9 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 			// 2. RESTORED FALLBACK: Drop into toRosettaToken exactly like your old code did
 			if(!classification)
 			{
-				const rawTypeName = _resolveTokenTypeName ? _resolveTokenTypeName(lexer, token.type) : (lexer.constructor.symbolicNames[token.type] || "text");
+				const rawTypeName = _resolveTokenTypeName
+					? _resolveTokenTypeName(lexer, token.type)
+					: (/** @type {any} */ (lexer.constructor).symbolicNames[token.type] || "text");
 
 				classification = toRosettaToken(
 					token.text,
@@ -350,8 +355,10 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 
 		/** @type {import('antlr4').ParseTreeListener} */
 		const configurationListener = {
+			/** @param {import('./rosetta-types.d').ImplementedContext} ctx */
 			enterEveryRule: function (ctx)
 			{
+				debugger;
 				const ruleName = parser.ruleNames[ctx.ruleIndex];
 				console.log(`Rule: ${ruleName} | Invoking State: ${ctx.invokingState}`);
 			},
@@ -360,24 +367,29 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 			{
 				/** @type {import('./rosetta-types.d').AntlrToken} */
 				const token = node.symbol;
-				const ctx = node.parentCtx;
+				/** @type {import('./rosetta-types.d').ImplementedContext | undefined} */
+				const ctx = /** @type {any} */ (node.parentCtx);
 
 				// 1. RE-ESTABLISH THE INHERITANCE TRACE FOR TO-ROSETTA-TOKEN
 				const ruleHistory = [];
-				/** @type {import('antlr4').ParserRuleContext | undefined} */
-				let currentCtx = ctx;
+				/** @type {import('./rosetta-types.d').ImplementedContext | undefined} */
+				let currentCtx = /** @type {any} */ (ctx);
 				while(currentCtx)
 				{
 					if(currentCtx.ruleIndex !== undefined && parser.ruleNames[currentCtx.ruleIndex])
 					{
 						ruleHistory.push(parser.ruleNames[currentCtx.ruleIndex]);
 					}
-					currentCtx = currentCtx.parentCtx;
+					currentCtx = /** @type {any} */ (currentCtx.parentCtx);
 				}
 
-				const ruleName = parser.ruleNames[ctx.ruleIndex];
+				const ruleName = ctx ? parser.ruleNames[ctx.ruleIndex] : 'text';
 				const tokenText = token.text;
-				const tokenTypeString = lexer.constructor.symbolicNames[token.type] || "text";
+				const tokenTypeString = token.type
+					? lexer.symbolicNames?.[token.type]
+					?? /** @type {any} */ (lexer.constructor).symbolicNames[token.type]
+					: "text";
+
 
 				// Attach payload metadata anchors so toRosettaToken works perfectly
 				token.ruleHistory = ruleHistory;
@@ -385,7 +397,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 
 				console.log(`Token: "${tokenText}" | Direct Rule: ${ruleName} | Line: ${token.line} | Inherited Trace Array:`, ruleHistory);
 				// 2. COMPUTE THE ACCURATE SCOPE OVERRIDE VALUE
-				if(token.text.includes('#include'))
+				if(token.text?.includes('#include'))
 				{
 					debugger;
 				}
@@ -395,7 +407,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 				processStructuralFlags(annotations, token);
 			},
 
-			/** @param { import('antlr4').ParserRuleContext } ctx */
+			/** @param { import('./rosetta-types.d').ImplementedContext } ctx */
 			exitEveryRule: function (ctx)
 			{
 				const ruleName = parser.ruleNames[ctx.ruleIndex];
@@ -435,7 +447,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 						});
 
 						emitter.emit("highlight", {
-							fileId: this.activeFileId,
+							fileId: workerSelf.activeFileId,
 							startLine: startToken.line,
 							endLine: stopToken.line,
 							tokenLinesChunk: slicedTokenLines,
@@ -469,7 +481,9 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 
 		allTokens.forEach(token =>
 		{
-			if(!token || token.type === workerSelf.AntlrRegistry.antlr4.Token.EOF) return;
+			if(!token
+				|| workerSelf.AntlrRegistry.antlr4
+				&& token.type === workerSelf.AntlrRegistry.antlr4.Token.EOF) return;
 
 			const tokenRow = token.line - 1;
 
@@ -487,7 +501,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 		if(Object.keys(globalTokenLinesChunk).length > 0)
 		{
 			emitter.emit("highlight", {
-				fileId: this.activeFileId,
+				fileId: workerSelf.activeFileId,
 				startLine: 1,
 				endLine: lines.length,
 				tokenLinesChunk: globalTokenLinesChunk,
@@ -508,22 +522,22 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 function processStructuralFlags(annotations, token)
 {
 	if(token.textType === 'comment'
-		&& (token.text.toLowerCase().includes('todo')
-			|| token.text.toLowerCase().includes('fix'))
+		&& (token.text?.toLowerCase().includes('todo')
+			|| token.text?.toLowerCase().includes('fix'))
 	)
 	{
 		annotations.push({
-			row: token.line - 1,
-			column: token.column,
+			row: (token.line ?? 1) - 1,
+			column: token.column ?? 0,
 			text: "Unresolved task: " + token.text.trim(),
 			type: "info"
 		});
 	}
-	if(token.channel > 1)
+	if(token.channel && token.channel > 1)
 	{
 		annotations.push({
-			row: token.line - 1,
-			column: token.column,
+			row: (token.line ?? 1) - 1,
+			column: token.column ?? 0,
 			text: "Isolated preprocessor block [" + token.type + "]",
 			type: "warning"
 		});
@@ -572,7 +586,8 @@ function preprocessSourceText(sourceText, languageKey, onResolveInclude, onError
 	let expandedText = "";
 	let token = lexer.nextToken();
 
-	while(token.type !== workerSelf.AntlrRegistry.antlr4.Token.EOF)
+	while(workerSelf.AntlrRegistry.antlr4
+		&& token.type !== workerSelf.AntlrRegistry.antlr4.Token.EOF)
 	{
 		const rawTypeName = _resolveTokenTypeName(lexer, token.type);
 
@@ -607,12 +622,11 @@ function preprocessSourceText(sourceText, languageKey, onResolveInclude, onError
 						workerSelf.__missingHeaders.add(targetFileName);
 						expandedText += `\n/* Missing Header Dependency: ${targetFileName} */\n`;
 						const errorResult = {
-							line: typeof token.start === 'object'
-								&& 'line' in token.start
-								? token.start.line
+							line: typeof token.start === 'object' && 'line' in token.start
+								? /** @type {any} */ (token.start).line
 								: token.line,
 							column: typeof token.start === 'object'
-								? token.start.column
+								? /** @type {any} */ (token.start).column
 								: token.column,
 							message: /** @type {Error} */ (err).message
 						};
@@ -648,8 +662,6 @@ function preprocessSourceText(sourceText, languageKey, onResolveInclude, onError
  */
 export function runParserPipeline(sourceText, languageKey, annotations, emitter)
 {
-	const antlr = workerSelf.AntlrRegistry.antlr4;
-
 	// 1. Safe preprocessing phase pass
 	const lines = sourceText.split('\n');
 	const unifiedSourceBuffer = _safePreprocess(sourceText, languageKey, null,
@@ -664,7 +676,11 @@ export function runParserPipeline(sourceText, languageKey, annotations, emitter)
 	if(!pipelineLexer) return null;
 
 	// 3. Spin up ONE single standard token stream
-	const tokenStream = new antlr.CommonTokenStream(pipelineLexer);
+	/** @type {import('./rosetta-types.d').ImplementedStream | undefined} */
+	const tokenStream = workerSelf.AntlrRegistry.antlr4
+		? /** @type {any} */ (new workerSelf.AntlrRegistry.antlr4.CommonTokenStream(pipelineLexer))
+		: undefined;
+	if(!tokenStream) return null;
 
 	// 4. Run the deep semantic scanner walker
 	// This directly kicks off chunked streaming passes via your 'exitEveryRule' gates
@@ -675,7 +691,7 @@ export function runParserPipeline(sourceText, languageKey, annotations, emitter)
 		annotations,
 		pipelineLexer, // Pass the active lexer for type resolution mapping
 		emitter
-	);
+	) ?? [];
 
 	return parser;
 }

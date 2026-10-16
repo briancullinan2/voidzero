@@ -2,6 +2,9 @@
 
 // import { PreprocessorLexer } from './antlr-languages.bundle';
 
+/** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
+const workerSelf = /** @type {any} */ (self);
+
 // A minimal lookahead map of tokens that CANNOT start a expression line
 // without a preceding semicolon safely in place.
 // TODO: make C do this on save
@@ -9,7 +12,7 @@ const UNSAFE_LINE_STARTERS = ['[', '(', '`', '/', '+', '-'];
 
 /**
  *
- * @param {import('antlr4').CommonTokenStream} tokenStream
+ * @param {import('./rosetta-types.d').ImplementedStream} tokenStream
  * @returns
  */
 function processJavaScriptASI(tokenStream)
@@ -74,6 +77,11 @@ function processJavaScriptASI(tokenStream)
 	if(asiErrors.length > 0)
 	{
 		self.postMessage({ type: "asiDiagnosticsDiscovered", errors: asiErrors });
+	}
+
+	if(!workerSelf.AntlrRegistry.antlr4)
+	{
+		return;
 	}
 
 	return new workerSelf.AntlrRegistry.antlr4.CommonTokenStream(new VirtualTokenSource(modifiedTokens));

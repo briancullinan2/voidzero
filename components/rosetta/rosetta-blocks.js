@@ -314,7 +314,7 @@ workerSelf.extractCurrentBlock = extractCurrentBlock;
 class AntlrBlockCollectorVisitor
 {
 
-	/** @param {import('antlr4').Parser} parser */
+	/** @param {import('./rosetta-types.d').ImplementedParser} parser */
 	constructor(parser)
 	{
 		this.parser = parser;
@@ -343,13 +343,13 @@ class AntlrBlockCollectorVisitor
 
 	/**
 	 * Recursive structural tree walker node pass
-	 * @param {import('antlr4').Token} ctx
+	 * @param {import('./rosetta-types.d').ImplementedContext | import('antlr4').ParseTree} ctx
 	 */
 	visit(ctx)
 	{
 		if(!ctx) return;
 
-		if(ctx.ruleIndex !== undefined)
+		if('ruleIndex' in ctx && ctx.ruleIndex !== undefined)
 		{
 			const rawRuleName = this.parser.ruleNames[ctx.ruleIndex];
 			const lowerRuleName = rawRuleName ? rawRuleName.toLowerCase() : "";
@@ -378,7 +378,7 @@ class AntlrBlockCollectorVisitor
 		}
 
 		// Deep-walk through all child tree node branches sequentially
-		if(ctx.children && ctx.children.length > 0)
+		if('children' in ctx && ctx.children && ctx.children.length > 0)
 		{
 			for(let i = 0; i < ctx.children.length; i++)
 			{
@@ -406,9 +406,8 @@ export function getFoldRegions(sourceText, languageKey)
 	const braceStack = [];
 	const preprocessorStack = [];
 	let token = lexer.nextToken();
-	const eof = workerSelf.AntlrRegistry.antlr4.Token.EOF;
 
-	while(token.type !== eof)
+	while(token.type !== workerSelf.AntlrRegistry.antlr4?.Token.EOF)
 	{
 		const typeName = _resolveTokenTypeName(lexer, token.type);
 		const row = token.line - 1;
@@ -455,15 +454,16 @@ export function getFoldRegions(sourceText, languageKey)
 
 /**
  *
- * @param {import('antlr4').Lexer} lexer
+ * @param {import('./rosetta-types.d').ImplementedLexer} lexer
  * @param {number} tokenType
  * @returns {string}
  */
 export function _resolveTokenTypeName(lexer, tokenType)
 {
-	const Ctor = lexer.constructor;
-	const symbolicNames = Ctor.symbolicNames || lexer.symbolicNames;
-	const literalNames = Ctor.literalNames || lexer.literalNames;
+	/** @type {import('./rosetta-types.d').ImplementedLexer} */
+	const Ctor = /** @type {any} */ (lexer.constructor);
+	const symbolicNames = Ctor.symbolicNames ?? lexer.symbolicNames;
+	const literalNames = Ctor.literalNames ?? lexer.literalNames;
 
 	if(symbolicNames && symbolicNames[tokenType]) return symbolicNames[tokenType];
 	if(literalNames && literalNames[tokenType]) return literalNames[tokenType];
@@ -534,22 +534,22 @@ export const silentDiagnosticObserver = {
 
 /**
  *
- * @param {*} msg
- * @param {import('./rosetta-types.d').IBackendWorker} sender
+ * @param {({args: any[]})} msg
+ * @param {import('./rosetta-types.d').ImplementedBackend} sender
  * @returns
  */
 export function executeGetFoldRegionsCommand(msg, sender)
 {
 	// 1. RECOVER WORKER CONTEXT HOOKS
-	const activeDoc = antlrProcessor.doc || self.doc || (typeof globalDoc !== 'undefined' ? globalDoc : null);
-	if(!activeDoc)
+	const activeDoc = workerSelf.antlrProcessor?.doc ?? workerSelf.doc;
+	if(!activeDoc || !workerSelf.AntlrRegistry.antlr4)
 	{
 		console.warn("[Worker Fold] Execution failed: Active document stream buffer is missing.");
 		return;
 	}
 
 	const codeString = activeDoc.getValue();
-	const languageKey = antlrProcessor.languagekey || workerSelf.languageKey || "c";
+	const languageKey = workerSelf.antlrProcessor?.languageKey ?? workerSelf.languageKey ?? "c";
 
 	// Resolve core ANTLR library context reference out of the worker global space
 	if(!workerSelf.AntlrRegistry.antlr4 && !workerSelf.antlr4)
@@ -584,7 +584,7 @@ export function executeGetFoldRegionsCommand(msg, sender)
 	/** @type { import('antlr4').TokenStream & import('antlr4').CharStream } */
 	const tokens = /** @type {any} */ (new workerSelf.AntlrRegistry.antlr4.CommonTokenStream(lexer));
 
-	/** @type {import('antlr4').Parser} */
+	/** @type {import('./rosetta-types.d').ImplementedParser} */
 	const parser =  /** @type {any} */ (new ParserCtor(tokens));
 
 	// Mute console errors during layout-only block parsing runs
@@ -611,11 +611,17 @@ export function executeGetFoldRegionsCommand(msg, sender)
 	let tree = null;
 	try
 	{
-		const targetRules = parser.ruleNames || (parser.constructor && parser.constructor.ruleNames);
-		if(targetRules && targetRules[0] && typeof parser[targetRules[0]] === 'function')
+		const targetRules = parser.ruleNames
+			?? (parser.constructor && /** @type {any} */ (parser.constructor).ruleNames);
+		if(targetRules && targetRules[0]
+			&& targetRules[0] in parser)
 		{
+			const ruleHandler = /** @type {any} */ (parser)[targetRules[0]];
 			const rootRuleName = targetRules[0]; // Matches base rules like "compilationUnit" or "json"
-			tree = parser[rootRuleName]();
+			if(typeof ruleHandler === 'function')
+			{
+				tree = ruleHandler();
+			}
 		}
 	} catch(parseFallbackError)
 	{
@@ -626,7 +632,11 @@ export function executeGetFoldRegionsCommand(msg, sender)
 			parser._interp.predictionMode = workerSelf.AntlrRegistry.antlr4.PredictionMode.LL;
 			parser._errHandler = new workerSelf.AntlrRegistry.antlr4.DefaultErrorStrategy();
 			const rootRuleName = parser.ruleNames[0];
-			tree = parser[rootRuleName]();
+			const ruleHandler = /** @type {any} */ (parser)[rootRuleName];
+			if(typeof ruleHandler === 'function')
+			{
+				tree = ruleHandler();
+			}
 		} catch(treeCrash)
 		{
 			console.error("[Worker Fold] Syntax compilation completely blocked context generation: ", treeCrash);
@@ -640,7 +650,6 @@ export function executeGetFoldRegionsCommand(msg, sender)
 	if(tree)
 	{
 		const discoveredBlocks = discoverFoldRegions(parser, tree);
-		// Step 7: Emit processed clean fold structures to the Ace interface
 		sender.emit("foldRegionsCalculated", {
 			fileId: workerSelf.activeFileId || msg.args?.[0] || "active_buffer",
 			blocks: discoveredBlocks
@@ -649,8 +658,11 @@ export function executeGetFoldRegionsCommand(msg, sender)
 }
 
 
+workerSelf.executeGetFoldRegionsCommand = executeGetFoldRegionsCommand;
+
+
 /**
- * @param {import('antlr4').Parser} parser
+ * @param {import('./rosetta-types.d').ImplementedParser} parser
  * @param {import('antlr4').ParseTree} tree
  * @returns {import('./rosetta-types.d').BlockResult[]}
  */
@@ -660,7 +672,7 @@ export function discoverFoldRegions(parser, tree)
 	{
 		const blockVisitor = new AntlrBlockCollectorVisitor(parser);
 		const rawBlocks = blockVisitor.collect(tree);
-		const checkDoc = antlrProcessor.doc || self.doc || (typeof globalDoc !== 'undefined' ? globalDoc : null);
+		const checkDoc = workerSelf.antlrProcessor?.doc ?? workerSelf.doc;
 
 		if(!checkDoc)
 		{

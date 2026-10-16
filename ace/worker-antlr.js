@@ -4,12 +4,10 @@
 /** @type {Worker & import('../components/rosetta/rosetta-types.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 
-/** @type {AntlrWorkerBackend & { [key: string]: any} | null} */
-let antlrProcessor = null;
-
 
 /**
  * Updates the structural targets and re-schedules the parser timeline
+ * @this {import('../components/rosetta/rosetta-types').ImplementedBackend}
  * @param {string} fileId
  */
 function setLanguageContext(fileId)
@@ -22,7 +20,7 @@ function setLanguageContext(fileId)
 	{
 		const textContent = this.doc.getValue();
 
-		const matchedLanguageNode = workerSelf.TEXT_LANGUAGE_DETECTOR_WATERFALL.find(lang => lang.match(textContent, cleanBuffer));
+		const matchedLanguageNode = workerSelf.TEXT_LANGUAGE_DETECTOR_WATERFALL.find(lang => lang.match(textContent, new TextEncoder().encode(textContent)));
 
 	}
 	this.activeFileId = fileId;
@@ -30,7 +28,11 @@ function setLanguageContext(fileId)
 }
 
 
-
+/**
+ *
+ * @this {import('../components/rosetta/rosetta-types').ImplementedBackend}
+ * @returns
+ */
 async function onUpdate()
 {
 	if(!this.doc) return;
@@ -62,7 +64,8 @@ async function onUpdate()
 
 /**
  *
- * @param {import('ace-builds/src-noconflict/ace').} sender
+ * @this {import('../components/rosetta/rosetta-types').ImplementedBackend}
+ * @param {any} sender
  */
 export function AntlrWorkerBackend(sender)
 {
@@ -95,7 +98,7 @@ self.addEventListener('message', function (e)
 
 	// Use a localized variable for routing so we don't mutate the raw event object
 	// that Ace's worker-base.js expects to read further down the chain.
-	const commandName = msg.command || msg.event;
+	const commandName = msg.command ?? msg.event;
 
 	// 1. FILTER HIGH-FIDELITY HOOKS
 	if(commandName && ['customHighlightRoute', 'requestAST'].includes(commandName))
@@ -107,8 +110,8 @@ self.addEventListener('message', function (e)
 	if(commandName === "calculateActiveBlockRange")
 	{
 		const cursorRow = msg.data.lineNumber; // 1-based lineNumber passed from front-end
-		const codeString = antlrProcessor?.doc.getValue(); // Get running buffer from doc wrapper
-		const runningLangId = antlrProcessor?.languageKey || "c";
+		const codeString = workerSelf.antlrProcessor?.doc.getValue(); // Get running buffer from doc wrapper
+		const runningLangId = workerSelf.antlrProcessor?.languageKey || "c";
 
 		try
 		{
@@ -116,7 +119,7 @@ self.addEventListener('message', function (e)
 			const blockMeta = workerSelf.extractCurrentBlock(codeString, cursorRow, runningLangId);
 
 			// Post the clean range boundaries right back up the thread channel
-			antlrProcessor?.sender.emit("blockRange", {
+			workerSelf.antlrProcessor?.sender.emit("blockRange", {
 				startLine: blockMeta.startLine,
 				endLine: blockMeta.endLine
 			});
@@ -131,7 +134,13 @@ self.addEventListener('message', function (e)
 	if(commandName === 'getFoldRegions')
 	{
 		e.stopImmediatePropagation();
-		return executeGetFoldRegionsCommand(msg, antlrProcessor?.sender);
+		if(workerSelf.antlrProcessor)
+		{
+			return workerSelf.executeGetFoldRegionsCommand(msg, workerSelf.antlrProcessor);
+		} else
+		{
+			throw Error('workerSelf.antlrProcessor not setup');
+		}
 	}
 
 	// 2. SOVEREIGN BOOTSTRAP INITIALIZATION
@@ -141,26 +150,47 @@ self.addEventListener('message', function (e)
 
 		// Let the worker thread download your dependencies cleanly
 		self.importScripts(...msg.args);
-		setupInheritance.apply(antlrProcessor);
+		setupInheritance.apply(workerSelf.antlrProcessor);
 
 		// Build a dedicated sender pipeline to post events straight back to our frontend instance
 		const cleanSender = {
 			on: function () { },
-			callback: function (data, id) { self.postMessage({ type: "call", id: id, data: data }); },
-			emit: function (name, data) { self.postMessage({ type: "event", name: name, data: data }); }
+			/**
+			 *
+			 * @param {any} data
+			 * @param {string} id
+			 */
+			callback: function (data, id)
+			{
+				self.postMessage({ type: "call", id: id, data: data });
+			},
+			/**
+			 *
+			 * @param {string} name
+			 * @param {any} data
+			 */
+			emit: function (name, data)
+			{
+				self.postMessage({ type: "event", name: name, data: data });
+			}
 		};
 
 		// Construct your independent workspace engine instance!
-		antlrProcessor = new AntlrWorkerBackend(cleanSender);
+		workerSelf.antlrProcessor = /** @type {any} */ (new AntlrWorkerBackend(cleanSender));
 		return;
 	}
 
 	// 3. AUTONOMOUS TUNNELING GATES
 	// If your frontend worker client posts an explicit execution directive,
 	// intercept it and apply it straight to your processor context.
-	if(antlrProcessor && typeof antlrProcessor[commandName] === "function")
+	if(workerSelf.antlrProcessor && commandName in workerSelf.antlrProcessor)
 	{
-		antlrProcessor[commandName].apply(antlrProcessor, msg.args);
+		/** @type {((args: any[]) => void)} */
+		const handler = /** @type {any} */ (workerSelf.antlrProcessor)[commandName];
+		if(typeof handler === 'function')
+		{
+			handler.apply(workerSelf.antlrProcessor, msg.args);
+		}
 		e.stopImmediatePropagation();
 		return;
 	}

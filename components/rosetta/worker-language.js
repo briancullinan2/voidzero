@@ -24,7 +24,7 @@ const workerSelf = /** @type {any} */ (self);
  */
 export function createLexerInstance(sourceText, languageKey)
 {
-	if(!languageKey) return null;
+	if(!languageKey || !workerSelf.AntlrRegistry.antlr4) return null;
 
 	// 1. Force the lookup key to be fully normalized lowercase
 	const cleanKey = languageKey.toLowerCase().trim();
@@ -44,13 +44,13 @@ export function createLexerInstance(sourceText, languageKey)
 		return null;
 	}
 
-	const antlr = workerSelf.AntlrRegistry.antlr4;
 	let chars;
 	try
 	{
-		chars = (antlr.CharStreams && typeof antlr.CharStreams.fromString === 'function')
-			? antlr.CharStreams.fromString(sourceText)
-			: new antlr.InputStream(sourceText);
+		chars = (workerSelf.AntlrRegistry.antlr4.CharStreams
+			&& typeof workerSelf.AntlrRegistry.antlr4.CharStreams.fromString === 'function')
+			? workerSelf.AntlrRegistry.antlr4.CharStreams.fromString(sourceText)
+			: new workerSelf.AntlrRegistry.antlr4.InputStream(sourceText);
 
 		if('normalizeInputStream' in LexerCtor && typeof LexerCtor.normalizeInputStream === 'function')
 		{
@@ -114,9 +114,8 @@ function getTokensForLine(sourceText, languageKey, targetLine)
 
 	const lineTokens = [];
 	let token = lexer.nextToken();
-	const eof = workerSelf.AntlrRegistry.antlr4.Token.EOF;
 
-	while(token.type !== eof)
+	while(token.type !== workerSelf.AntlrRegistry.antlr4?.Token.EOF)
 	{
 		if(token.line > targetLine) break;
 		if(token.line === targetLine)

@@ -1,5 +1,26 @@
 import type antlr4 from 'antlr4';
-import { ParserRuleContext } from 'antlr4';
+import type { Lexer, Parser, ParserRuleContext, Token, CommonTokenStream } from 'antlr4';
+import type { Ace } from 'ace-builds';
+
+export interface ImplementedBackend extends AntlrWorkerBackend implements Mirror
+{
+	// [key: '']: any;
+	languageKey?: string;
+	activeFileId: string;
+	setTimeout(ms: number): void;
+	sender: Mirror;
+	emit(name: string, data: any): void;
+	doc?: Ace;
+	// doc: {
+	// 	getValue(): string;
+	// 	setValue(value: string): void;
+	// };
+	deferredUpdate: {
+		schedule(): void;
+	};
+}
+
+
 
 export interface RosettaWorker
 {
@@ -11,7 +32,8 @@ export interface RosettaWorker
 	BINARY_DETECTOR: Record<string, BinaryDetector>;
 	detectBinaryType(sourceBuffer: Buffer | Uint8Array): string;
 	__missingHeaders: Set<string>;
-	AntlrRegistry: { antlr4: typeof antlr4; } & Record<string, typeof antlr4.Parser | typeof antlr4.Lexer>;
+	AntlrRegistry: { antlr4?: typeof antlr4; } & Record<string, typeof antlr4.Parser | typeof antlr4.Lexer>;
+	AntlrLanguages: { antlr4?: typeof antlr4; } & Record<string, typeof antlr4.Parser | typeof antlr4.Lexer>;
 	language: {
 		lineToken(text, language, line): Promise<void>;
 	};
@@ -19,6 +41,10 @@ export interface RosettaWorker
 	antlr4: typeof antlr4;
 	runParserPipeline(sourceText, languageKey, annotations, emitter): void;
 	extractCurrentBlock(codeStr, lineNumber, langId);
+	antlrProcessor?: ImplementedBackend;
+	executeGetFoldRegionsCommand(msg: { args: any[]; }, sender: ImplementedBackend);
+	doc?: Ace;
+	languageKey?: string;
 }
 
 
@@ -123,14 +149,15 @@ export interface BlockDetector
 export interface AntlrToken
 {
 
-	tokenIndex: number;
-	line: number;
-	column: number;
-	channel: number;
-	text: string;
-	type: number;
-	start: number | { line: number, column: number; };
-	stop: number | { line: number, column: number; };
+	tokenIndex?: number;
+	line?: number;
+	column?: number;
+	channel?: number;
+	text?: string;
+	value?: string;
+	type?: number;
+	start?: number | { line: number, column: number; };
+	stop?: number | { line: number, column: number; };
 
 	typeInt?: number | null;
 	textType?: string;
@@ -176,7 +203,7 @@ export interface BlockResult
 	endIndex: number;
 }
 
-export class Mirror
+export interface Mirror
 {
 	constructor(sender: any);
 	sender: any;
@@ -186,6 +213,10 @@ export class Mirror
 	};
 	setTimeout(timeout: number): void;
 	onUpdate(): void;
+	on(): void;
+	callback(data: any, id: string): void;
+	emit(name: string, data: any): void;
+	call<E, P>(E: any, P: any): E & P;
 }
 
 declare module "ace/worker/mirror" {
@@ -208,11 +239,6 @@ export interface FoldRegion
 	type: 'comment' | 'preprocessor' | 'brace';
 }
 
-export interface IBackendWorker
-{
-
-}
-
 
 export interface AntlrVocab
 {
@@ -222,9 +248,33 @@ export interface AntlrVocab
 }
 
 
-export interface ImplementedLexer
+export interface ImplementedLexer extends Lexer
 {
 	static vocabulary?: AntlrVocab;
 	vocabulary?: AntlrVocab;
+	symbolicNames?: Record<number, string>;
+	literalNames?: Record<number, string>;
+	modeNames?: Record<number, string>;
+	_mode?: number;
 }
 
+export interface ImplementedParser extends Parser
+{
+	static vocabulary?: AntlrVocab;
+	vocabulary?: AntlrVocab;
+	ruleNames: Record<number, string>;
+	// [key: string]: Function;
+}
+
+
+export interface ImplementedContext extends ParserRuleContext
+{
+	ruleIndex: number;
+	line: number;
+}
+
+
+export interface ImplementedStream extends CommonTokenStream
+{
+	getTokens(start?: number, stop?: number): Token[];
+}
