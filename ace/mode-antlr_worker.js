@@ -2,25 +2,36 @@
 // @ts-check
 
 
+
+/** @type {Worker & import('../components/rosetta/rosetta-types.d').RosettaWorker & import('../components/editor/widget.d').EditorWindow} */
+const workerSelf = /** @type {any} */ (self);
+
+
+/**
+ * @this {import('../components/rosetta/rosetta-types.d').ImplementedClient} _this2
+ * @param {} tokenLines
+ */
 function bridgeApplyCustomWorkerHighlights(tokenLines)
 {
-	if(!this.activeEditor || !tokenLines) return;
+	if(!this.activeSession?.$editor || !tokenLines) return;
 
-	let session = this.activeEditor.getSession();
-	session.bgTokenizer.lines = tokenLines;
-	session.bgTokenizer.fireUpdateEvent(0, tokenLines.length - 1);
+	this.activeSession.bgTokenizer.lines = tokenLines;
+	this.activeSession.bgTokenizer.fireUpdateEvent(0, tokenLines.length - 1);
 }
 
+/**
+ * @this {import('../components/rosetta/rosetta-types.d').ImplementedClient} _this2
+ * @param {*} response
+ */
 function onBridgeHighlight(response)
 {
-	const session = this.docSession; // Ensure you have a reference to the active session
 	const { totalLines, antlrTokensByLine } = response.data;
 
 	// 1. Tell Ace's background tokenizer to stop fighting your data
-	if(session.bgTokenizer)
+	if(this.activeSession?.bgTokenizer)
 	{
 		// Clear Ace's default internal cache lines
-		session.bgTokenizer.lines = session.bgTokenizer.lines || [];
+		this.activeSession.bgTokenizer.lines = this.activeSession.bgTokenizer.lines || [];
 
 		// 2. Overwrite Ace's token cache arrays with your precise ANTLR tokens
 		for(let row = 0; row < totalLines; row++)
@@ -28,22 +39,26 @@ function onBridgeHighlight(response)
 			if(antlrTokensByLine[row])
 			{
 				// Format expected by Ace: [{ type: "keyword.antlr", value: "void" }, ...]
-				session.bgTokenizer.lines[row] = antlrTokensByLine[row];
+				this.activeSession.bgTokenizer.lines[row] = antlrTokensByLine[row];
 			}
 		}
 
 		// 3. Force Ace to redraw the viewport using your newly injected arrays
-		session._emit("tokenizerUpdate", { first: 0, last: totalLines - 1 });
+		this.activeSession._emit("tokenizerUpdate", { first: 0, last: totalLines - 1 });
 	}
 }
 
-
-function onWorkerAnnotate(session, e)
+/**
+ *
+ * @param {import('../components/editor/widget.d').AceSession} session
+ * @param {*} e
+ */
+export function onWorkerAnnotate(session, e)
 {
-	var compilerDiagnostics = ace.require("ace/ext/compiler_diagnostics");
+	let compilerDiagnostics = ace.require("ace/ext/compiler_diagnostics");
 	if(compilerDiagnostics && compilerDiagnostics.getBridge)
 	{
-		var bridge = compilerDiagnostics.getBridge();
+		let bridge = compilerDiagnostics.getBridge();
 		bridge.setWorkerAnnotations(e.data);
 	} else
 	{
@@ -54,10 +69,15 @@ function onWorkerAnnotate(session, e)
 /**
  * Cleanup handler when a workspace edit session is dismantled
  */
+/**
+ *
+ * @param {import('../components/rosetta/rosetta-types.d').ImplementedClient} _this2
+ * @param {import('../components/editor/widget.d').AceSession} session
+ */
 function onWorkerTerminate(_this2, session)
 {
 	session.clearAnnotations();
-	for(var m = 0; m < _this2.activeMarkerIds.length; m++)
+	for(let m = 0; m < _this2.activeMarkerIds.length; m++)
 	{
 		session.removeMarker(_this2.activeMarkerIds[m]);
 	}
@@ -67,6 +87,9 @@ function onWorkerTerminate(_this2, session)
 
 /**
  * Explicit setter proxy forwarding environment states downstream to the background thread
+ * @param {Worker} _worker
+ * @param {string} langKey
+ * @param {string} fileId
  */
 function setLanguageTarget(_worker, langKey, fileId)
 {
@@ -78,6 +101,101 @@ function setLanguageTarget(_worker, langKey, fileId)
 		});
 	}
 }
+
+
+/**
+ * @this {import('../components/rosetta/rosetta-types').ImplementedClient}
+ * @param {import('../components/editor/widget.d').AceSession} session
+ */
+function AntlrWorker(session)
+{
+	this.activeSession = session;
+	const that = this;
+	let baseOrigin = window.location.origin;
+	let targetUrl = baseOrigin + "/ace/worker-antlr.js";
+
+	WorkerClient.call(this, ["ace"], "ace/mode/antlr_worker_actions", "AntlrWorker", targetUrl);
+
+	// --- CRITICAL FIX 1: Prevent Ace from terminating this single background worker ---
+	this.terminate = function ()
+	{
+		// No-op! Intercept Ace's automatic session.stopWorker() / worker.terminate()
+	};
+
+	// Explicit method to really kill it if the entire web app unmounts
+	this.forceTerminate = function ()
+	{
+		if(this.$worker)
+		{
+			this.$worker.terminate();
+			this.$worker = null;
+		}
+	};
+
+	this.setLanguageTarget = function (fileId)
+	{
+		if(this.$worker)
+		{
+			this.$worker.postMessage({
+				command: "setLanguageContext",
+				args: [fileId]
+			});
+		}
+	};
+
+	if(this.$worker)
+	{
+		this.$worker.postMessage({
+			command: "importScripts",
+			args: [
+				baseOrigin + "/ace/worker-base.js",
+				baseOrigin + '/components/rosetta/antlr-languages.bundle.js',
+				baseOrigin + "/components/rosetta/rosetta.bundle.js"
+			]
+		});
+	}
+
+	// Forward messages ONLY to the active session
+	this.on("highlight", function (response)
+	{
+		if(that.activeSession && typeof handleWorkerStreamHighlight === 'function')
+		{
+			handleWorkerStreamHighlight(that.activeSession, response.data);
+		}
+	});
+
+	this.on("blockRange", function (response)
+	{
+		if(that.activeSession && typeof handleWorkerBlockHighlight === 'function')
+		{
+			handleWorkerBlockHighlight(that.activeSession, response.data);
+		}
+	});
+
+	this.on("annotate", function (response)
+	{
+		if(that.activeSession)
+		{
+			that.activeSession.setAnnotations(response.data);
+			if(typeof handleWorkerAnnotate === 'function')
+			{
+				handleWorkerAnnotate(that.activeSession, response);
+			}
+		}
+	});
+
+	this.on("foldRegionsCalculated", function (response)
+	{
+		if(that.activeSession && typeof handleWorkerFoldRegions === 'function')
+		{
+			handleWorkerFoldRegions(that.activeSession, response.data);
+		}
+	});
+}
+
+/** @type {AntlrWorker | null} */
+let sharedWorkerInstance = null;
+
 
 ace.define("ace/mode/antlr_worker", [
 	"require",
@@ -91,102 +209,14 @@ ace.define("ace/mode/antlr_worker", [
 {
 	"use strict";
 
-	var oop = ace.require("ace/lib/oop");
-	var TextMode = ace.require("ace/mode/text").Mode;
-	var WorkerClient = ace.require("ace/worker/worker_client").WorkerClient;
-	var TextHighlightRules = ace.require("ace/mode/text_highlight_rules").TextHighlightRules;
-
-	var sharedWorkerInstance = null;
-	var activeSession = null;
-
-	function AntlrWorker(session)
-	{
-		var baseOrigin = window.location.origin;
-		var targetUrl = baseOrigin + "/ace/worker-antlr.js";
-
-		WorkerClient.call(this, ["ace"], "ace/mode/antlr_worker_actions", "AntlrWorker", targetUrl);
-
-		// --- CRITICAL FIX 1: Prevent Ace from terminating this single background worker ---
-		this.terminate = function ()
-		{
-			// No-op! Intercept Ace's automatic session.stopWorker() / worker.terminate()
-		};
-
-		// Explicit method to really kill it if the entire web app unmounts
-		this.forceTerminate = function ()
-		{
-			if(this.$worker)
-			{
-				this.$worker.terminate();
-				this.$worker = null;
-			}
-		};
-
-		this.setLanguageTarget = function (fileId)
-		{
-			if(this.$worker)
-			{
-				this.$worker.postMessage({
-					command: "setLanguageContext",
-					args: [fileId]
-				});
-			}
-		};
-
-		if(this.$worker)
-		{
-			this.$worker.postMessage({
-				command: "importScripts",
-				args: [
-					baseOrigin + '/components/rosetta/rosetta.js',
-					baseOrigin + '/components/rosetta/parsers.js',
-					baseOrigin + "/ace/worker-base.js",
-					baseOrigin + '/components/rosetta/antlr-languages.bundle.js',
-					baseOrigin + "/components/rosetta/worker-language.js"
-				]
-			});
-		}
-
-		// Forward messages ONLY to the active session
-		this.on("highlight", function (response)
-		{
-			if(activeSession && typeof handleWorkerStreamHighlight === 'function')
-			{
-				handleWorkerStreamHighlight(activeSession, response.data);
-			}
-		});
-
-		this.on("blockRange", function (response)
-		{
-			if(activeSession && typeof handleWorkerBlockHighlight === 'function')
-			{
-				handleWorkerBlockHighlight(activeSession, response.data);
-			}
-		});
-
-		this.on("annotate", function (response)
-		{
-			if(activeSession)
-			{
-				activeSession.setAnnotations(response.data);
-				if(typeof handleWorkerAnnotate === 'function')
-				{
-					handleWorkerAnnotate(activeSession, response);
-				}
-			}
-		});
-
-		this.on("foldRegionsCalculated", function (response)
-		{
-			if(activeSession && typeof handleWorkerFoldRegions === 'function')
-			{
-				handleWorkerFoldRegions(activeSession, response.data);
-			}
-		});
-	}
+	let oop = ace.require("ace/lib/oop");
+	let TextMode = ace.require("ace/mode/text").Mode;
+	let WorkerClient = ace.require("ace/worker/worker_client").WorkerClient;
+	let TextHighlightRules = ace.require("ace/mode/text_highlight_rules").TextHighlightRules;
 
 	oop.inherits(AntlrWorker, WorkerClient);
 
+	/** @param {import('../components/editor/widget.d').AceSession} newSession */
 	function switchActiveSession(newSession)
 	{
 		if(!newSession) return;
@@ -208,9 +238,9 @@ ace.define("ace/mode/antlr_worker", [
 			sharedWorkerInstance.attachToDocument(activeSession);
 		}
 
-		var modeId = (activeSession.getMode() && activeSession.getMode().$id) || activeSession.$modeId || "";
-		var languageKey = modeId.split("/").pop() || "c";
-		var fileId = activeSession.workspaceFileId ||
+		let modeId = (activeSession.getMode() && activeSession.getMode().$id) || activeSession.$modeId || "";
+		let languageKey = modeId.split("/").pop() || "c";
+		let fileId = activeSession.workspaceFileId ||
 			(activeSession.getDocument() && activeSession.getDocument().$fileId) ||
 			"temp_buffer." + languageKey;
 
@@ -220,7 +250,7 @@ ace.define("ace/mode/antlr_worker", [
 		sharedWorkerInstance.setLanguageTarget(fileId);
 	}
 
-	var Mode = function ()
+	let Mode = function ()
 	{
 		this.HighlightRules = TextHighlightRules;
 	};
@@ -228,6 +258,7 @@ ace.define("ace/mode/antlr_worker", [
 
 	(function ()
 	{
+		/** @param {import('../components/editor/widget.d').AceSession} session */
 		this.createWorker = function (session)
 		{
 			if(!session) return null;
@@ -250,6 +281,9 @@ ace.define("ace/mode/antlr_worker", [
 /**
  * Core Gutter Plugin: Man-in-the-middle handler that overrides Ace's
  * internal template string generators to force VS Code style chevrons.
+ * @param {import('../components/editor/widget.d').AceSession} session
+ * @param {*} data
+ * @returns
  */
 function handleWorkerFoldRegions(session, data)
 {
@@ -269,36 +303,45 @@ function handleWorkerFoldRegions(session, data)
 	}
 
 	// ─── 2. PLUG NATIVE RANGE OVERRIDES FOR CLICK INTERACTIONS ───
-	session.getFoldWidget = function (row)
-	{
-		return session.foldWidgets[row] || "";
-	};
-
-	session.getFoldWidgetRange = function (row)
-	{
-		const humanRow = row + 1;
-		const aceRange = ace.require("ace/range").Range;
-
-		// Specificity sort: prioritize the narrowest nested inner rule on multi-block lines
-		const targetBlock = (session.antlrDiscoveredFoldBlocks || [])
-			.filter(b => b.startLine === humanRow)
-			.sort((a, b) => (a.endLine - a.startLine) - (b.endLine - b.startLine))[0];
-
-		if(targetBlock)
+	session.getFoldWidget =
+		/** @param {number} row */
+		function (row)
 		{
-			const lineText = session.getLine(row);
-			const startColumn = lineText.search(/\S/) !== -1 ? lineText.search(/\S/) : 0;
-			return new aceRange(row, startColumn, targetBlock.endLine - 1, session.getLine(targetBlock.endLine - 1).length);
-		}
-		return null;
-	};
+			return session.foldWidgets[row] || "";
+		};
+
+	session.getFoldWidgetRange =
+		/** @param {number} row */
+		function (row)
+		{
+			const humanRow = row + 1;
+			const aceRange = ace.require("ace/range").Range;
+
+			// Specificity sort: prioritize the narrowest nested inner rule on multi-block lines
+			const targetBlock = (session.antlrDiscoveredFoldBlocks || [])
+				.filter(b => b.startLine === humanRow)
+				.sort((a, b) => (a.endLine - a.startLine) - (b.endLine - b.startLine))[0];
+
+			if(targetBlock)
+			{
+				const lineText = session.getLine(row);
+				const startColumn = lineText.search(/\S/) !== -1 ? lineText.search(/\S/) : 0;
+				return new aceRange(row, startColumn, targetBlock.endLine - 1, session.getLine(targetBlock.endLine - 1).length);
+			}
+			return null;
+		};
 
 }
 
 
 
 
-
+/**
+ *
+ * @param {import('../components/editor/widget.d').AceSession} session
+ * @param {*} responseData
+ * @returns
+ */
 function handleWorkerStreamHighlight(session, responseData)
 {
 	if(!responseData || !responseData.tokenLinesChunk) return;
@@ -352,18 +395,25 @@ function handleWorkerStreamHighlight(session, responseData)
 
 /**
  * Handles incoming background worker annotations
+ * @param {import('../components/editor/widget.d').AceSession} session
  */
 function handleWorkerAnnotate(session, e)
 {
 	session.workerAnnotations = e.data || [];
-	refreshActiveEditorView(session);
+	workerSelf.compilerDiagnostics?.getBridge().refreshActiveEditorView(session);
 }
 
 
-
-let currentBlockMarkerId = null;
+/** @type {string | null} */
 let lastRenderedBoundsKey = "";
 
+
+/**
+ *
+ * @param {import('../components/editor/widget.d').AceSession} session
+ * @param {*} responseData
+ * @returns
+ */
 function handleWorkerBlockHighlight(session, responseData)
 {
 
@@ -376,10 +426,10 @@ function handleWorkerBlockHighlight(session, responseData)
 		typeof responseData.endLine !== "number"
 	)
 	{
-		if(currentBlockMarkerId !== null && session)
+		if(workerSelf.currentBlockMarkerId !== null && session)
 		{
-			session.removeMarker(currentBlockMarkerId);
-			currentBlockMarkerId = null;
+			session.removeMarker(workerSelf.currentBlockMarkerId);
+			workerSelf.currentBlockMarkerId = null;
 		}
 		lastRenderedBoundsKey = "";
 		return;
@@ -396,10 +446,10 @@ function handleWorkerBlockHighlight(session, responseData)
 	lastRenderedBoundsKey = boundsKey;
 
 	// Clear old marker prior to rendering the new boundary
-	if(currentBlockMarkerId !== null)
+	if(workerSelf.currentBlockMarkerId !== null)
 	{
-		session.removeMarker(currentBlockMarkerId);
-		currentBlockMarkerId = null;
+		session.removeMarker(workerSelf.currentBlockMarkerId);
+		workerSelf.currentBlockMarkerId = null;
 	}
 
 	// Convert 1-indexed input to Ace 0-indexed rows
@@ -409,7 +459,7 @@ function handleWorkerBlockHighlight(session, responseData)
 	// Columns are set to 0 as "fullLine" expands across the full viewport width
 	const highlightRange = new AceRange(startRow, 0, endRow, 0);
 
-	currentBlockMarkerId = session.addMarker(
+	workerSelf.currentBlockMarkerId = session.addMarker(
 		highlightRange,
 		"ace_active_block_scope_highlight",
 		"fullLine"

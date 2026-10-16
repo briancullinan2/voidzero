@@ -6,6 +6,7 @@ export interface AceSession extends Ace.EditSession
 {
 	workspaceFileId?: string;
 	$worker?: Worker;
+	$editor: Ace.Editor;
 }
 
 export type AceEditor = typeof Ace & {
@@ -31,7 +32,7 @@ export interface EditorWindow
 		};
 	};
 	ace?: AceEditor;
-
+	currentBlockMarkerId: number | null;
 	diagnosticsBridge?: any;
 	AceEditorWidget?: typeof AceEditorWidget;
 	previousHashLineNumber?: number | null;

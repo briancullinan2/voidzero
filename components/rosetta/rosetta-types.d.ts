@@ -1,16 +1,19 @@
 import type antlr4 from 'antlr4';
 import type { Lexer, Parser, ParserRuleContext, Token, CommonTokenStream } from 'antlr4';
 import type { Ace } from 'ace-builds';
+import type { AceSession } from '../editor/widget.d';
+import type { AntlrWorkerBackend } from '../../ace/worker-antlr';
+import type { Mime } from 'mime';
 
-export interface ImplementedBackend extends AntlrWorkerBackend implements Mirror
+export interface ImplementedBackend extends AntlrWorkerBackend, Mirror
 {
 	// [key: '']: any;
-	languageKey?: string;
+	languageKey: string;
 	activeFileId: string;
 	setTimeout(ms: number): void;
 	sender: Mirror;
 	emit(name: string, data: any): void;
-	doc?: Ace;
+	doc: Ace.Document;
 	// doc: {
 	// 	getValue(): string;
 	// 	setValue(value: string): void;
@@ -25,25 +28,25 @@ export interface ImplementedBackend extends AntlrWorkerBackend implements Mirror
 export interface RosettaWorker
 {
 	window: Window | any;
-	mime: typeof mime;
+	mime: typeof Mime;
 	TEXT_LANGUAGE_DETECTOR_WATERFALL: TextDetector[];
 	EXTENSION_TO_PARSER_ID: Record<string, string>;
-	autodetectLanguage(fileText: string, fileBuffer: Buffer);
+	autodetectLanguage(fileText: string, fileBuffer: Buffer): string;
 	BINARY_DETECTOR: Record<string, BinaryDetector>;
 	detectBinaryType(sourceBuffer: Buffer | Uint8Array): string;
 	__missingHeaders: Set<string>;
 	AntlrRegistry: { antlr4?: typeof antlr4; } & Record<string, typeof antlr4.Parser | typeof antlr4.Lexer>;
 	AntlrLanguages: { antlr4?: typeof antlr4; } & Record<string, typeof antlr4.Parser | typeof antlr4.Lexer>;
 	language: {
-		lineToken(text, language, line): Promise<void>;
+		lineToken(text: string, language: string, line: number): Promise<void>;
 	};
 	activeFileId?: string;
 	antlr4: typeof antlr4;
-	runParserPipeline(sourceText, languageKey, annotations, emitter): void;
-	extractCurrentBlock(codeStr, lineNumber, langId);
+	runParserPipeline(sourceText: string, languageKey: string, annotations: ParserEvent[], emitter: ImplementedBackend): void;
+	extractCurrentBlock(codeStr: string, lineNumber: number, langId: string): BlockResult;
 	antlrProcessor?: ImplementedBackend;
-	executeGetFoldRegionsCommand(msg: { args: any[]; }, sender: ImplementedBackend);
-	doc?: Ace;
+	executeGetFoldRegionsCommand(msg: { args: any[]; }, sender: ImplementedBackend): void;
+	doc?: Ace.Document;
 	languageKey?: string;
 }
 
@@ -205,7 +208,7 @@ export interface BlockResult
 
 export interface Mirror
 {
-	constructor(sender: any);
+	constructor(sender: any): Mirror;
 	sender: any;
 	doc: {
 		getValue(): string;
@@ -220,7 +223,7 @@ export interface Mirror
 }
 
 declare module "ace/worker/mirror" {
-	Mirror;
+
 }
 
 
@@ -250,7 +253,9 @@ export interface AntlrVocab
 
 export interface ImplementedLexer extends Lexer
 {
+	// @ts-ignore
 	static vocabulary?: AntlrVocab;
+	// @ts-ignore
 	vocabulary?: AntlrVocab;
 	symbolicNames?: Record<number, string>;
 	literalNames?: Record<number, string>;
@@ -260,7 +265,9 @@ export interface ImplementedLexer extends Lexer
 
 export interface ImplementedParser extends Parser
 {
+	// @ts-ignore
 	static vocabulary?: AntlrVocab;
+	// @ts-ignore
 	vocabulary?: AntlrVocab;
 	ruleNames: Record<number, string>;
 	// [key: string]: Function;
@@ -277,4 +284,13 @@ export interface ImplementedContext extends ParserRuleContext
 export interface ImplementedStream extends CommonTokenStream
 {
 	getTokens(start?: number, stop?: number): Token[];
+}
+
+
+export interface ImplementedClient // extends AntlrWorkerBackend
+{
+	activeMarkerIds: number[];
+	activeSession: AceSession | null;
+	$worker?: Worker;
+
 }

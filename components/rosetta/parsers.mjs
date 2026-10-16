@@ -155,7 +155,7 @@ function processSyntaxError(lines, annotations, syntaxError)
  * @param {string} languageKey
  * @param {import('./rosetta-types.d').ParserEvent[]} annotations
  * @param {import('./rosetta-types.d').ImplementedLexer} lexer
- * @param {*} emitter
+ * @param {import('./rosetta-types.d').ImplementedBackend} emitter
  * @returns {([Map<number, string>, import('./rosetta-types.d').ImplementedParser | null] | undefined)}
  */
 function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations, lexer, emitter)
