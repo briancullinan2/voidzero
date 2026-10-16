@@ -1,6 +1,6 @@
 // @ts-check
 
-import { createLexerInstance } from './worker-language';
+import { createLexerInstance } from './worker-language.mjs';
 
 
 /** @type {Worker & import('./rosetta-types.d').RosettaWorker} */

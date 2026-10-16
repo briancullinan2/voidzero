@@ -14,6 +14,7 @@
 		"generate-status": "npx ts-node -O \"{\\\"module\\\":\\\"commonjs\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" components/status/generate.ts",
 		"build": "webpack --config webpack.prod.js",
 		"build-code": "webpack --config webpack.code.js",
+		"build-rosetta": "webpack --config webpack.rosetta.js",
 		"set-google": "gcloud storage buckets update gs://quake.games --cors-file=cors-json-file.json"
 	},
 	"dependencies": {

@@ -2,15 +2,15 @@
 
 // @ts-check
 
-import { ROSETTA_RULE_MATRIX } from './rosetta-rules';
-import { ROSETTA_LEXER_MATRIX } from './rosetta-lexer-c';
-import { GRAMMAR_CLASSIFIER_MATRIX } from './rosetta-grammars';
-import { ROSETTA_NEIGHBORHOOD_ASSOCIATIONS } from "./rosetta-neighbors";
-import { ROSETTA_JAVASCRIPT_MAPPING } from './rosetta-lexer-js';
-import { ROSETTA_JSON_MAPPING } from './rosetta-lexer-json';
-import { ROSETTA_MAKE_MAPPING, ROSETTA_CMAKE_MAPPING } from './rosetta-lexer-make';
-import { ROSETTA_CREOLE_MAPPING } from './rosetta-lexer-markdown';
-import { ROSETTA_Q3_MAPPING } from './rosetta-lexer-q3';
+import { ROSETTA_RULE_MATRIX } from './rosetta-rules.mjs';
+import { ROSETTA_LEXER_MATRIX } from './rosetta-lexer-c.mjs';
+import { GRAMMAR_CLASSIFIER_MATRIX } from './rosetta-grammars.mjs';
+import { ROSETTA_NEIGHBORHOOD_ASSOCIATIONS } from "./rosetta-neighbors.mjs";
+import { ROSETTA_JAVASCRIPT_MAPPING } from './rosetta-lexer-js.mjs';
+import { ROSETTA_JSON_MAPPING } from './rosetta-lexer-json.mjs';
+import { ROSETTA_MAKE_MAPPING, ROSETTA_CMAKE_MAPPING } from './rosetta-lexer-make.mjs';
+import { ROSETTA_CREOLE_MAPPING } from './rosetta-lexer-markdown.mjs';
+import { ROSETTA_Q3_MAPPING } from './rosetta-lexer-q3.mjs';
 
 /** @type {Record<string, string[]>} */
 const ROSETTA_CROSS_LANGUAGE_MAPPING = {

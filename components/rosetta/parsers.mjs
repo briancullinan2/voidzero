@@ -1,9 +1,9 @@
 
 // @ts-check
 
-import { _resolveTokenTypeName } from './rosetta-blocks';
-import { toRosettaToken } from './rosetta';
-import { createLexerInstance } from './worker-language';
+import { _resolveTokenTypeName } from './rosetta-blocks.mjs';
+import { toRosettaToken } from './rosetta.mjs';
+import { createLexerInstance } from './worker-language.mjs';
 
 
 /** @type {Worker & import('./rosetta-types.d').RosettaWorker} */

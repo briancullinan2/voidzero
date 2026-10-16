@@ -2,7 +2,7 @@
 // @ts-check
 
 /** @type {Record<string, string>} */
-const GRAMMAR_Q3_MATRIX = {
+export const GRAMMAR_Q3_MATRIX = {
 
 
 	// =====================================================================

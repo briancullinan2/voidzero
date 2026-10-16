@@ -1,7 +1,7 @@
 
 // @ts-check
 
-import { _resolveTokenTypeName, getFoldRegions } from './rosetta-blocks';
+import { _resolveTokenTypeName, getFoldRegions } from './rosetta-blocks.mjs';
 
 /**
  * Copyright 2026 WebAssembly Community Group participants

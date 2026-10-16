@@ -2,6 +2,9 @@
 
 // @ts-check
 
+import { GRAMMAR_JAVASCRIPT_MATRIX } from './rosetta-grammars-js.mjs';
+import { GRAMMAR_Q3_MATRIX } from './rosetta-grammar-q3.mjs';
+
 /** @type {Record<string, string>} */
 
 export const GRAMMAR_CLASSIFIER_MATRIX = {
@@ -168,7 +171,7 @@ export const GRAMMAR_CLASSIFIER_MATRIX = {
 	"vcSpecificModifer": "modifier.calling_convention.msvc.interop_linkage",
 
 
-
-
+	...GRAMMAR_JAVASCRIPT_MATRIX,
+	...GRAMMAR_Q3_MATRIX,
 };
 

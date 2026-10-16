@@ -5,15 +5,15 @@ import
 {
 	getWasmObjectHeader, renderWasmDisassemblySuite,
 	getWasmFinalHeader, renderWasmDisassembly
-} from './binary-wasm';
+} from './binary-wasm.mjs';
 import
 {
 	renderMd3DisassemblySuite,
 	renderBspDisassemblySuite, renderAasDisassemblySuite,
 	parseQ3FontDat
-} from './binary-q3';
-import { parseDM3Telemetry } from './binary-q3net';
-import { getQVMHeader } from './binary-qvm';
+} from './binary-q3.mjs';
+import { parseDM3Telemetry } from './binary-q3net.mjs';
+import { getQVMHeader } from './binary-qvm.mjs';
 
 
 /** @type {import('./rosetta-types.d').RosettaWorker} */

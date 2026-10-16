@@ -3,7 +3,7 @@
 
 /** @type {Record<string, string>} */
 
-const GRAMMAR_JAVASCRIPT_MATRIX = {
+export const GRAMMAR_JAVASCRIPT_MATRIX = {
 
 
 	// =====================================================================
