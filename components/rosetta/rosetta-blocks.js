@@ -164,7 +164,7 @@ ROSETTA_BLOCK_ASSOCIATIONS['sqlite'] = ROSETTA_BLOCK_ASSOCIATIONS['sql'];
  * @param {string} codeStr
  * @param {number} lineNumber
  * @param {string} langId
- * @returns
+ * @returns {import('./rosetta-types.d').BlockResult}
  */
 function extractCurrentBlock(codeStr, lineNumber, langId)
 {
@@ -301,6 +301,9 @@ function extractCurrentBlock(codeStr, lineNumber, langId)
 		endIndex: endCharOffset
 	};
 }
+
+
+workerSelf.extractCurrentBlock = extractCurrentBlock;
 
 
 
@@ -532,7 +535,7 @@ export const silentDiagnosticObserver = {
 /**
  *
  * @param {*} msg
- * @param {AntlrWorker} sender
+ * @param {import('./rosetta-types.d').IBackendWorker} sender
  * @returns
  */
 export function executeGetFoldRegionsCommand(msg, sender)

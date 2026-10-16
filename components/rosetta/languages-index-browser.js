@@ -5,6 +5,9 @@
 // =====================================================================
 import antlr4 from 'antlr4';
 
+/** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
+const workerSelf = /** @type {any} */ (self);
+
 // =====================================================================
 // 2. PARSER & LEXER SPECIFIC IMPORTS (50-LANGUAGE PIPELINE)
 // =====================================================================
@@ -134,10 +137,8 @@ import quake3_Q3SkinParser from '../../../jupyter_ops/Resources/Parsers/quake3/s
 // =====================================================================
 // 3. CONSOLIDATE THE CORE REGISTRY OBJECT (MATCHES WORKER DYNAMIC RESOLUTION)
 // =====================================================================
-/** @type {({antlr4: typeof antlr4}) & Record<string, typeof antlr4.Parser | typeof antlr4.Lexer>} */
+/** @type {Record<string, typeof antlr4.Parser | typeof antlr4.Lexer>} */
 const AntlrRegistry = {
-	antlr4: antlr4,
-
 	// Explicit Lowercase Flat Index Matrix
 	"c_lexer": c_CLexer, "c_parser": c_CParser,
 	"cpp_lexer": cpp_CPP14Lexer, "cpp_parser": cpp_CPP14Parser,
@@ -192,6 +193,8 @@ const AntlrRegistry = {
 	"q3skin_lexer": quake3_Q3SkinLexer, "q3skin_parser": quake3_Q3SkinParser,
 };
 
+AntlrRegistry.antlr4 = antlr4;
+
 // Aliases for historical backwards-compatibility safety valves
 AntlrRegistry['cpp_clexer'] = c_CLexer;
 AntlrRegistry['cpp_cpp14lexer'] = cpp_CPP14Lexer;
@@ -221,8 +224,8 @@ AntlrRegistry['quake3_Q3SkinParser'] = quake3_Q3SkinParser;
 // =====================================================================
 if(typeof self !== 'undefined')
 {
-	self.AntlrRegistry = AntlrRegistry;
-	self.AntlrLanguages = AntlrRegistry;
+	workerSelf.AntlrRegistry = AntlrRegistry;
+	workerSelf.AntlrLanguages = AntlrRegistry;
 }
 
 // =====================================================================

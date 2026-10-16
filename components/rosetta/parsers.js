@@ -251,7 +251,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 	} else
 	{
 		// Safe fallback if the registry isn't fully structured
-		const BailStrategy = workerSelf.AntlrRegistry.antlr4?.BailErrorStrategy;
+		const BailStrategy = workerSelf.AntlrRegistry.antlr4.BailErrorStrategy;
 		customStrategyInstance = BailStrategy ? new BailStrategy() : null;
 	}
 

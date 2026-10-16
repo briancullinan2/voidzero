@@ -1,7 +1,7 @@
 
 // @ts-check
 
-/** @type {Worker & import('../components/rosetta/rosetta.d').RosettaWorker} */
+/** @type {Worker & import('../components/rosetta/rosetta-types.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 
 /** @type {AntlrWorkerBackend & { [key: string]: any} | null} */
@@ -14,8 +14,8 @@ let antlrProcessor = null;
  */
 function setLanguageContext(fileId)
 {
-	const ext = fileId.split('.').pop().toLowerCase();
-	const filenameAsType = fileId.split('/').pop().toLowerCase();
+	const ext = fileId.split('.').pop()?.toLowerCase() ?? fileId.toLowerCase();
+	const filenameAsType = fileId.split('/').pop()?.toLowerCase() ?? fileId.toLowerCase();
 	const modeKey = ((!workerSelf.EXTENSION_TO_PARSER_ID[ext] || ext === 'txt') && workerSelf.EXTENSION_TO_PARSER_ID[filenameAsType]) ? filenameAsType : ext;
 	this.languageKey = workerSelf.EXTENSION_TO_PARSER_ID[modeKey];
 	if(!this.languageKey)
@@ -37,20 +37,20 @@ async function onUpdate()
 
 	const fullText = this.doc.getValue();
 
-	/** @type {import('../components/rosetta/rosetta.d').ParserEvent[]} */
+	/** @type {import('../components/rosetta/rosetta-types.d').ParserEvent[]} */
 	let annotations = [];
 
 	try
 	{
 		// Kick off the unified single-pass compiler pipeline
-		runParserPipeline(fullText, this.languageKey, annotations, this.sender);
+		workerSelf.runParserPipeline(fullText, this.languageKey, annotations, this.sender);
 	} catch(pipelineCrash)
 	{
 		console.error("[ANTLR Pipeline Crash]:", pipelineCrash);
 		annotations.push({
 			row: 0,
 			column: 0,
-			text: "ANTLR Processing crash: " + pipelineCrash.message,
+			text: "ANTLR Processing crash: " + /** @type {Error} */ (pipelineCrash).message,
 			type: "error"
 		});
 	}
@@ -60,9 +60,13 @@ async function onUpdate()
 }
 
 
-function AntlrWorkerBackend(sender)
+/**
+ *
+ * @param {import('ace-builds/src-noconflict/ace').} sender
+ */
+export function AntlrWorkerBackend(sender)
 {
-	/** @type {import('../components/rosetta/rosetta.d').Mirror} */
+	/** @type {import('../components/rosetta/rosetta-types.d').Mirror} */
 	const Mirror = ace.require("ace/worker/mirror").Mirror;
 	Mirror.call(this, sender);
 
@@ -73,7 +77,7 @@ function AntlrWorkerBackend(sender)
 
 function setupInheritance()
 {
-	/** @type {import('../components/rosetta/rosetta.d').Mirror} */
+	/** @type {import('../components/rosetta/rosetta-types.d').Mirror} */
 	const Mirror = ace.require("ace/worker/mirror").Mirror;
 	const oop = ace.require("ace/lib/oop");
 	oop.inherits(AntlrWorkerBackend, Mirror);
@@ -109,7 +113,7 @@ self.addEventListener('message', function (e)
 		try
 		{
 			// Execute your streamlined look-around block algorithm
-			const blockMeta = extractCurrentBlock(codeString, cursorRow, runningLangId);
+			const blockMeta = workerSelf.extractCurrentBlock(codeString, cursorRow, runningLangId);
 
 			// Post the clean range boundaries right back up the thread channel
 			antlrProcessor?.sender.emit("blockRange", {

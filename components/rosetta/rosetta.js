@@ -87,7 +87,7 @@ function structuralPartsAccumulatorPush(array, tag)
  *
  * @param {string} symbolicName
  * @param {string} ruleName
- * @param {import('antlr4').Lexer} lexer
+ * @param {import('antlr4').Lexer & import('./rosetta-types.d').ImplementedLexer} lexer
  * @param {import('antlr4').Parser} parser
  * @param {import('./rosetta-types.d').AntlrToken} ctxOrToken
  * @param {import('antlr4').CommonTokenStream} tokenStream
@@ -119,8 +119,8 @@ export function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken
 		state.ruleHistory = ctxOrToken.ruleHistory || [];
 	}
 
-	const vocab = lexer?.vocabulary ?? lexer?.constructor?.vocabulary;
-	if(vocab && state.typeInt !== null)
+	const vocab = lexer?.vocabulary ?? /** @type {import('./rosetta-types.d').ImplementedLexer} */ (lexer?.constructor)?.vocabulary;
+	if(vocab && state.typeInt)
 	{
 		state.lexerSymbolicName = vocab.getSymbolicName(state.typeInt) || "";
 		state.lexerLiteralName = vocab.getLiteralName(state.typeInt) || "";
@@ -281,8 +281,8 @@ export function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken
  * @param {string} rawTypeName
  * @param {string} classification
  * @param {string} lowerType
- * @param {import('antlr4').Lexer} lexer
- * @param {import('antlr4').Parser} parser
+ * @param {import('antlr4').Lexer & import('./rosetta-types.d').ImplementedLexer} lexer
+ * @param {import('antlr4').Parser & import('./rosetta-types.d').ImplementedLexer} parser
  * @param {import('antlr4').ParserRuleContext} ctx
  * @returns
  */
@@ -295,8 +295,8 @@ function _buildTokenPayload(token, rawTypeName, classification, lowerType, lexer
 	const ruleIndex = ctx ? ctx.ruleIndex : null;
 
 	// Extract vocabulary managers natively from the runtime engine instances
-	const lexerVocab = lexer?.vocabulary || lexer?.constructor?.vocabulary;
-	const parserVocab = parser?.vocabulary || parser?.constructor?.vocabulary;
+	const lexerVocab = lexer?.vocabulary ?? /** @type {import('./rosetta-types.d').ImplementedLexer} */ (lexer?.constructor)?.vocabulary;
+	const parserVocab = parser?.vocabulary ?? /** @type {import('./rosetta-types.d').ImplementedLexer} */ (parser?.constructor)?.vocabulary;
 
 	// Resolve the clean, authentic symbolic rule names via the vocabulary contracts
 	const trueLexerRuleName = lexerVocab ? lexerVocab.getSymbolicName(tokenType) : "Text";

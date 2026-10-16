@@ -18,6 +18,7 @@ export interface RosettaWorker
 	activeFileId?: string;
 	antlr4: typeof antlr4;
 	runParserPipeline(sourceText, languageKey, annotations, emitter): void;
+	extractCurrentBlock(codeStr, lineNumber, langId);
 }
 
 
@@ -167,10 +168,11 @@ export interface ParserEvent
 
 export interface BlockResult
 {
-	ruleName: string,
-	startLine: number,
-	endLine: number,
-	startIndex: number,
+	text?: string;
+	ruleName?: string;
+	startLine: number;
+	endLine: number;
+	startIndex: number;
 	endIndex: number;
 }
 
@@ -205,3 +207,24 @@ export interface FoldRegion
 	endRow: number;
 	type: 'comment' | 'preprocessor' | 'brace';
 }
+
+export interface IBackendWorker
+{
+
+}
+
+
+export interface AntlrVocab
+{
+	getSymbolicNames(type: number): string[];
+	getSymbolicName(type: number): string;
+	getLiteralName(type: number): string;
+}
+
+
+export interface ImplementedLexer
+{
+	static vocabulary?: AntlrVocab;
+	vocabulary?: AntlrVocab;
+}
+
