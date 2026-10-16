@@ -77,9 +77,12 @@ export function onWorkerAnnotate(session, e)
 function onWorkerTerminate(_this2, session)
 {
 	session.clearAnnotations();
-	for(let m = 0; m < _this2.activeMarkerIds.length; m++)
+	if(_this2.activeMarkerIds)
 	{
-		session.removeMarker(_this2.activeMarkerIds[m]);
+		for(let m = 0; m < _this2.activeMarkerIds?.length; m++)
+		{
+			session.removeMarker(_this2.activeMarkerIds[m]);
+		}
 	}
 	_this2.activeMarkerIds = [];
 }
@@ -103,6 +106,10 @@ function setLanguageTarget(_worker, langKey, fileId)
 }
 
 
+/** @type {import('../components/rosetta/rosetta-types').AceWorkerClient | undefined} */
+let WorkerClient;
+
+
 /**
  * @this {import('../components/rosetta/rosetta-types').ImplementedClient}
  * @param {import('../components/editor/widget.d').AceSession} session
@@ -114,7 +121,7 @@ function AntlrWorker(session)
 	let baseOrigin = window.location.origin;
 	let targetUrl = baseOrigin + "/ace/worker-antlr.js";
 
-	WorkerClient.call(this, ["ace"], "ace/mode/antlr_worker_actions", "AntlrWorker", targetUrl);
+	WorkerClient?.call(this, ["ace"], "ace/mode/antlr_worker_actions", "AntlrWorker", targetUrl);
 
 	// --- CRITICAL FIX 1: Prevent Ace from terminating this single background worker ---
 	this.terminate = function ()
@@ -128,6 +135,7 @@ function AntlrWorker(session)
 		if(this.$worker)
 		{
 			this.$worker.terminate();
+			/** @type {Worker | null} */
 			this.$worker = null;
 		}
 	};
@@ -156,7 +164,7 @@ function AntlrWorker(session)
 	}
 
 	// Forward messages ONLY to the active session
-	this.on("highlight", function (response)
+	this.on?.("highlight", function (response)
 	{
 		if(that.activeSession && typeof handleWorkerStreamHighlight === 'function')
 		{
@@ -164,7 +172,7 @@ function AntlrWorker(session)
 		}
 	});
 
-	this.on("blockRange", function (response)
+	this.on?.("blockRange", function (response)
 	{
 		if(that.activeSession && typeof handleWorkerBlockHighlight === 'function')
 		{
@@ -172,19 +180,19 @@ function AntlrWorker(session)
 		}
 	});
 
-	this.on("annotate", function (response)
+	this.on?.("annotate", function (response)
 	{
 		if(that.activeSession)
 		{
 			that.activeSession.setAnnotations(response.data);
 			if(typeof handleWorkerAnnotate === 'function')
 			{
-				handleWorkerAnnotate(that.activeSession, response);
+				handleWorkerAnnotate(that.activeSession, response.data);
 			}
 		}
 	});
 
-	this.on("foldRegionsCalculated", function (response)
+	this.on?.("foldRegionsCalculated", function (response)
 	{
 		if(that.activeSession && typeof handleWorkerFoldRegions === 'function')
 		{
@@ -193,11 +201,11 @@ function AntlrWorker(session)
 	});
 }
 
-/** @type {AntlrWorker | null} */
+/** @type {import('../components/rosetta/rosetta-types.d').ImplementedClient | null} */
 let sharedWorkerInstance = null;
 
 
-ace.define("ace/mode/antlr_worker", [
+workerSelf.ace?.define("ace/mode/antlr_worker", [
 	"require",
 	"exports",
 	"module",
@@ -205,76 +213,92 @@ ace.define("ace/mode/antlr_worker", [
 	"ace/mode/text",
 	"ace/worker/worker_client",
 	"ace/mode/text_highlight_rules"
-], function (require, exports, module)
-{
-	"use strict";
-
-	let oop = ace.require("ace/lib/oop");
-	let TextMode = ace.require("ace/mode/text").Mode;
-	let WorkerClient = ace.require("ace/worker/worker_client").WorkerClient;
-	let TextHighlightRules = ace.require("ace/mode/text_highlight_rules").TextHighlightRules;
-
-	oop.inherits(AntlrWorker, WorkerClient);
-
-	/** @param {import('../components/editor/widget.d').AceSession} newSession */
-	function switchActiveSession(newSession)
+],
+	/**
+	 *
+	 * @param {*} require
+	 * @param {*} exports
+	 * @param {*} module
+	 */
+	function (require, exports, module)
 	{
-		if(!newSession) return;
+		"use strict";
 
-		// If the shared worker was terminated or not created yet, recreate it
-		if(!sharedWorkerInstance || !sharedWorkerInstance.$worker)
-		{
-			sharedWorkerInstance = new AntlrWorker(newSession);
-		}
+		let oop = ace.require("ace/lib/oop");
+		let TextMode = ace.require("ace/mode/text").Mode;
+		WorkerClient = ace.require("ace/worker/worker_client").WorkerClient;
+		let TextHighlightRules = ace.require("ace/mode/text_highlight_rules").TextHighlightRules;
 
-		// --- CRITICAL FIX 2: Re-bind document listener on the worker ---
-		if(activeSession !== newSession)
+		oop.inherits(AntlrWorker, WorkerClient);
+
+		/** @param {import('../components/editor/widget.d').AceSession} newSession */
+		function switchActiveSession(newSession)
 		{
-			if(activeSession)
+			if(!newSession) return;
+
+			// If the shared worker was terminated or not created yet, recreate it
+			if(!sharedWorkerInstance || !sharedWorkerInstance.$worker)
 			{
-				//sharedWorkerInstance.detachFromDocument();
+				sharedWorkerInstance = new AntlrWorker(newSession);
 			}
-			activeSession = newSession;
-			sharedWorkerInstance.attachToDocument(activeSession);
+
+			if(!sharedWorkerInstance)
+			{
+				return;
+			}
+
+			// --- CRITICAL FIX 2: Re-bind document listener on the worker ---
+			if(sharedWorkerInstance.activeSession !== newSession)
+			{
+				if(sharedWorkerInstance.activeSession)
+				{
+					//sharedWorkerInstance.detachFromDocument();
+				}
+				sharedWorkerInstance.activeSession = newSession;
+				sharedWorkerInstance.attachToDocument?.(sharedWorkerInstance.activeSession);
+			}
+
+			let modeId = (sharedWorkerInstance.activeSession.getMode()
+				&& /** @type {any} */ (sharedWorkerInstance.activeSession.getMode()).$id)
+				|| sharedWorkerInstance.activeSession.$modeId
+				|| "";
+			let languageKey = modeId.split("/").pop() || "c";
+			let fileId = sharedWorkerInstance.activeSession.workspaceFileId
+				?? (sharedWorkerInstance.activeSession.getDocument()
+					&& /** @type {any} */ (sharedWorkerInstance.activeSession.getDocument()).$fileId)
+				?? "temp_buffer." + languageKey;
+
+			sharedWorkerInstance.activeSession.workspaceFileId = fileId;
+
+			// Notify worker about the new file context
+			sharedWorkerInstance.setLanguageTarget?.(fileId);
 		}
 
-		let modeId = (activeSession.getMode() && activeSession.getMode().$id) || activeSession.$modeId || "";
-		let languageKey = modeId.split("/").pop() || "c";
-		let fileId = activeSession.workspaceFileId ||
-			(activeSession.getDocument() && activeSession.getDocument().$fileId) ||
-			"temp_buffer." + languageKey;
-
-		activeSession.workspaceFileId = fileId;
-
-		// Notify worker about the new file context
-		sharedWorkerInstance.setLanguageTarget(fileId);
-	}
-
-	let Mode = function ()
-	{
-		this.HighlightRules = TextHighlightRules;
-	};
-	oop.inherits(Mode, TextMode);
-
-	(function ()
-	{
-		/** @param {import('../components/editor/widget.d').AceSession} session */
-		this.createWorker = function (session)
+		let Mode = function ()
 		{
-			if(!session) return null;
-
-			// Hand off control to the switchActiveSession manager
-			switchActiveSession(session);
-
-			return sharedWorkerInstance;
+			this.HighlightRules = TextHighlightRules;
 		};
+		oop.inherits(Mode, TextMode);
 
-		this.$id = "ace/mode/antlr";
-	}).call(Mode.prototype);
+		(function ()
+		{
+			/** @param {import('../components/editor/widget.d').AceSession} session */
+			this.createWorker = function (session)
+			{
+				if(!session) return null;
 
-	exports.Mode = Mode;
-	exports.switchActiveSession = switchActiveSession;
-});
+				// Hand off control to the switchActiveSession manager
+				switchActiveSession(session);
+
+				return sharedWorkerInstance;
+			};
+
+			this.$id = "ace/mode/antlr";
+		}).call(Mode.prototype);
+
+		exports.Mode = Mode;
+		exports.switchActiveSession = switchActiveSession;
+	});
 
 
 
@@ -282,7 +306,7 @@ ace.define("ace/mode/antlr_worker", [
  * Core Gutter Plugin: Man-in-the-middle handler that overrides Ace's
  * internal template string generators to force VS Code style chevrons.
  * @param {import('../components/editor/widget.d').AceSession} session
- * @param {*} data
+ * @param {import('../components/rosetta/rosetta-types').BlockRegionsResult} data
  * @returns
  */
 function handleWorkerFoldRegions(session, data)
@@ -291,7 +315,7 @@ function handleWorkerFoldRegions(session, data)
 	session.antlrDiscoveredFoldBlocks = blocks;
 
 	const renderer = session.$editor.renderer;
-	if(!renderer || !renderer.$gutterLayer) return;
+	if(!renderer || ! /** @type {any} */ (renderer).$gutterLayer) return;
 
 	// ─── 1. FORCE THE IN-MEMORY ARRAY SYSTEM TO SHIFT STATES ───
 	session.foldWidgets = [];
@@ -396,10 +420,11 @@ function handleWorkerStreamHighlight(session, responseData)
 /**
  * Handles incoming background worker annotations
  * @param {import('../components/editor/widget.d').AceSession} session
+ * @param {import('../components/rosetta/rosetta-types').ParserEvent[]} e
  */
 function handleWorkerAnnotate(session, e)
 {
-	session.workerAnnotations = e.data || [];
+	session.workerAnnotations = e || [];
 	workerSelf.compilerDiagnostics?.getBridge().refreshActiveEditorView(session);
 }
 

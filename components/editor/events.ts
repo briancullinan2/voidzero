@@ -412,7 +412,7 @@ export function onBlockTrackerCursorChange(session: AceSession, aceEditor: Ace.E
 }
 
 
-export function bindBlockTrackerToSession(session: Ace.EditSession, editor: Ace.Editor)
+export function bindBlockTrackerToSession(session: AceSession, editor: Ace.Editor)
 {
 	if(!session || !session.selection) return;
 

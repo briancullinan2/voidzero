@@ -116,7 +116,7 @@ self.addEventListener('message', function (e)
 		try
 		{
 			// Execute your streamlined look-around block algorithm
-			const blockMeta = workerSelf.extractCurrentBlock(codeString, cursorRow, runningLangId);
+			const blockMeta = workerSelf.extractCurrentBlock(codeString ?? '', cursorRow, runningLangId);
 
 			// Post the clean range boundaries right back up the thread channel
 			workerSelf.antlrProcessor?.sender.emit("blockRange", {

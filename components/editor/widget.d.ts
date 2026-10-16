@@ -1,12 +1,17 @@
 
-import { Ace } from "ace-builds";
+import type { Ace } from "ace-builds";
 import type { AceEditorWidget } from "./widget";
+import type { BlockResult, ParserEvent } from "../rosetta/rosetta-types";
 
 export interface AceSession extends Ace.EditSession
 {
 	workspaceFileId?: string;
 	$worker?: Worker;
 	$editor: Ace.Editor;
+	antlrDiscoveredFoldBlocks?: BlockResult[];
+	workerAnnotations: ParserEvent[];
+	_emit: (type: string, data: any) => void;
+	$modeId: string;
 }
 
 export type AceEditor = typeof Ace & {
@@ -19,6 +24,12 @@ export type AceEditor = typeof Ace & {
 		set: (key: string, value: string) => void;
 	};
 	require: (modules: string[], callback: (moduleExports: any) => void) => void;
+	define: (
+		name: string,
+		deps: string[],
+		loaded: (require: (module: string) => any,
+			exports: any,
+			module: any) => void) => void;
 };
 
 export interface EditorWindow

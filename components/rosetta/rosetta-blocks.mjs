@@ -651,7 +651,7 @@ export function executeGetFoldRegionsCommand(msg, sender)
 	{
 		const discoveredBlocks = discoverFoldRegions(parser, tree);
 		sender.emit("foldRegionsCalculated", {
-			fileId: workerSelf.activeFileId || msg.args?.[0] || "active_buffer",
+			fileId: workerSelf.activeFileId ?? msg.args?.[0] ?? "active_buffer",
 			blocks: discoveredBlocks
 		});
 	}

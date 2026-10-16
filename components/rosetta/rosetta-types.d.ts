@@ -11,7 +11,7 @@ export interface ImplementedBackend extends AntlrWorkerBackend, Mirror
 	languageKey: string;
 	activeFileId: string;
 	setTimeout(ms: number): void;
-	sender: Mirror;
+	sender: ImplementedBackend;
 	emit(name: string, data: any): void;
 	doc: Ace.Document;
 	// doc: {
@@ -206,6 +206,14 @@ export interface BlockResult
 	endIndex: number;
 }
 
+
+
+export interface BlockRegionsResult
+{
+	fileId: string,
+	blocks: BlockResult[];
+}
+
 export interface Mirror
 {
 	constructor(sender: any): Mirror;
@@ -289,8 +297,18 @@ export interface ImplementedStream extends CommonTokenStream
 
 export interface ImplementedClient // extends AntlrWorkerBackend
 {
-	activeMarkerIds: number[];
-	activeSession: AceSession | null;
-	$worker?: Worker;
+	activeMarkerIds?: number[];
+	activeSession?: AceSession | null;
+	$worker?: Worker | null;
+	attachToDocument?: (session: AceSession) => void;
+	terminate?: () => void;
+	forceTerminate?: () => void;
+	setLanguageTarget?: (file: string) => void;
+	on?: (event: string, callback: (response: MessageEvent) => void) => void;
+}
 
+
+export interface AceWorkerClient
+{
+	call: (worker: ImplementedClient, deps: string[], workerName: string, namespace: string, targetUrl: string) => void;
 }
