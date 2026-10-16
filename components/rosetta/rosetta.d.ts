@@ -10,7 +10,7 @@ export interface RosettaWorker
 	BINARY_DETECTOR: Record<string, BinaryDetector>;
 	detectBinaryType(sourceBuffer: Buffer | Uint8Array): string;
 	__missingHeaders: Set<string>;
-	AntlrRegistry: Record<string, antlr4.Parser | antlr4.Lexer>;
+	AntlrRegistry: { antlr4: typeof antlr4; } & Record<string, typeof antlr4.Parser | typeof antlr4.Lexer>;
 }
 
 
@@ -114,32 +114,35 @@ export interface BlockDetector
 
 export interface AntlrToken
 {
-	text: string;
-	type: string;
-	typeInt: number | null;
-	textType: string;
-	spellCheckable: boolean;
+
+	tokenIndex: number;
 	line: number;
 	column: number;
+	channel: number;
+	text: string;
+	type: number;
 	start: number;
 	stop: number;
-	channel: number;
-	rosettaScope: string;
-	tokenIndex: number | null;
-	tokenType: string;
-	tokenMode: string;
-	tokenNames: string[];
-	tokenSymbol: string;
-	tokenRule: string;
-	symbolIndex: number;
-	symbolicName: string;
-	literalName: string;
-	literalText: string;
-	ruleName: string;
-	ruleHistory: string[];
-	tokenChannel: number;
-	lexerSymbolicName: string;
-	lexerLiteralName: string;
+
+	typeInt?: number | null;
+	textType?: string;
+	spellCheckable?: boolean;
+	rosettaScope?: string;
+	tokenType?: string;
+	tokenMode?: string;
+	tokenNames?: string[];
+	tokenSymbol?: string;
+	tokenRule?: string;
+	symbolIndex?: number;
+	symbolicName?: string;
+	literalName?: string;
+	literalText?: string;
+	ruleName?: string;
+	ruleHistory?: string[];
+	tokenChannel?: number;
+	lexerSymbolicName?: string;
+	lexerLiteralName?: string;
+
 }
 
 

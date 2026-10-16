@@ -40,8 +40,8 @@ const ACE_COLORED_CLASSES = [
 
 /**
  *
- * @param {string} ruleName
- * @param {string} lexerSymbolicName
+ * @param {string | undefined | null} ruleName
+ * @param {string | undefined | null} lexerSymbolicName
  * @returns
  */
 function toRosettaNonRecursive(ruleName, lexerSymbolicName)
@@ -88,7 +88,7 @@ function structuralPartsAccumulatorPush(array, tag)
  * @param {import('antlr4').Lexer} lexer
  * @param {import('antlr4').Parser} parser
  * @param {import('./rosetta.d').AntlrToken} ctxOrToken
- * @param {*} tokenStream
+ * @param {import('antlr4').CommonTokenStream} tokenStream
  * @returns
  */
 function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, tokenStream)
@@ -99,7 +99,10 @@ function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, token
 		symbolicName: symbolicName || "", ruleName: ruleName || "",
 		typeInt: null, literalText: "", tokenChannel: 0,
 		lexerSymbolicName: "", lexerLiteralName: "",
-		tokenIndex: null, ruleHistory: []
+		tokenIndex: 0, ruleHistory: [], line: ctxOrToken.line,
+		channel: ctxOrToken.channel, column: ctxOrToken.column,
+		text: ctxOrToken.text, type: ctxOrToken.type,
+		start: ctxOrToken.start, stop: ctxOrToken.stop
 	};
 
 	if(ctxOrToken)
@@ -110,7 +113,7 @@ function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, token
 			(typeof ctxOrToken.type === 'number' ? ctxOrToken.type : null);
 		state.literalText = ctxOrToken.text || "";
 		state.tokenChannel = typeof ctxOrToken.channel === 'number' ? ctxOrToken.channel : 0;
-		state.tokenIndex = typeof ctxOrToken.tokenIndex === 'number' ? ctxOrToken.tokenIndex : null;
+		state.tokenIndex = typeof ctxOrToken.tokenIndex === 'number' ? ctxOrToken.tokenIndex : 0;
 		state.ruleHistory = ctxOrToken.ruleHistory || [];
 	}
 
@@ -123,7 +126,9 @@ function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, token
 	state.symbolicName ||= state.lexerSymbolicName;
 
 	// We split our targets to keep specific leaf-tokens separated from wide parent wrappers
+	/** @type {string[]} */
 	const leafTokens = [];
+	/** @type {string[]} */
 	const contextTokens = [];
 
 	// ─── STEP 1: COLLECT LEAF-LEVEL TARGETS (MOST DETAILED) ───
@@ -183,7 +188,10 @@ function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, token
 		const evaluationPayload = {
 			tokenIndex: state.tokenIndex, tokenSymbol: state.symbolicName,
 			tokenRule: state.lexerSymbolicName, ruleName: state.ruleName,
-			text: state.literalText, channel: state.tokenChannel, ruleHistory: state.ruleHistory
+			text: state.literalText ?? '', channel: state.tokenChannel ?? 0,
+			ruleHistory: state.ruleHistory, line: ctxOrToken.line,
+			column: ctxOrToken.column, type: ctxOrToken.type, start: ctxOrToken.start,
+			stop: ctxOrToken.stop,
 		};
 
 		for(const associationKey in ROSETTA_NEIGHBORHOOD_ASSOCIATIONS)
@@ -264,31 +272,13 @@ function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, token
 
 
 /**
- *
- * @param {*} lexer
- * @param {string} tokenType
- * @returns
- */
-function _resolveTokenTypeName(lexer, tokenType)
-{
-	const Ctor = lexer.constructor;
-	const symbolicNames = Ctor.symbolicNames || lexer.symbolicNames;
-	const literalNames = Ctor.literalNames || lexer.literalNames;
-
-	if(symbolicNames && symbolicNames[tokenType]) return symbolicNames[tokenType];
-	if(literalNames && literalNames[tokenType]) return literalNames[tokenType];
-	return `type_${tokenType}`;
-}
-
-
-/**
  * Builds the comprehensive token payload combined with verified grammar metadata
  * @param {import('./rosetta.d').AntlrToken} token
  * @param {string} rawTypeName
  * @param {string} classification
  * @param {string} lowerType
- * @param {*} lexer
- * @param {*} parser
+ * @param {import('antlr4').Lexer} lexer
+ * @param {import('antlr4').Parser} parser
  * @param {*} ctx
  * @returns
  */

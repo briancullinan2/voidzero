@@ -7,12 +7,19 @@
  */
 
 
+/** @type {MessagePort} */
 let port;
 
 
 /** @type {Worker & import('./rosetta.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 
+/**
+ *
+ * @param {string} sourceText
+ * @param {string} languageKey
+ * @returns {import('antlr4').Lexer | null}
+ */
 function createLexerInstance(sourceText, languageKey)
 {
 	if(!languageKey) return null;
@@ -26,7 +33,7 @@ function createLexerInstance(sourceText, languageKey)
 	// Sane localized compiler overrides map
 	if(!LexerCtor)
 	{
-		if(cleanKey === 'python') LexerCtor = AntlrRegistry['python3_lexer'];
+		if(cleanKey === 'python') LexerCtor = workerSelf.AntlrRegistry['python3_lexer'];
 	}
 
 	if(!LexerCtor)
@@ -35,7 +42,7 @@ function createLexerInstance(sourceText, languageKey)
 		return null;
 	}
 
-	const antlr = AntlrRegistry.antlr4;
+	const antlr = workerSelf.AntlrRegistry.antlr4;
 	let chars;
 	try
 	{
@@ -43,7 +50,7 @@ function createLexerInstance(sourceText, languageKey)
 			? antlr.CharStreams.fromString(sourceText)
 			: new antlr.InputStream(sourceText);
 
-		if(LexerCtor.normalizeInputStream && typeof LexerCtor.normalizeInputStream === 'function')
+		if('normalizeInputStream' in LexerCtor && typeof LexerCtor.normalizeInputStream === 'function')
 		{
 			chars = LexerCtor.normalizeInputStream(chars);
 		} else if(LexerCtor.prototype && Object.getPrototypeOf(LexerCtor.prototype).constructor.normalizeInputStream)
@@ -79,12 +86,15 @@ function createLexerInstance(sourceText, languageKey)
 		}
 		*/
 
-		return lexer;
+		if(lexer instanceof workerSelf.AntlrRegistry.antlr4.Lexer)
+		{
+			return lexer;
+		}
 	} catch(e)
 	{
 		console.error(`[Worker] Failed to spin up ANTLR string stream for look-up '${lookupKey}':`, e);
-		return null;
 	}
+	return null;
 }
 
 /**
@@ -127,9 +137,8 @@ function preprocessSourceText(sourceText, languageKey, onResolveInclude, onError
 
 	let expandedText = "";
 	let token = lexer.nextToken();
-	const antlr = AntlrRegistry.antlr4;
 
-	while(token.type !== antlr.Token.EOF)
+	while(token.type !== workerSelf.AntlrRegistry.antlr4.Token.EOF)
 	{
 		const rawTypeName = _resolveTokenTypeName(lexer, token.type);
 
@@ -160,11 +169,8 @@ function preprocessSourceText(sourceText, languageKey, onResolveInclude, onError
 					} catch(err)
 					{
 						// Track missing dependencies in a global context register for the token mapper to read
-						if(typeof window !== 'undefined')
-						{
-							window.__missingHeaders = window.__missingHeaders || new Set();
-							window.__missingHeaders.add(targetFileName);
-						}
+						workerSelf.__missingHeaders = workerSelf.__missingHeaders || new Set();
+						workerSelf.__missingHeaders.add(targetFileName);
 						expandedText += `\n/* Missing Header Dependency: ${targetFileName} */\n`;
 						onErrorFound({ line: token.start.line, column: token.start.column, message: err.message });
 					}
@@ -182,6 +188,13 @@ function preprocessSourceText(sourceText, languageKey, onResolveInclude, onError
 	return expandedText;
 }
 
+/**
+ *
+ * @param {string} sourceText
+ * @param {string} languageKey
+ * @param {number} targetLine
+ * @returns
+ */
 function getTokensForLine(sourceText, languageKey, targetLine)
 {
 	const lexer = createLexerInstance(sourceText, languageKey);
@@ -189,7 +202,7 @@ function getTokensForLine(sourceText, languageKey, targetLine)
 
 	const lineTokens = [];
 	let token = lexer.nextToken();
-	const eof = AntlrRegistry.antlr4.Token.EOF;
+	const eof = workerSelf.AntlrRegistry.antlr4.Token.EOF;
 
 	while(token.type !== eof)
 	{
@@ -211,47 +224,59 @@ function getTokensForLine(sourceText, languageKey, targetLine)
 }
 
 
-const onAnyMessage = async event =>
-{
-	const { id, data, responseId } = event.data;
-	if(!id) return;
-	let output = null;
-
-	try
+const onAnyMessage =
+	/** @param {MessageEvent | {data: any}} event */
+	async event =>
 	{
-		switch(id)
+		const { id, data, responseId } = event.data;
+		if(!id) return;
+		let output = null;
+
+		try
 		{
-			case 'constructor':
-				port = event.data.data;
-				port.onmessage = onAnyMessage;
+			switch(id)
+			{
+				case 'constructor':
+					port = event.data.data;
+					port.onmessage = onAnyMessage;
 
-				self.language = {
-					lineToken: async (text, language, line) => await self.onmessage({ id: 'lineToken', data: { text, language, line } }),
-				};
-				return;
+					self.language = {
+						lineToken:
+							/**
+							 *
+							 * @param {string} text
+							 * @param {string} language
+							 * @param {number} line
+							 * @returns
+							 */
+							async (text, language, line) => await onAnyMessage({
+								data: { id: 'lineToken', text, language, line }
+							}),
+					};
+					return;
 
-			case 'lineToken':
-				output = getTokensForLine(data.text, data.language, data.line);
-				break;
+				case 'lineToken':
+					output = getTokensForLine(data.text, data.language, data.line);
+					break;
 
-			case 'folds':
-				output = getFoldRegions(data.text, data.language);
-				break;
+				case 'folds':
+					output = getFoldRegions(data.text, data.language);
+					break;
 
-			default:
-				output = { status: 'unhandled_command' };
-				break;
-		}
-	} catch(e)
-	{
-		output = { error: e.toString(), stack: e.stack };
-	} finally
-	{
-		if(port && id !== 'constructor')
+				default:
+					output = { status: 'unhandled_command' };
+					break;
+			}
+		} catch(/** @type {any} */ e)
 		{
-			port.postMessage({ id: 'runAsync', responseId, data: output });
+			output = { error: e.toString(), stack: e.stack };
+		} finally
+		{
+			if(port && id !== 'constructor')
+			{
+				port.postMessage({ id: 'runAsync', responseId, data: output });
+			}
 		}
-	}
-};
+	};
 
 self.addEventListener('message', onAnyMessage);

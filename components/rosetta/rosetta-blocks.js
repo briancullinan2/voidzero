@@ -246,7 +246,7 @@ function extractCurrentBlock(codeStr, lineNumber, langId)
 			continue;
 		}
 
-		if(!rules.isKeywordClose)
+		if(!rules.isKeywordClose && typeof rules.close === 'string')
 		{
 			const openChar = rules.close[0] || '{';
 			const closeChar = rules.close[1] || '}';
@@ -269,7 +269,7 @@ function extractCurrentBlock(codeStr, lineNumber, langId)
 					break rowLoop;
 				}
 			}
-		} else
+		} else if(rules.close instanceof RegExp)
 		{
 			rules.open.lastIndex = 0;
 			if(rules.open.test(text)) { depth++; blockStarted = true; }
@@ -386,6 +386,7 @@ class AntlrBlockCollectorVisitor
  */
 function getFoldRegions(sourceText, languageKey)
 {
+	/** @type {import('antlr4').Lexer | null} */
 	const lexer = createLexerInstance(sourceText, languageKey);
 	if(!lexer) return [];
 
@@ -393,7 +394,7 @@ function getFoldRegions(sourceText, languageKey)
 	const braceStack = [];
 	const preprocessorStack = [];
 	let token = lexer.nextToken();
-	const eof = AntlrRegistry.antlr4.Token.EOF;
+	const eof = workerSelf.AntlrRegistry.antlr4.Token.EOF;
 
 	while(token.type !== eof)
 	{
@@ -436,3 +437,25 @@ function getFoldRegions(sourceText, languageKey)
 	}
 	return folds;
 }
+
+
+
+
+/**
+ *
+ * @param {import('antlr4').Lexer} lexer
+ * @param {number} tokenType
+ * @returns
+ */
+function _resolveTokenTypeName(lexer, tokenType)
+{
+	const Ctor = lexer.constructor;
+	const symbolicNames = Ctor.symbolicNames || lexer.symbolicNames;
+	const literalNames = Ctor.literalNames || lexer.literalNames;
+
+	if(symbolicNames && symbolicNames[tokenType]) return symbolicNames[tokenType];
+	if(literalNames && literalNames[tokenType]) return literalNames[tokenType];
+	return `type_${tokenType}`;
+}
+
+

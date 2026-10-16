@@ -26,7 +26,7 @@ export const ROSETTA_NEIGHBORHOOD_ASSOCIATIONS = {
 	// =====================================================================
 	// 2. EXPRESSIONS, FUNCTION INVOCATIONS, & BUILT-INS (6.5)
 	// =====================================================================
-	"is_function_call": (t, s) => (!t.tokenSymbol?.includes('Identifier') && t.tokenRule !== 'Identifier') ? null : (s?.[t.tokenIndex + 1]?.text === '(' || ['LeftParen'].includes(s?.[t.tokenIndex + 1]?.tokenSymbol) || t.ruleHistory?.some(r => ['postfixexpression', 'primaryexpression'].includes(r.toLowerCase()))) ? "function.support.function" : null,
+	"is_function_call": (t, s) => (!t.tokenSymbol?.includes('Identifier') && t.tokenRule !== 'Identifier') ? null : (s?.[t.tokenIndex + 1]?.text === '(' || ['LeftParen'].includes(s?.[t.tokenIndex + 1]?.tokenSymbol ?? '') || t.ruleHistory?.some(r => ['postfixexpression', 'primaryexpression'].includes(r.toLowerCase()))) ? "function.support.function" : null,
 
 	"is_member_access": (t, s) => (!t.tokenSymbol?.includes('Identifier')) ? null : (['.', '->'].includes(s?.[t.tokenIndex - 1]?.text) || t.ruleHistory?.some(r => r.toLowerCase().includes('postfixexpression') && ['.', '->'].includes(s?.[t.tokenIndex - 1]?.text))) ? "variable.other.member" : null,
 
@@ -120,7 +120,7 @@ export const ROSETTA_NEIGHBORHOOD_ASSOCIATIONS = {
 
 	"is_json_value": (t, s) => (t.ruleName === 'jsonValue' || t.ruleHistory?.some(r => r.toLowerCase().includes('jsonvalue')) || (s?.[t.tokenIndex - 1]?.text === ':' && !t.tokenSymbol?.includes('Identifier'))) ? "string.value" : null,
 
-	"is_constant_numeric_literal": (t, s) => (['IntegerConstant', 'FloatingConstant', 'CharacterConstant', 'DigitSequence'].includes(t.tokenRule) || ['true', 'false', 'nullptr', 'NULL'].includes(t.text) || t.ruleHistory?.some(r => r.toLowerCase().includes('constant')) || t.tokenSymbol?.toLowerCase().includes('constant') || t.tokenSymbol?.toLowerCase().includes('numeric') || t.tokenSymbol?.toLowerCase().includes('digit')) ? "constant.numeric" : null,
+	"is_constant_numeric_literal": (t, s) => (['IntegerConstant', 'FloatingConstant', 'CharacterConstant', 'DigitSequence'].includes(t.tokenRule ?? '') || ['true', 'false', 'nullptr', 'NULL'].includes(t.text) || t.ruleHistory?.some(r => r.toLowerCase().includes('constant')) || t.tokenSymbol?.toLowerCase().includes('constant') || t.tokenSymbol?.toLowerCase().includes('numeric') || t.tokenSymbol?.toLowerCase().includes('digit')) ? "constant.numeric" : null,
 
 	"is_catchall_variable_fallback": (t, s) => (t.tokenSymbol?.includes('Identifier') || t.tokenRule === 'Identifier' || t.ruleName === 'identifier') ? "variable.other" : null
 };

@@ -1,5 +1,5 @@
 // @ts-check
-import antlr4 from 'antlr4';
+
 // import { PreprocessorLexer } from './antlr-languages.bundle';
 
 // A minimal lookahead map of tokens that CANNOT start a expression line
@@ -9,7 +9,7 @@ const UNSAFE_LINE_STARTERS = ['[', '(', '`', '/', '+', '-'];
 
 /**
  *
- * @param {*} tokenStream
+ * @param {import('antlr4').CommonTokenStream} tokenStream
  * @returns
  */
 function processJavaScriptASI(tokenStream)
@@ -76,13 +76,13 @@ function processJavaScriptASI(tokenStream)
 		self.postMessage({ type: "asiDiagnosticsDiscovered", errors: asiErrors });
 	}
 
-	return new antlr4.CommonTokenStream(new VirtualTokenSource(modifiedTokens));
+	return new workerSelf.AntlrRegistry.antlr4.CommonTokenStream(new VirtualTokenSource(modifiedTokens));
 }
 
 /**
  *
- * @param {*} current
- * @param {*} next
+ * @param {import('antlr4').Token} current
+ * @param {import('antlr4').Token} next
  * @returns
  */
 function requiresImplicitSemicolon(current, next)

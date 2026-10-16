@@ -148,9 +148,9 @@ function processSyntaxError(lines, annotations, syntaxError)
 /**
  *
  * @param {string[]} lines
- * @param {*} tokenStream
- * @param {*} languageKey
- * @param {*} annotations
+ * @param {import('antlr4').CommonTokenStream} tokenStream
+ * @param {string} languageKey
+ * @param {import('./rosetta.d').ParserEvent[]} annotations
  * @param {import('antlr4').Lexer} lexer
  * @param {*} emitter
  * @returns
@@ -162,15 +162,15 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 
 	const cleanKey = languageKey.toLowerCase().trim();
 	const lookupKey = `${cleanKey}_parser`;
-	let ParserCtor = AntlrRegistry[lookupKey];
+	let ParserCtor = workerSelf.AntlrRegistry[lookupKey];
 	if(!ParserCtor) return [semanticOverrides, null];
 
 	const parser = new ParserCtor(tokenStream);
 	parser.removeErrorListeners();
 
-	if(parser._interp && AntlrRegistry.antlr4?.atn?.PredictionMode)
+	if(parser._interp && workerSelf.AntlrRegistry.antlr4?.PredictionMode)
 	{
-		parser._interp.predictionMode = AntlrRegistry.antlr4.atn.PredictionMode.LL;
+		parser._interp.predictionMode = workerSelf.AntlrRegistry.antlr4.PredictionMode.LL;
 	}
 
 	// --- STEP 1: WIRE UP SYNTAX ERROR LISTENERS FOR THE UX ---
@@ -206,7 +206,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 				});
 			}
 
-			if(offendingSymbol && typeof offendingSymbol.start === 'number')
+			if(typeof offendingSymbol === 'object' && typeof offendingSymbol.start === 'number')
 			{
 				const errorScope = "text.syntax_error.err_notfound.annotation_required";
 				semanticOverrides.set(offendingSymbol.start, errorScope);
@@ -218,8 +218,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 
 
 	// --- STEP 2: CUSTOM ERROR STRATEGY FOR SOFT ERROR ABSORPTION ---
-	const ErrorNamespace = AntlrRegistry.antlr4?.error || {};
-	const BaseStrategy = ErrorNamespace.DefaultErrorStrategy;
+	const BaseStrategy = workerSelf.AntlrRegistry.antlr4?.DefaultErrorStrategy ?? {};
 
 	let customStrategyInstance;
 
@@ -250,7 +249,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 	} else
 	{
 		// Safe fallback if the registry isn't fully structured
-		const BailStrategy = ErrorNamespace.BailErrorStrategy;
+		const BailStrategy = workerSelf.AntlrRegistry.antlr4?.BailErrorStrategy;
 		customStrategyInstance = BailStrategy ? new BailStrategy() : null;
 	}
 
@@ -279,6 +278,12 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 	if(tree)
 	{
 		const transmittedLines = new Set();
+		/**
+		 *
+		 * @param {import('antlr4').Token} token
+		 * @param {Record<number, import('./rosetta.d').AntlrToken[]>} chunkObj
+		 * @returns
+		 */
 		const processTokenIntoChunk = (token, chunkObj) =>
 		{
 			let tokenText = token.text || "";
@@ -434,7 +439,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 			visitErrorNode: function (node) { }
 		};
 
-		const walker = new AntlrRegistry.antlr4.tree.ParseTreeWalker();
+		const walker = new workerSelf.AntlrRegistry.antlr4.ParseTreeWalker();
 		walker.walk(configurationListener, tree);
 
 		// ─── FINAL BASELINE SWEEP ───
@@ -448,7 +453,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 
 		allTokens.forEach(token =>
 		{
-			if(!token || token.type === AntlrRegistry.antlr4.Token.EOF) return;
+			if(!token || token.type === workerSelf.AntlrRegistry.antlr4.Token.EOF) return;
 
 			const tokenRow = token.line - 1;
 
@@ -496,7 +501,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
  */
 function runParserPipeline(sourceText, languageKey, annotations, emitter)
 {
-	const antlr = AntlrRegistry.antlr4;
+	const antlr = workerSelf.AntlrRegistry.antlr4;
 
 	// 1. Safe preprocessing phase pass
 	const lines = sourceText.split('\n');
