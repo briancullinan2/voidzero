@@ -1,9 +1,12 @@
 
 // @ts-check
 
+import { _resolveTokenTypeName } from './rosetta-blocks';
+import { toRosettaToken } from './rosetta';
+import { createLexerInstance } from './worker-language';
 
 
-/** @type {Worker & import('./rosetta.d').RosettaWorker} */
+/** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 
 if(typeof window === 'undefined')
@@ -25,8 +28,8 @@ const DIAGNOSTIC_PARSERS = [
 
 		/**
 		 * @param {RegExpMatchArray} match
-		 * @param {import('./rosetta.d').DiagnosticBridge} bridge
-		 * @returns {import('./rosetta.d').DiagnosticsParser}
+		 * @param {import('./rosetta-types.d').DiagnosticBridge} bridge
+		 * @returns {import('./rosetta-types.d').DiagnosticsParser}
 		 */
 		resolve: function (match, bridge)
 		{
@@ -45,8 +48,8 @@ const DIAGNOSTIC_PARSERS = [
 		pattern: /WARNING:\s*([^'\n]+)'\s*instead\s*in\s*shader\s*'([^']+)'|WARNING:\s*unknown\s*general\s*shader\s*parameter\s*'([^']+)'\s*in\s*'([^']+)'/i,
 		/**
 		 * @param {RegExpMatchArray} match
-		 * @param {import('./rosetta.d').DiagnosticBridge} bridge
-		 * @returns {import('./rosetta.d').DiagnosticsParser}
+		 * @param {import('./rosetta-types.d').DiagnosticBridge} bridge
+		 * @returns {import('./rosetta-types.d').DiagnosticsParser}
 		 */
 		resolve: function (match, bridge)
 		{
@@ -72,8 +75,8 @@ const DIAGNOSTIC_PARSERS = [
 		pattern: /(?:Couldn't find image file for shader|WARNING:)\s*([^\s\n]+)(?:\s*not present)?/i,
 		/**
 		 * @param {RegExpMatchArray} match
-		 * @param {import('./rosetta.d').DiagnosticBridge} bridge
-		 * @returns {import('./rosetta.d').DiagnosticsParser}
+		 * @param {import('./rosetta-types.d').DiagnosticBridge} bridge
+		 * @returns {import('./rosetta-types.d').DiagnosticsParser}
 		 */
 		resolve: function (match, bridge)
 		{
@@ -95,8 +98,8 @@ const DIAGNOSTIC_PARSERS = [
 		pattern: /(Leg|Torso|Head)\s*skin\s*load\s*failure:\s*([^\s\n]+)/i,
 		/**
 		 * @param {RegExpMatchArray} match
-		 * @param {import('./rosetta.d').DiagnosticBridge} bridge
-		 * @returns {import('./rosetta.d').DiagnosticsParser}
+		 * @param {import('./rosetta-types.d').DiagnosticBridge} bridge
+		 * @returns {import('./rosetta-types.d').DiagnosticsParser}
 		 */
 		resolve: function (match, bridge)
 		{
@@ -118,7 +121,7 @@ const DIAGNOSTIC_PARSERS = [
 /**
  * Pure transformation callback formatting incoming ANTLR syntax errors
  * @param {string[]} lines
- * @param {import('./rosetta.d').ParserEvent[]} annotations
+ * @param {import('./rosetta-types.d').ParserEvent[]} annotations
  * @param {*} syntaxError
  */
 function processSyntaxError(lines, annotations, syntaxError)
@@ -150,7 +153,7 @@ function processSyntaxError(lines, annotations, syntaxError)
  * @param {string[]} lines
  * @param {import('antlr4').CommonTokenStream} tokenStream
  * @param {string} languageKey
- * @param {import('./rosetta.d').ParserEvent[]} annotations
+ * @param {import('./rosetta-types.d').ParserEvent[]} annotations
  * @param {import('antlr4').Lexer} lexer
  * @param {*} emitter
  * @returns
@@ -162,7 +165,8 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 
 	const cleanKey = languageKey.toLowerCase().trim();
 	const lookupKey = `${cleanKey}_parser`;
-	let ParserCtor = workerSelf.AntlrRegistry[lookupKey];
+	/** @type {typeof import('antlr4').Parser} */
+	let ParserCtor = /** @type {any} */ (workerSelf.AntlrRegistry[lookupKey]);
 	if(!ParserCtor) return [semanticOverrides, null];
 
 	const parser = new ParserCtor(tokenStream);
@@ -175,18 +179,6 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 
 	// --- STEP 1: WIRE UP SYNTAX ERROR LISTENERS FOR THE UX ---
 	parser.addErrorListener({
-		reportAmbiguity: function (recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs)
-		{
-			// Absorb deep SLL prediction branching conflicts silently
-		},
-		reportContextSensitivity: function (recognizer, dfa, startIndex, stopIndex, prediction, configs)
-		{
-			// Absorb fallback optimization logs smoothly
-		},
-		reportAttemptingFullContext: function (recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs)
-		{
-			// CRITICAL PROXIMATE GAP FIX: Satisfies the engine when dropping into deep LL validation
-		},
 		syntaxError: (recognizer, offendingSymbol, line, column, msg) =>
 		{
 
@@ -233,12 +225,22 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 			}
 
 			// Override to handle minor structural deviations quietly
+			/**
+			 *
+			 * @param {import('antlr4').Parser} recognizer
+			 * @param {import('antlr4').RecognitionException} e
+			 */
 			reportNoViableAlternative(recognizer, e)
 			{
 				// Quietly absorb soft alternatives during structural pass
 			}
 
 			// Override to absorb inline token insertion errors silently
+			/**
+			 *
+			 * @param {import('antlr4').Parser} recognizer
+			 * @param {import('antlr4').RecognitionException} e
+			 */
 			reportUnwantedToken(recognizer, e)
 			{
 				// Soft error: keep UX feedback clean by overriding default logging
@@ -281,7 +283,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 		/**
 		 *
 		 * @param {import('antlr4').Token} token
-		 * @param {Record<number, import('./rosetta.d').AntlrToken[]>} chunkObj
+		 * @param {Record<number, import('./rosetta-types.d').AntlrToken[]>} chunkObj
 		 * @returns
 		 */
 		const processTokenIntoChunk = (token, chunkObj) =>
@@ -305,13 +307,13 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 				const rawTypeName = _resolveTokenTypeName ? _resolveTokenTypeName(lexer, token.type) : (lexer.constructor.symbolicNames[token.type] || "text");
 
 				classification = toRosettaToken(
+					token.text,
 					rawTypeName,
-					token.tokenRule,
 					lexer,
 					parser,
 					token,
 					tokenStream,
-					rawTypeName
+					// rawTypeName
 				);
 
 				// Sanitize edge-case token names leaking directly from native grammars
@@ -346,6 +348,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 		let activeBlockTokenLines = [];
 		let activeBlockAnnotations = [];
 
+		/** @type {import('antlr4').ParseTreeListener} */
 		const configurationListener = {
 			enterEveryRule: function (ctx)
 			{
@@ -355,11 +358,13 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 
 			visitTerminal: function (node)
 			{
+				/** @type {import('./rosetta-types.d').AntlrToken} */
 				const token = node.symbol;
 				const ctx = node.parentCtx;
 
 				// 1. RE-ESTABLISH THE INHERITANCE TRACE FOR TO-ROSETTA-TOKEN
 				const ruleHistory = [];
+				/** @type {import('antlr4').ParserRuleContext | undefined} */
 				let currentCtx = ctx;
 				while(currentCtx)
 				{
@@ -390,6 +395,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 				processStructuralFlags(annotations, token);
 			},
 
+			/** @param { import('antlr4').ParserRuleContext } ctx */
 			exitEveryRule: function (ctx)
 			{
 				const ruleName = parser.ruleNames[ctx.ruleIndex];
@@ -416,7 +422,10 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 							ann.row >= (startToken.line - 1) && ann.row <= (stopToken.line - 1)
 						);
 
+						/** @type {Record<number, import('./rosetta-types.d').AntlrToken[]>} */
 						const slicedTokenLines = {};
+
+						/** @type {import('antlr4').Token[]} */
 						const allBlockTokens = tokenStream.getTokens(startIdx, stopToken.tokenIndex);
 
 						allBlockTokens.forEach(token =>
@@ -436,7 +445,9 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 				}
 			},
 
-			visitErrorNode: function (node) { }
+			visitErrorNode:
+				/** @param { import('antlr4').ErrorNode } node */
+				function (node) { }
 		};
 
 		const walker = new workerSelf.AntlrRegistry.antlr4.ParseTreeWalker();
@@ -444,11 +455,16 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 
 		// ─── FINAL BASELINE SWEEP ───
 		// Catch globals, includes, and remaining filespace that sit outside function blocks
+		/** @type {Record<number, import('antlr4').Token[]>} */
 		const globalTokenLinesChunk = {};
 
 		// Use all tokens from the stream natively
+		/** @type {import('antlr4').Token[]} */
 		let allTokens = [];
-		if(typeof tokenStream.getTokens === 'function') allTokens = tokenStream.getTokens();
+		if('getTokens' in tokenStream && typeof tokenStream.getTokens === 'function')
+		{
+			allTokens = tokenStream.getTokens();
+		}
 		if(!allTokens || allTokens.length === 0) allTokens = tokenStream.tokens || [];
 
 		allTokens.forEach(token =>
@@ -484,6 +500,137 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 }
 
 
+/**
+ * Functional collector scanning for lingering tasks or preprocessor channels
+ * @param {import('./rosetta-types.d').ParserEvent[]} annotations
+ * @param {import('./rosetta-types.d').AntlrToken} token
+ */
+function processStructuralFlags(annotations, token)
+{
+	if(token.textType === 'comment'
+		&& (token.text.toLowerCase().includes('todo')
+			|| token.text.toLowerCase().includes('fix'))
+	)
+	{
+		annotations.push({
+			row: token.line - 1,
+			column: token.column,
+			text: "Unresolved task: " + token.text.trim(),
+			type: "info"
+		});
+	}
+	if(token.channel > 1)
+	{
+		annotations.push({
+			row: token.line - 1,
+			column: token.column,
+			text: "Isolated preprocessor block [" + token.type + "]",
+			type: "warning"
+		});
+	}
+}
+
+
+/**
+ *
+ * @param {string} sourceText
+ * @param {string} languageKey
+ * @param {*} onResolveInclude
+ * @param {*} onErrorFound
+ * @returns
+ */
+export function _safePreprocess(sourceText, languageKey, onResolveInclude, onErrorFound)
+{
+	try
+	{
+		return preprocessSourceText(sourceText, languageKey, onResolveInclude, onErrorFound);
+	} catch(e)
+	{
+		console.error("[Preprocessor Crisis] Virtual assembly layer collapsed:", e);
+		return sourceText;
+	}
+}
+
+
+
+/**
+ *
+ * @param {string} sourceText
+ * @param {string} languageKey
+ * @param {*} onResolveInclude
+ * @param {((err: import('./rosetta-types.d').ErrorResult) => void)} onErrorFound
+ * @param {Set<string>} visitedFiles
+ * @returns
+ */
+function preprocessSourceText(sourceText, languageKey, onResolveInclude, onErrorFound, visitedFiles = new Set())
+{
+	if(typeof onResolveInclude !== 'function') return sourceText;
+
+	const lexer = createLexerInstance(sourceText, languageKey);
+	if(!lexer) return sourceText;
+
+	let expandedText = "";
+	let token = lexer.nextToken();
+
+	while(token.type !== workerSelf.AntlrRegistry.antlr4.Token.EOF)
+	{
+		const rawTypeName = _resolveTokenTypeName(lexer, token.type);
+
+
+
+
+		// TODO: resolve header types
+		if(rawTypeName === 'Directive' || token.text.trim().startsWith('#include'))
+		{
+			const includeMatch = token.text.match(/#include\s*["<]([^">]+)[">]/);
+			if(includeMatch && includeMatch[1])
+			{
+				const targetFileName = includeMatch[1].trim();
+
+				if(!visitedFiles.has(targetFileName))
+				{
+					visitedFiles.add(targetFileName);
+					try
+					{
+						const headerContents = onResolveInclude(targetFileName);
+						if(headerContents)
+						{
+							const fullyExpandedHeader = preprocessSourceText(headerContents, languageKey, onResolveInclude, onErrorFound, visitedFiles);
+							expandedText += `\n/* --- Start Unified Include: ${targetFileName} --- */\n`;
+							expandedText += fullyExpandedHeader;
+							expandedText += `\n/* --- End Unified Include: ${targetFileName} --- */\n`;
+						}
+					} catch(err)
+					{
+						// Track missing dependencies in a global context register for the token mapper to read
+						workerSelf.__missingHeaders = workerSelf.__missingHeaders || new Set();
+						workerSelf.__missingHeaders.add(targetFileName);
+						expandedText += `\n/* Missing Header Dependency: ${targetFileName} */\n`;
+						const errorResult = {
+							line: typeof token.start === 'object'
+								&& 'line' in token.start
+								? token.start.line
+								: token.line,
+							column: typeof token.start === 'object'
+								? token.start.column
+								: token.column,
+							message: /** @type {Error} */ (err).message
+						};
+						onErrorFound(errorResult);
+					}
+				}
+			} else
+			{
+				expandedText += token.text;
+			}
+		} else
+		{
+			expandedText += token.text;
+		}
+		token = lexer.nextToken();
+	}
+	return expandedText;
+}
 
 
 /**
@@ -495,18 +642,18 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
  *
  * @param {string} sourceText
  * @param {string} languageKey
- * @param {import('./rosetta.d').ParserEvent[]} annotations
+ * @param {import('./rosetta-types.d').ParserEvent[]} annotations
  * @param {*} emitter
  * @returns
  */
-function runParserPipeline(sourceText, languageKey, annotations, emitter)
+export function runParserPipeline(sourceText, languageKey, annotations, emitter)
 {
 	const antlr = workerSelf.AntlrRegistry.antlr4;
 
 	// 1. Safe preprocessing phase pass
 	const lines = sourceText.split('\n');
 	const unifiedSourceBuffer = _safePreprocess(sourceText, languageKey, null,
-		/** @param {Error} err */
+		/** @param {import('./rosetta-types.d').ErrorResult} err */
 		(err) =>
 		{
 			annotations.push({ row: err.line - 1, column: err.column, text: err.message, type: "error" });
@@ -533,4 +680,5 @@ function runParserPipeline(sourceText, languageKey, annotations, emitter)
 	return parser;
 }
 
+workerSelf.runParserPipeline = runParserPipeline;
 

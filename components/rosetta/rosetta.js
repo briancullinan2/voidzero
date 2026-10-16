@@ -37,6 +37,8 @@ const ACE_COLORED_CLASSES = [
 	"function" // Explicitly included to guarantee rendering dominance
 ];
 
+/** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
+const workerSelf = /** @type {any} */ (self);
 
 /**
  *
@@ -87,14 +89,14 @@ function structuralPartsAccumulatorPush(array, tag)
  * @param {string} ruleName
  * @param {import('antlr4').Lexer} lexer
  * @param {import('antlr4').Parser} parser
- * @param {import('./rosetta.d').AntlrToken} ctxOrToken
+ * @param {import('./rosetta-types.d').AntlrToken} ctxOrToken
  * @param {import('antlr4').CommonTokenStream} tokenStream
  * @returns
  */
-function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, tokenStream)
+export function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, tokenStream)
 {
 	// 1. Setup localized token parsing payload state natively
-	/** @type {import('./rosetta.d').AntlrToken} */
+	/** @type {import('./rosetta-types.d').AntlrToken} */
 	const state = {
 		symbolicName: symbolicName || "", ruleName: ruleName || "",
 		typeInt: null, literalText: "", tokenChannel: 0,
@@ -199,7 +201,9 @@ function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, token
 			const matchResult = ROSETTA_NEIGHBORHOOD_ASSOCIATIONS[associationKey](evaluationPayload, activeStreamTokens);
 			if(matchResult)
 			{
-				matchResult.split('.').forEach(p => structuralPartsAccumulatorPush(contextTokens, p));
+				matchResult.split('.').forEach(
+					/** @param {string} p */
+					p => structuralPartsAccumulatorPush(contextTokens, p));
 			}
 		}
 	}
@@ -273,13 +277,13 @@ function toRosettaToken(symbolicName, ruleName, lexer, parser, ctxOrToken, token
 
 /**
  * Builds the comprehensive token payload combined with verified grammar metadata
- * @param {import('./rosetta.d').AntlrToken} token
+ * @param {import('./rosetta-types.d').AntlrToken} token
  * @param {string} rawTypeName
  * @param {string} classification
  * @param {string} lowerType
  * @param {import('antlr4').Lexer} lexer
  * @param {import('antlr4').Parser} parser
- * @param {*} ctx
+ * @param {import('antlr4').ParserRuleContext} ctx
  * @returns
  */
 function _buildTokenPayload(token, rawTypeName, classification, lowerType, lexer, parser, ctx)

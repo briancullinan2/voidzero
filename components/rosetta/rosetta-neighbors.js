@@ -1,10 +1,10 @@
 // @ts-check
 
-/** @type {Worker & import('./rosetta.d').RosettaWorker} */
+/** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 
 
-/** @type {Record<string, import("./rosetta").RosettaNeighbors>} */
+/** @type {Record<string, import('./rosetta-types.d').RosettaNeighbors>} */
 export const ROSETTA_NEIGHBORHOOD_ASSOCIATIONS = {
 	// =====================================================================
 	// 1. SYSTEM BASE COMPILATION & PRECOMPILER PIPELINES (6.10)

@@ -59,7 +59,7 @@ export function getQVMHeader(sampleBytes, content, filePath)
  *
  * @param {Uint8Array} sampleBytes - Raw application binary array buffer workspace
  * @param {number} rowWidth - Display column byte grouping threshold (typically 8 or 16)
- * @param {import('./rosetta.d').DisassemblyOptions} options - Configuration parameters for windowing and overrides
+ * @param {import('./rosetta-types.d').DisassemblyOptions} options - Configuration parameters for windowing and overrides
  */
 export function renderQvmDisassemblySuite(sampleBytes, rowWidth = 16, options = {})
 {
@@ -73,7 +73,7 @@ export function renderQvmDisassemblySuite(sampleBytes, rowWidth = 16, options = 
 	// =========================================================================
 	// QVM OPCODES DEFINITION MATRIX
 	// =========================================================================
-	/** @type {import('./rosetta.d').DisassemblyOpcodes[]} */
+	/** @type {import('./rosetta-types.d').DisassemblyOpcodes[]} */
 	const QVM_OPCODES = [
 		{ name: 'UNDEF', argLen: 0, type: 'none' }, // 0
 		{ name: 'IGNORE', argLen: 0, type: 'none' }, // 1
@@ -156,7 +156,7 @@ export function renderQvmDisassemblySuite(sampleBytes, rowWidth = 16, options = 
 	// =========================================================================
 	// STEP 1: PARSE THE QVM COMPILATION HEADER
 	// =========================================================================
-	/** @type {import('./rosetta.d').DisassemblyHeader} */
+	/** @type {import('./rosetta-types.d').DisassemblyHeader} */
 	const header = {
 		magic: readU4(0),
 		instructionCount: readU4(4),

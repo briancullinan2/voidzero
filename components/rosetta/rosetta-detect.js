@@ -1,13 +1,13 @@
 
 // @ts-check
 
-/** @type {Worker & import('./rosetta.d').RosettaWorker} */
+/** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 
 // =====================================================================
 // TEXT & SYNTAX-LEVEL DETERMINATIONS WATERFALL REGISTRY
 // =====================================================================
-/** @type { import('./rosetta.d').TextDetector[] } */
+/** @type { import('./rosetta-types.d').TextDetector[] } */
 const TEXT_LANGUAGE_DETECTOR_WATERFALL = [
 	// ─── 1. BINARY & VIRTUAL MACHINE CORE SIGNATURES ───
 	{ id: "wat", match: (s, b) => s.trim().startsWith('(module') || s.includes('(func ') || s.includes('(import "env"') },
@@ -119,7 +119,7 @@ workerSelf.TEXT_LANGUAGE_DETECTOR_WATERFALL = TEXT_LANGUAGE_DETECTOR_WATERFALL;
 // 1. TOP-LEVEL GLOBAL MICRO-UTILITY FUNCTIONS
 // =====================================================================
 /** @type {Record<string, string>} */
-const EXTENSION_TO_PARSER_ID = {
+export const EXTENSION_TO_PARSER_ID = {
 	'abap': 'abap',
 	'abc': 'abc',
 	'ada': 'ada',

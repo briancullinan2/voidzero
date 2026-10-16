@@ -1,4 +1,5 @@
 import type antlr4 from 'antlr4';
+import { ParserRuleContext } from 'antlr4';
 
 export interface RosettaWorker
 {
@@ -11,6 +12,12 @@ export interface RosettaWorker
 	detectBinaryType(sourceBuffer: Buffer | Uint8Array): string;
 	__missingHeaders: Set<string>;
 	AntlrRegistry: { antlr4: typeof antlr4; } & Record<string, typeof antlr4.Parser | typeof antlr4.Lexer>;
+	language: {
+		lineToken(text, language, line): Promise<void>;
+	};
+	activeFileId?: string;
+	antlr4: typeof antlr4;
+	runParserPipeline(sourceText, languageKey, annotations, emitter): void;
 }
 
 
@@ -121,8 +128,8 @@ export interface AntlrToken
 	channel: number;
 	text: string;
 	type: number;
-	start: number;
-	stop: number;
+	start: number | { line: number, column: number; };
+	stop: number | { line: number, column: number; };
 
 	typeInt?: number | null;
 	textType?: string;
@@ -139,6 +146,7 @@ export interface AntlrToken
 	literalText?: string;
 	ruleName?: string;
 	ruleHistory?: string[];
+	contextNode?: ParserRuleContext;
 	tokenChannel?: number;
 	lexerSymbolicName?: string;
 	lexerLiteralName?: string;
@@ -164,4 +172,36 @@ export interface BlockResult
 	endLine: number,
 	startIndex: number,
 	endIndex: number;
+}
+
+export class Mirror
+{
+	constructor(sender: any);
+	sender: any;
+	doc: {
+		getValue(): string;
+		setValue(value: string): void;
+	};
+	setTimeout(timeout: number): void;
+	onUpdate(): void;
+}
+
+declare module "ace/worker/mirror" {
+	Mirror;
+}
+
+
+export interface ErrorResult
+{
+	line: number;
+	column: number;
+	message: string;
+}
+
+
+export interface FoldRegion
+{
+	startRow: number;
+	endRow: number;
+	type: 'comment' | 'preprocessor' | 'brace';
 }

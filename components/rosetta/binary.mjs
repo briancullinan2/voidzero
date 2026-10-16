@@ -16,7 +16,7 @@ import { parseDM3Telemetry } from './binary-q3net';
 import { getQVMHeader } from './binary-qvm';
 
 
-/** @type {import('./rosetta.d').RosettaWorker} */
+/** @type {import('./rosetta-types.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 workerSelf.mime = mime;
 

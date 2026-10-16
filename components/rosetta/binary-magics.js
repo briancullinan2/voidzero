@@ -1,7 +1,7 @@
 
 // @ts-check
 
-/** @type {Worker & import('./rosetta.d').RosettaWorker} */
+/** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 
 export const hasSequentialBinaryRegex = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]{3,}/;
@@ -21,7 +21,7 @@ export function checkMagic(bytes, offset, pattern)
 
 
 /**
- * @type {Record<string, import('./rosetta.d').BinaryDetector>}
+ * @type {Record<string, import('./rosetta-types.d').BinaryDetector>}
  */
 export const BINARY_DETECTOR = {
 	wasm: {
@@ -149,7 +149,7 @@ export const BINARY_DETECTOR = {
 };
 
 /**
- * @type {Record<string, import('./rosetta.d').FileClassDetector>}
+ * @type {Record<string, import('./rosetta-types.d').FileClassDetector>}
  */
 export const AssetInspector = {
 	isActuallyImage: (bytes, path) =>

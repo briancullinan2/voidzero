@@ -648,7 +648,7 @@ export function renderWasmDisassemblySuite(sampleBytes, globalOffset, rowWidth =
  *
  * @param {Uint8Array} sampleBytes - The active chunk of bytes loaded into memory
  * @param {number} rowWidth - Display width layout grid columns (8 or 16)
- * @param {import('./rosetta.d').DisassemblyOptions} options - Configuration adjustments for windowing and overrides
+ * @param {import('./rosetta-types.d').DisassemblyOptions} options - Configuration adjustments for windowing and overrides
  */
 export function renderWasmDisassemblyPrintout(sampleBytes, rowWidth = 16, options = {})
 {

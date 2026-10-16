@@ -61,7 +61,7 @@ export function parseQ3FontDat(bytes)
 	report += ` Q3 FONT DAT PARSER\n`;
 	report += `========================================================================\n\n`;
 
-	/** @type {import('./rosetta.d').Q3Font} */
+	/** @type {import('./rosetta-types.d').Q3Font} */
 	const font = {
 		glyphs: [],
 		glyphScale: 0,
@@ -78,7 +78,7 @@ export function parseQ3FontDat(bytes)
 	// 1. Read all 256 glyph structures
 	for(let i = 0; i < GLYPHS_PER_FONT; i++)
 	{
-		/** @type {import('./rosetta.d').FontGlyph} */
+		/** @type {import('./rosetta-types.d').FontGlyph} */
 		const glyph = {
 			index: i,
 			char: String.fromCharCode(i),

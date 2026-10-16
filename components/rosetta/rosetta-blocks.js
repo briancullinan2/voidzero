@@ -1,6 +1,12 @@
 // @ts-check
 
-/** @type {Record<string, import("./rosetta").BlockDetector>} */
+import { createLexerInstance } from './worker-language';
+
+
+/** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
+const workerSelf = /** @type {any} */ (self);
+
+/** @type {Record<string, import('./rosetta-types.d').BlockDetector>} */
 const ROSETTA_BLOCK_ASSOCIATIONS = {
 	// ─── C-STYLE LANGUAGES: BRACE MATCHING WITH TYPE HEADERS ───
 	c: {
@@ -309,7 +315,7 @@ class AntlrBlockCollectorVisitor
 	constructor(parser)
 	{
 		this.parser = parser;
-		/** @type {import("./rosetta").BlockResult[]} */
+		/** @type {import('./rosetta-types.d').BlockResult[]} */
 		this.blocks = [];
 
 		// Explicit list of known block-defining rule signatures across your 40 languages
@@ -323,6 +329,7 @@ class AntlrBlockCollectorVisitor
 
 	/**
 	 * Entry execution hook to scan the generated AST
+	 * @param {import('antlr4').ParseTree} tree
 	 */
 	collect(tree)
 	{
@@ -333,6 +340,7 @@ class AntlrBlockCollectorVisitor
 
 	/**
 	 * Recursive structural tree walker node pass
+	 * @param {import('antlr4').Token} ctx
 	 */
 	visit(ctx)
 	{
@@ -349,7 +357,7 @@ class AntlrBlockCollectorVisitor
 				const startToken = ctx.start;
 				const endToken = ctx.stop;
 
-				const startLine = startToken.line;
+				const startLine = startToken.line ?? ctx.line;
 				const endLine = endToken.line;
 
 				// Only log and harvest blocks that span across multiple line rows
@@ -384,12 +392,13 @@ class AntlrBlockCollectorVisitor
  * @param {string} languageKey
  * @returns
  */
-function getFoldRegions(sourceText, languageKey)
+export function getFoldRegions(sourceText, languageKey)
 {
 	/** @type {import('antlr4').Lexer | null} */
 	const lexer = createLexerInstance(sourceText, languageKey);
 	if(!lexer) return [];
 
+	/** @type {import('./rosetta-types.d').FoldRegion[]} */
 	const folds = [];
 	const braceStack = [];
 	const preprocessorStack = [];
@@ -445,9 +454,9 @@ function getFoldRegions(sourceText, languageKey)
  *
  * @param {import('antlr4').Lexer} lexer
  * @param {number} tokenType
- * @returns
+ * @returns {string}
  */
-function _resolveTokenTypeName(lexer, tokenType)
+export function _resolveTokenTypeName(lexer, tokenType)
 {
 	const Ctor = lexer.constructor;
 	const symbolicNames = Ctor.symbolicNames || lexer.symbolicNames;
@@ -459,3 +468,285 @@ function _resolveTokenTypeName(lexer, tokenType)
 }
 
 
+
+export const silentDiagnosticObserver = {
+	/**
+	 *
+	 * @param {import('antlr4').Recognizer<import('antlr4').Token>} recognizer
+	 * @param {import('antlr4').Token} offendingSymbol
+	 * @param {number} line
+	 * @param {number} column
+	 * @param {string} msg
+	 * @param {import('antlr4').RecognitionException} e
+	 */
+	syntaxError: function (recognizer, offendingSymbol, line, column, msg, e)
+	{
+		// Quietly absorb syntax markers during visual fold processing runs
+	},
+	/**
+	 *
+	 * @param {import('antlr4').Recognizer<import('antlr4').Token>} recognizer
+	 * @param {*} dfa
+	 * @param {number} startIndex
+	 * @param {number} stopIndex
+	 * @param {*} exact
+	 * @param {*} ambigAlts
+	 * @param {*} configs
+	 */
+	reportAmbiguity: function (recognizer, dfa, startIndex, stopIndex, exact, ambigAlts, configs)
+	{
+		// Absorb deep SLL prediction branching conflicts silently
+	},
+
+	/**
+	 *
+	 * @param {import('antlr4').Recognizer<import('antlr4').Token>} recognizer
+	 * @param {*} dfa
+	 * @param {number} startIndex
+	 * @param {number} stopIndex
+	 * @param {*} conflictingAlts
+	 * @param {*} configs
+	 */
+	reportAttemptingFullContext: function (recognizer, dfa, startIndex, stopIndex, conflictingAlts, configs)
+	{
+		// CRITICAL PROXIMATE GAP FIX: Satisfies the engine when dropping into deep LL validation
+	},
+
+	/**
+	 *
+	 * @param {import('antlr4').Recognizer<import('antlr4').Token>} recognizer
+	 * @param {*} dfa
+	 * @param {number} startIndex
+	 * @param {number} stopIndex
+	 * @param {*} prediction
+	 * @param {*} configs
+	 */
+	reportContextSensitivity: function (recognizer, dfa, startIndex, stopIndex, prediction, configs)
+	{
+		// Absorb fallback optimization logs smoothly
+	}
+};
+
+
+
+/**
+ *
+ * @param {*} msg
+ * @param {AntlrWorker} sender
+ * @returns
+ */
+export function executeGetFoldRegionsCommand(msg, sender)
+{
+	// 1. RECOVER WORKER CONTEXT HOOKS
+	const activeDoc = antlrProcessor.doc || self.doc || (typeof globalDoc !== 'undefined' ? globalDoc : null);
+	if(!activeDoc)
+	{
+		console.warn("[Worker Fold] Execution failed: Active document stream buffer is missing.");
+		return;
+	}
+
+	const codeString = activeDoc.getValue();
+	const languageKey = antlrProcessor.languagekey || workerSelf.languageKey || "c";
+
+	// Resolve core ANTLR library context reference out of the worker global space
+	if(!workerSelf.AntlrRegistry.antlr4 && !workerSelf.antlr4)
+	{
+		console.error("[Worker Fold] Critical Error: ANTLR runtime core library context lost.");
+		return;
+	}
+
+	// 2. PARSER CONSTRUCTION PIPELINE
+	const cleanKey = languageKey.toLowerCase().trim();
+	const lexerLookupKey = `${cleanKey}_lexer`;
+	const parserLookupKey = `${cleanKey}_parser`;
+
+	let LexerCtor = workerSelf.AntlrRegistry[lexerLookupKey];
+	let ParserCtor = workerSelf.AntlrRegistry[parserLookupKey];
+
+	if(!LexerCtor || !ParserCtor)
+	{
+		console.warn(`[Worker Fold] No valid ANTLR grammars registered for language key: ${languageKey}`);
+		return;
+	}
+
+	// Spin up lightweight input char-stream frameworks natively
+	//const chars = new antlrCore.InputStream(codeString);
+	const lexer = createLexerInstance(codeString, languageKey);
+	if(!lexer)
+	{
+		console.error('Lexer not created: ' + languageKey);
+		return;
+	}
+
+	/** @type { import('antlr4').TokenStream & import('antlr4').CharStream } */
+	const tokens = /** @type {any} */ (new workerSelf.AntlrRegistry.antlr4.CommonTokenStream(lexer));
+
+	/** @type {import('antlr4').Parser} */
+	const parser =  /** @type {any} */ (new ParserCtor(tokens));
+
+	// Mute console errors during layout-only block parsing runs
+	parser.removeErrorListeners();
+
+	// Attach the clean listener shell to the parser
+	parser.addErrorListener(silentDiagnosticObserver);
+
+	//parser._interp.predictionMode = AntlrRegistry.antlr4.atn.PredictionMode.SLL;
+	const BailStrategy = workerSelf.AntlrRegistry.antlr4.BailErrorStrategy;
+	const DefaultStrategy = workerSelf.AntlrRegistry.antlr4.DefaultErrorStrategy;
+
+	// 2. Default to DefaultErrorStrategy so the parser attempts syntax recovery
+	// rather than instantly throwing an uncatchable exception on minor token gaps
+	if(DefaultStrategy)
+	{
+		parser._errHandler = new DefaultStrategy();
+	} else if(BailStrategy)
+	{
+		parser._errHandler = new BailStrategy();
+	}
+
+	// 3. GENERATE AST SYNTAX TREE SKELETON
+	let tree = null;
+	try
+	{
+		const targetRules = parser.ruleNames || (parser.constructor && parser.constructor.ruleNames);
+		if(targetRules && targetRules[0] && typeof parser[targetRules[0]] === 'function')
+		{
+			const rootRuleName = targetRules[0]; // Matches base rules like "compilationUnit" or "json"
+			tree = parser[rootRuleName]();
+		}
+	} catch(parseFallbackError)
+	{
+		// If Bail Strategy tripped under SLL, drop back to LL mode quickly for deep checking
+		try
+		{
+			tokens.reset();
+			parser._interp.predictionMode = workerSelf.AntlrRegistry.antlr4.PredictionMode.LL;
+			parser._errHandler = new workerSelf.AntlrRegistry.antlr4.DefaultErrorStrategy();
+			const rootRuleName = parser.ruleNames[0];
+			tree = parser[rootRuleName]();
+		} catch(treeCrash)
+		{
+			console.error("[Worker Fold] Syntax compilation completely blocked context generation: ", treeCrash);
+			return;
+		}
+	}
+
+
+
+	// 4. RUN AGNOSTIC BLOCK HARVEST VISITOR
+	if(tree)
+	{
+		const discoveredBlocks = discoverFoldRegions(parser, tree);
+		// Step 7: Emit processed clean fold structures to the Ace interface
+		sender.emit("foldRegionsCalculated", {
+			fileId: workerSelf.activeFileId || msg.args?.[0] || "active_buffer",
+			blocks: discoveredBlocks
+		});
+	}
+}
+
+
+/**
+ * @param {import('antlr4').Parser} parser
+ * @param {import('antlr4').ParseTree} tree
+ * @returns {import('./rosetta-types.d').BlockResult[]}
+ */
+export function discoverFoldRegions(parser, tree)
+{
+	try
+	{
+		const blockVisitor = new AntlrBlockCollectorVisitor(parser);
+		const rawBlocks = blockVisitor.collect(tree);
+		const checkDoc = antlrProcessor.doc || self.doc || (typeof globalDoc !== 'undefined' ? globalDoc : null);
+
+		if(!checkDoc)
+		{
+			return [];
+		}
+
+		/** @type {import('./rosetta-types.d').BlockResult[]} */
+		const discoveredBlocks = [];
+
+		// Total line count helper to check bounds safely
+		const totalLines = checkDoc.getLength();
+
+		// Step 2: Filter out blocks that don't meet basic size criteria
+		// Rule: Must be at least 5 lines long (inclusive bounds check)
+		const candidates = rawBlocks.filter(b => (b.endLine - b.startLine + 1) >= 5);
+
+		// Step 3: Run filtering & line adjustments
+		for(let i = 0; i < candidates.length; i++)
+		{
+			const b = candidates[i];
+
+			// 1-based to 0-based conversion for Ace Document line indexing
+			const startLineIdx = b.startLine - 1;
+			const endLineIdx = b.endLine - 1;
+
+			// Skip safely if the positions are out of file boundaries
+			if(startLineIdx < 0 || endLineIdx >= totalLines) continue;
+
+			// Step 4: Handle standard JS deep nesting threshold
+			// Filter elements in the original list that are strictly inside this block
+			const internalBlocks = rawBlocks.filter(other =>
+				other !== b &&
+				other.startLine >= b.startLine &&
+				other.endLine <= b.endLine
+			);
+
+			// Skip block if it contains more than 4 nested functional blocks
+			if(internalBlocks.length > 100)
+			{
+
+				continue;
+			}
+
+			// Step 5: Double-stack elimination (De-duplication of identical/near-identical ranges)
+			// Check if we already processed a broader structural rule handling this exact code range
+			const isDuplicate = discoveredBlocks.some(existing =>
+				Math.abs(existing.startLine - b.startLine) <= 1 &&
+				Math.abs(existing.endLine - b.endLine) <= 1
+			);
+			if(isDuplicate) continue;
+
+			// Step 6: Visual Bracket Layout Adjustment
+			const headerLineText = checkDoc.getLine(startLineIdx) || "";
+			let finalStartLine = b.startLine;
+			let finalEndLine = b.endLine;
+
+			// If the starting line contains an opening curly bracket '{',
+			// adjust the fold downward by 1 line so the function signature line remains visible
+			if(headerLineText.includes('{'))
+			{
+				finalStartLine = b.startLine + 1;
+			}
+
+
+			if(checkDoc.getLine(endLineIdx).includes('}')
+				|| checkDoc.getLine(endLineIdx + 1).includes('}')
+			)
+			{
+				finalEndLine = b.endLine - 1;
+			}
+
+			// Final sanity check: ensuring our modifications didn't shrink the fold to less than 2 lines
+			if(b.endLine - finalStartLine >= 2)
+			{
+				discoveredBlocks.push({
+					ruleName: b.ruleName,
+					startLine: finalStartLine,
+					endLine: finalEndLine,
+					startIndex: b.startIndex,
+					endIndex: b.endIndex
+				});
+			}
+		}
+
+		return discoveredBlocks;
+
+	} catch(visitorError)
+	{
+		console.warn("[Worker Fold] AntlrBlockCollectorVisitor invocation error: ", visitorError);
+		return [];
+	}
+}

@@ -30,7 +30,8 @@
 	"include": [
 		"components/bundle/*",
 		"*.d.ts",
-		"**/*.d.ts"
+		"**/*.d.ts",
+		"../jupyter_ops/Resources/Parsers"
 	],
 	"exclude": [
 		"components/terminal/xterm.js",

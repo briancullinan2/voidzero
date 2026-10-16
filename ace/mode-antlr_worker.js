@@ -1,5 +1,5 @@
 
-
+// @ts-check
 
 
 function bridgeApplyCustomWorkerHighlights(tokenLines)
@@ -91,10 +91,10 @@ ace.define("ace/mode/antlr_worker", [
 {
 	"use strict";
 
-	var oop = require("ace/lib/oop");
-	var TextMode = require("ace/mode/text").Mode;
-	var WorkerClient = require("ace/worker/worker_client").WorkerClient;
-	var TextHighlightRules = require("ace/mode/text_highlight_rules").TextHighlightRules;
+	var oop = ace.require("ace/lib/oop");
+	var TextMode = ace.require("ace/mode/text").Mode;
+	var WorkerClient = ace.require("ace/worker/worker_client").WorkerClient;
+	var TextHighlightRules = ace.require("ace/mode/text_highlight_rules").TextHighlightRules;
 
 	var sharedWorkerInstance = null;
 	var activeSession = null;

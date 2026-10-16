@@ -1,6 +1,8 @@
 
 // @ts-check
 
+import { _resolveTokenTypeName, getFoldRegions } from './rosetta-blocks';
+
 /**
  * Copyright 2026 WebAssembly Community Group participants
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,7 +13,7 @@
 let port;
 
 
-/** @type {Worker & import('./rosetta.d').RosettaWorker} */
+/** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 
 /**
@@ -20,7 +22,7 @@ const workerSelf = /** @type {any} */ (self);
  * @param {string} languageKey
  * @returns {import('antlr4').Lexer | null}
  */
-function createLexerInstance(sourceText, languageKey)
+export function createLexerInstance(sourceText, languageKey)
 {
 	if(!languageKey) return null;
 
@@ -97,96 +99,6 @@ function createLexerInstance(sourceText, languageKey)
 	return null;
 }
 
-/**
- *
- * @param {string} sourceText
- * @param {string} languageKey
- * @param {*} onResolveInclude
- * @param {*} onErrorFound
- * @returns
- */
-function _safePreprocess(sourceText, languageKey, onResolveInclude, onErrorFound)
-{
-	try
-	{
-		return preprocessSourceText(sourceText, languageKey, onResolveInclude, onErrorFound);
-	} catch(e)
-	{
-		console.error("[Preprocessor Crisis] Virtual assembly layer collapsed:", e);
-		return sourceText;
-	}
-}
-
-
-
-/**
- *
- * @param {string} sourceText
- * @param {string} languageKey
- * @param {*} onResolveInclude
- * @param {*} onErrorFound
- * @param {Set<string>} visitedFiles
- * @returns
- */
-function preprocessSourceText(sourceText, languageKey, onResolveInclude, onErrorFound, visitedFiles = new Set())
-{
-	if(typeof onResolveInclude !== 'function') return sourceText;
-
-	const lexer = createLexerInstance(sourceText, languageKey);
-	if(!lexer) return sourceText;
-
-	let expandedText = "";
-	let token = lexer.nextToken();
-
-	while(token.type !== workerSelf.AntlrRegistry.antlr4.Token.EOF)
-	{
-		const rawTypeName = _resolveTokenTypeName(lexer, token.type);
-
-
-
-
-		// TODO: resolve header types
-		if(rawTypeName === 'Directive' || token.text.trim().startsWith('#include'))
-		{
-			const includeMatch = token.text.match(/#include\s*["<]([^">]+)[">]/);
-			if(includeMatch && includeMatch[1])
-			{
-				const targetFileName = includeMatch[1].trim();
-
-				if(!visitedFiles.has(targetFileName))
-				{
-					visitedFiles.add(targetFileName);
-					try
-					{
-						const headerContents = onResolveInclude(targetFileName);
-						if(headerContents)
-						{
-							const fullyExpandedHeader = preprocessSourceText(headerContents, languageKey, onResolveInclude, onErrorFound, visitedFiles);
-							expandedText += `\n/* --- Start Unified Include: ${targetFileName} --- */\n`;
-							expandedText += fullyExpandedHeader;
-							expandedText += `\n/* --- End Unified Include: ${targetFileName} --- */\n`;
-						}
-					} catch(err)
-					{
-						// Track missing dependencies in a global context register for the token mapper to read
-						workerSelf.__missingHeaders = workerSelf.__missingHeaders || new Set();
-						workerSelf.__missingHeaders.add(targetFileName);
-						expandedText += `\n/* Missing Header Dependency: ${targetFileName} */\n`;
-						onErrorFound({ line: token.start.line, column: token.start.column, message: err.message });
-					}
-				}
-			} else
-			{
-				expandedText += token.text;
-			}
-		} else
-		{
-			expandedText += token.text;
-		}
-		token = lexer.nextToken();
-	}
-	return expandedText;
-}
 
 /**
  *
@@ -240,7 +152,7 @@ const onAnyMessage =
 					port = event.data.data;
 					port.onmessage = onAnyMessage;
 
-					self.language = {
+					workerSelf.language = {
 						lineToken:
 							/**
 							 *
