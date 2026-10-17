@@ -95,6 +95,7 @@ export class AceEventManager
 
 			editorSelf.ace?.require(["ace/mode/antlr_worker"], (antlrWorkerModule: any) =>
 			{
+				debugger;
 				if(antlrWorkerModule && antlrWorkerModule.switchActiveSession)
 				{
 					antlrWorkerModule.switchActiveSession(e.session);

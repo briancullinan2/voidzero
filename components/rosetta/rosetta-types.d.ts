@@ -11,7 +11,7 @@ export interface ImplementedBackend extends Mirror
 	languageKey: string;
 	activeFileId: string;
 	setTimeout(ms: number): void;
-	sender: Mirror;
+	sender: ImplementedBackend;
 	emit(name: string, data: any): void;
 	doc: Ace.Document;
 	// doc: {
@@ -303,7 +303,7 @@ export interface ImplementedClient // extends AntlrWorkerBackend
 	activeMarkerIds?: number[];
 	activeSession?: AceSession | null;
 	$worker?: Worker | null;
-	attachToDocument?: (session: AceSession) => void;
+	attachToDocument?: (session: Ace.Document) => void;
 	terminate?: () => void;
 	forceTerminate?: () => void;
 	setLanguageTarget?: (file: string) => void;
@@ -314,4 +314,14 @@ export interface ImplementedClient // extends AntlrWorkerBackend
 export interface AceWorkerClient
 {
 	call: (worker: ImplementedClient, deps: string[], workerName: string, namespace: string, targetUrl: string) => void;
+}
+
+
+export interface HilightResult
+{
+	fileId: string,
+	startLine: number,
+	endLine: number,
+	tokenLinesChunk: any[][],
+	annotationsChunk: ParserEvent[];
 }

@@ -99,6 +99,8 @@ self.addEventListener('message', function (e)
 	// Use a localized variable for routing so we don't mutate the raw event object
 	// that Ace's worker-base.js expects to read further down the chain.
 	const commandName = msg.command ?? msg.event;
+	/** @type {Record<string, Function>} */
+	const eventListeners = {};
 
 	// 1. FILTER HIGH-FIDELITY HOOKS
 	if(commandName && ['customHighlightRoute', 'requestAST'].includes(commandName))
@@ -154,7 +156,15 @@ self.addEventListener('message', function (e)
 
 		// Build a dedicated sender pipeline to post events straight back to our frontend instance
 		const cleanSender = {
-			on: function () { },
+			/**
+			 *
+			 * @param {string} event
+			 * @param {any} callback
+			 */
+			on: function (event, callback)
+			{
+				eventListeners[event] = callback;
+			},
 			/**
 			 *
 			 * @param {any} data
@@ -178,6 +188,12 @@ self.addEventListener('message', function (e)
 		// Construct your independent workspace engine instance!
 		workerSelf.antlrProcessor = /** @type {any} */ (new AntlrWorkerBackend(cleanSender));
 		return;
+	}
+
+	if(commandName === "change") // && eventListeners["change"])
+	{
+		debugger;
+		//eventListeners["change"](msg.data);
 	}
 
 	// 3. AUTONOMOUS TUNNELING GATES

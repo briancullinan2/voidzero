@@ -52,6 +52,7 @@ export class AceEditorPool
 			tryLoadingTerminalEditorBridge(editor);
 			editorSelf.ace?.require(["ace/mode/antlr_worker"], (antlrWorkerModule) =>
 			{
+				debugger;
 				if(antlrWorkerModule && antlrWorkerModule.switchActiveSession)
 				{
 					antlrWorkerModule.switchActiveSession(session);

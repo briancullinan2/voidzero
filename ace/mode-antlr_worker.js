@@ -199,6 +199,9 @@ function AntlrWorker(session)
 			handleWorkerFoldRegions(that.activeSession, response.data);
 		}
 	});
+
+	this.attachToDocument?.(session.getDocument());
+
 }
 
 /** @type {import('../components/rosetta/rosetta-types.d').ImplementedClient | null} */
@@ -216,9 +219,9 @@ workerSelf.ace?.define("ace/mode/antlr_worker", [
 ],
 	/**
 	 *
-	 * @param {*} require
-	 * @param {*} exports
-	 * @param {*} module
+	 * @param {(r: string) => void} require
+	 * @param {any} exports
+	 * @param {any} module
 	 */
 	function (require, exports, module)
 	{
@@ -255,7 +258,8 @@ workerSelf.ace?.define("ace/mode/antlr_worker", [
 					//sharedWorkerInstance.detachFromDocument();
 				}
 				sharedWorkerInstance.activeSession = newSession;
-				sharedWorkerInstance.attachToDocument?.(sharedWorkerInstance.activeSession);
+				debugger;
+				sharedWorkerInstance.attachToDocument?.(newSession.getDocument());
 			}
 
 			let modeId = (sharedWorkerInstance.activeSession.getMode()
@@ -285,6 +289,7 @@ workerSelf.ace?.define("ace/mode/antlr_worker", [
 			/** @param {import('../components/editor/widget.d').AceSession} session */
 			this.createWorker = function (session)
 			{
+				debugger;
 				if(!session) return null;
 
 				// Hand off control to the switchActiveSession manager
@@ -363,7 +368,7 @@ function handleWorkerFoldRegions(session, data)
 /**
  *
  * @param {import('../components/editor/widget.d').AceSession} session
- * @param {*} responseData
+ * @param {import('../components/rosetta/rosetta-types.d').HilightResult} responseData
  * @returns
  */
 function handleWorkerStreamHighlight(session, responseData)
@@ -436,7 +441,7 @@ let lastRenderedBoundsKey = "";
 /**
  *
  * @param {import('../components/editor/widget.d').AceSession} session
- * @param {*} responseData
+ * @param {({startLine: number, endLine: number})} responseData
  * @returns
  */
 function handleWorkerBlockHighlight(session, responseData)
