@@ -1,10 +1,13 @@
 
 // @ts-check
 
+import { TEXT_LANGUAGE_DETECTOR_WATERFALL } from './rosetta-detect.mjs';
+
 /** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 
 export const hasSequentialBinaryRegex = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]{3,}/;
+workerSelf.hasSequentialBinaryRegex = hasSequentialBinaryRegex;
 
 /**
  *
@@ -148,6 +151,8 @@ export const BINARY_DETECTOR = {
 	}
 };
 
+workerSelf.BINARY_DETECTOR = BINARY_DETECTOR;
+
 /**
  * @type {Record<string, import('./rosetta-types.d').FileClassDetector>}
  */
@@ -176,7 +181,7 @@ export const AssetInspector = {
 		const sampleStr = decoder.decode(bytes);
 		if(sampleStr)
 		{
-			const matched = workerSelf.TEXT_LANGUAGE_DETECTOR_WATERFALL
+			const matched = TEXT_LANGUAGE_DETECTOR_WATERFALL
 				.find(lang => lang.id.endsWith('map') && lang.match(sampleStr, bytes));
 			if(matched) return true;
 		}
@@ -198,7 +203,7 @@ export const AssetInspector = {
 	}
 };
 
-workerSelf.BINARY_DETECTOR = BINARY_DETECTOR;
+workerSelf.AssetInspector = AssetInspector;
 
 /**
  * Detects the real underlying binary format from an ArrayBuffer or Uint8Array

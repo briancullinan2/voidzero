@@ -2,16 +2,16 @@ import type antlr4 from 'antlr4';
 import type { Lexer, Parser, ParserRuleContext, Token, CommonTokenStream } from 'antlr4';
 import type { Ace } from 'ace-builds';
 import type { AceSession } from '../editor/widget.d';
-import type { AntlrWorkerBackend } from '../../ace/worker-antlr';
-import type { Mime } from 'mime';
+import type mime from 'mime';
+import type { AssetInspector } from './binary-magics.mjs';
 
-export interface ImplementedBackend extends AntlrWorkerBackend, Mirror
+export interface ImplementedBackend extends Mirror
 {
 	// [key: '']: any;
 	languageKey: string;
 	activeFileId: string;
 	setTimeout(ms: number): void;
-	sender: ImplementedBackend;
+	sender: Mirror;
 	emit(name: string, data: any): void;
 	doc: Ace.Document;
 	// doc: {
@@ -28,7 +28,7 @@ export interface ImplementedBackend extends AntlrWorkerBackend, Mirror
 export interface RosettaWorker
 {
 	window: Window | any;
-	mime: typeof Mime;
+	mime: typeof mime;
 	TEXT_LANGUAGE_DETECTOR_WATERFALL: TextDetector[];
 	EXTENSION_TO_PARSER_ID: Record<string, string>;
 	autodetectLanguage(fileText: string, fileBuffer: Buffer): string;
@@ -48,6 +48,9 @@ export interface RosettaWorker
 	executeGetFoldRegionsCommand(msg: { args: any[]; }, sender: ImplementedBackend): void;
 	doc?: Ace.Document;
 	languageKey?: string;
+	AssetInspector?: typeof AssetInspector;
+	hasSequentialBinaryRegex: RegExp;
+	hexDump(sampleBytes: buffer, content: buffer, filePath: string, rowWidth?: number): string;
 }
 
 

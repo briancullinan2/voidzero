@@ -215,7 +215,7 @@ function main(): void
 	const splash = new SplashScreenWidget('Starting Up...');
 	luminoSelf.splashScreen = splash;
 	Widget.attach(splash, document.body);
-	luminoSelf.WebSocketMonitor.initQ3Socks5Networking();
+	WebSocketMonitor.initQ3Socks5Networking();
 	startServiceWorker().then(async () =>
 	{
 		// because scripts depend on service worker injections and TODO: eventually compiling from SW

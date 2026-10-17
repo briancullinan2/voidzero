@@ -67,7 +67,7 @@ async function onUpdate()
  * @this {import('../components/rosetta/rosetta-types').ImplementedBackend}
  * @param {any} sender
  */
-export function AntlrWorkerBackend(sender)
+function AntlrWorkerBackend(sender)
 {
 	/** @type {import('../components/rosetta/rosetta-types.d').Mirror} */
 	const Mirror = ace.require("ace/worker/mirror").Mirror;

@@ -4,13 +4,13 @@ import { filesRepo, GitHubFileEntry, trees } from "./github-types";
 import { FS } from "./global";
 import { DB_STORE_NAME, getDatabaseMetadata, getRecord } from "./local";
 import type { FileRecord } from './local.d';
-import { AssetInspector, hasSequentialBinaryRegex, hexDump } from "../rosetta/rosetta.bundle.js";
 import { triggerPanelRoute } from "./menu";
 import type { LuminoFilesWindow } from "./lumino.d";
 import type { EditorWindow } from "../editor/widget.d";
 import type { AceEditorWidget } from "../editor/widget";
+import type { RosettaWorker } from "../rosetta/rosetta-types";
 
-const luminoSelf: LuminoFilesWindow & EditorWindow = self as unknown as any;
+const luminoSelf: LuminoFilesWindow & EditorWindow & RosettaWorker = self as unknown as any;
 
 export interface PathCandidate
 {
@@ -611,8 +611,8 @@ export class FileManager
 		const decoder = new TextDecoder();
 		const sampleStr = decoder.decode(sampleBytes);
 
-		const isImageFile = AssetInspector.isActuallyImage(sampleBytes, filePath);
-		const isMapFile = AssetInspector.isActuallyMap(sampleBytes, filePath);
+		const isImageFile = luminoSelf.AssetInspector?.isActuallyImage(sampleBytes, filePath) ?? false;
+		const isMapFile = luminoSelf.AssetInspector?.isActuallyMap(sampleBytes, filePath) ?? false;
 
 		let outputString = "";
 
@@ -622,10 +622,10 @@ export class FileManager
 		} else if(isMapFile)
 		{
 			//TODO: await openMap(content, filePath, sampleBytes);
-			outputString = hexDump(sampleBytes, content, filePath);
-		} else if(hasSequentialBinaryRegex.test(sampleStr))
+			outputString = luminoSelf.hexDump(sampleBytes, content, filePath);
+		} else if(luminoSelf.hasSequentialBinaryRegex.test(sampleStr))
 		{
-			outputString = hexDump(sampleBytes, content, filePath);
+			outputString = luminoSelf.hexDump(sampleBytes, content, filePath);
 		} else
 		{
 			outputString = decoder.decode(content);

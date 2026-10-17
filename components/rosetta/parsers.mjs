@@ -213,7 +213,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 	// --- STEP 2: CUSTOM ERROR STRATEGY FOR SOFT ERROR ABSORPTION ---
 	/** @type {import('antlr4').ErrorStrategy | undefined} */
 	let customStrategyInstance = workerSelf.AntlrRegistry.antlr4
-		? new workerSelf.AntlrRegistry.antlr4.BailErrorStrategy
+		? new workerSelf.AntlrRegistry.antlr4.error.BailErrorStrategy
 		: undefined;
 
 	if(!workerSelf.AntlrRegistry.antlr4)
@@ -222,7 +222,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 	}
 
 	// Use modern ES6 class syntax to inherit safely from native class constructors
-	class SoftErrorRecoveryStrategy extends workerSelf.AntlrRegistry.antlr4.ErrorStrategy
+	class SoftErrorRecoveryStrategy extends workerSelf.AntlrRegistry.antlr4.error.DefaultErrorStrategy
 	{
 		constructor()
 		{
@@ -272,7 +272,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 			console.log(`[Worker] Dynamic execution target acquired: parser.${targetRules[0]}()`);
 			if(typeof handler === 'function')
 			{
-				tree = handler();
+				tree = handler.bind(parser)();
 			}
 		}
 	} catch(err)
@@ -462,7 +462,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 				function (node) { }
 		};
 
-		const walker = new workerSelf.AntlrRegistry.antlr4.ParseTreeWalker();
+		const walker = new workerSelf.AntlrRegistry.antlr4.tree.ParseTreeWalker();
 		walker.walk(configurationListener, tree);
 
 		// ─── FINAL BASELINE SWEEP ───

@@ -34,8 +34,7 @@
 	"include": [
 		"components/**/*.js", // Fixed path matching (added /**/)
 		"*.d.ts",
-		"**/*.d.ts",
-		"../jupyter_ops/Resources/Parsers"
+		"**/*.d.ts"
 	],
 	"exclude": [
 		"components/terminal/xterm.js",

@@ -12,6 +12,7 @@ module.exports = {
 	entry: [
 		'./components/rosetta/rosetta.mjs',
 		'./components/rosetta/binary.mjs',
+		'./components/rosetta/parsers.mjs',
 		'./components/rosetta/worker-language.mjs',
 	],
 	target: 'web',

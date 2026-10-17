@@ -53,7 +53,7 @@ function onBridgeHighlight(response)
  * @param {import('../components/editor/widget.d').AceSession} session
  * @param {*} e
  */
-export function onWorkerAnnotate(session, e)
+function onWorkerAnnotate(session, e)
 {
 	let compilerDiagnostics = ace.require("ace/ext/compiler_diagnostics");
 	if(compilerDiagnostics && compilerDiagnostics.getBridge)

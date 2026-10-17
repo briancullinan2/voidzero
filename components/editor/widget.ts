@@ -303,7 +303,6 @@ export class AceEditorWidget extends Widget implements MenuModules
 
 		// Fetch original or structural cache descriptors targeting tracking layers
 		const session = AceEditorPool.getOrCreateAceSession(this._fileId, this._initialContent, this._editor);
-		debugger;
 		tryLoadingTerminalEditorBridge(this._editor);
 		editorSelf.registerAllCommands?.(VSCODE_ACE_MENUS);
 		editorSelf.injectMenus?.(AceEditorWidget.name, VSCODE_ACE_MENUS);

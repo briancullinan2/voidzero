@@ -8,7 +8,7 @@ const workerSelf = /** @type {any} */ (self);
 // TEXT & SYNTAX-LEVEL DETERMINATIONS WATERFALL REGISTRY
 // =====================================================================
 /** @type { import('./rosetta-types.d').TextDetector[] } */
-const TEXT_LANGUAGE_DETECTOR_WATERFALL = [
+export const TEXT_LANGUAGE_DETECTOR_WATERFALL = [
 	// ─── 1. BINARY & VIRTUAL MACHINE CORE SIGNATURES ───
 	{ id: "wat", match: (s, b) => s.trim().startsWith('(module') || s.includes('(func ') || s.includes('(import "env"') },
 	{ id: "wasm", match: (s, b) => b?.[0] === 0x00 && b?.[1] === 0x61 && b?.[2] === 0x73 && b?.[3] === 0x6D },

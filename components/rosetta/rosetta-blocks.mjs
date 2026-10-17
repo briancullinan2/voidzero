@@ -535,10 +535,10 @@ export const silentDiagnosticObserver = {
 /**
  *
  * @param {({args: any[]})} msg
- * @param {import('./rosetta-types.d').ImplementedBackend} sender
+ * @param {import('./rosetta-types.d').ImplementedBackend} backend
  * @returns
  */
-export function executeGetFoldRegionsCommand(msg, sender)
+export function executeGetFoldRegionsCommand(msg, backend)
 {
 	// 1. RECOVER WORKER CONTEXT HOOKS
 	const activeDoc = workerSelf.antlrProcessor?.doc ?? workerSelf.doc;
@@ -594,8 +594,8 @@ export function executeGetFoldRegionsCommand(msg, sender)
 	parser.addErrorListener(silentDiagnosticObserver);
 
 	//parser._interp.predictionMode = AntlrRegistry.antlr4.atn.PredictionMode.SLL;
-	const BailStrategy = workerSelf.AntlrRegistry.antlr4.BailErrorStrategy;
-	const DefaultStrategy = workerSelf.AntlrRegistry.antlr4.DefaultErrorStrategy;
+	const BailStrategy = workerSelf.AntlrRegistry.antlr4.error.BailErrorStrategy;
+	const DefaultStrategy = workerSelf.AntlrRegistry.antlr4.error.DefaultErrorStrategy;
 
 	// 2. Default to DefaultErrorStrategy so the parser attempts syntax recovery
 	// rather than instantly throwing an uncatchable exception on minor token gaps
@@ -616,11 +616,11 @@ export function executeGetFoldRegionsCommand(msg, sender)
 		if(targetRules && targetRules[0]
 			&& targetRules[0] in parser)
 		{
-			const ruleHandler = /** @type {any} */ (parser)[targetRules[0]];
 			const rootRuleName = targetRules[0]; // Matches base rules like "compilationUnit" or "json"
+			const ruleHandler = /** @type {any} */ (parser)[rootRuleName];
 			if(typeof ruleHandler === 'function')
 			{
-				tree = ruleHandler();
+				tree = ruleHandler.bind(parser)();
 			}
 		}
 	} catch(parseFallbackError)
@@ -629,13 +629,13 @@ export function executeGetFoldRegionsCommand(msg, sender)
 		try
 		{
 			tokens.reset();
-			parser._interp.predictionMode = workerSelf.AntlrRegistry.antlr4.PredictionMode.LL;
-			parser._errHandler = new workerSelf.AntlrRegistry.antlr4.DefaultErrorStrategy();
+			parser._interp.predictionMode = workerSelf.AntlrRegistry.antlr4.atn.PredictionMode.LL;
+			parser._errHandler = new workerSelf.AntlrRegistry.antlr4.error.DefaultErrorStrategy();
 			const rootRuleName = parser.ruleNames[0];
 			const ruleHandler = /** @type {any} */ (parser)[rootRuleName];
 			if(typeof ruleHandler === 'function')
 			{
-				tree = ruleHandler();
+				tree = ruleHandler.bind(parser)();
 			}
 		} catch(treeCrash)
 		{
@@ -650,7 +650,7 @@ export function executeGetFoldRegionsCommand(msg, sender)
 	if(tree)
 	{
 		const discoveredBlocks = discoverFoldRegions(parser, tree);
-		sender.emit("foldRegionsCalculated", {
+		backend.sender.emit("foldRegionsCalculated", {
 			fileId: workerSelf.activeFileId ?? msg.args?.[0] ?? "active_buffer",
 			blocks: discoveredBlocks
 		});

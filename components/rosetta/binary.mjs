@@ -14,6 +14,7 @@ import
 } from './binary-q3.mjs';
 import { parseDM3Telemetry } from './binary-q3net.mjs';
 import { getQVMHeader } from './binary-qvm.mjs';
+import './binary-magics.mjs';
 
 
 /** @type {import('./rosetta-types.d').RosettaWorker} */
@@ -104,6 +105,8 @@ export function hexDump(sampleBytes, content, filePath, rowWidth = 16)
 
 	return str;
 }
+
+workerSelf.hexDump = hexDump;
 
 
 
