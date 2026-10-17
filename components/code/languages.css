@@ -3,10 +3,10 @@
 	flex-direction: column;
 	height: 100%;
 	width: 100%;
-	background-color: #0f172a;
+	/* background-color: #0f172a;
 	color: #f8fafc;
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-	font-size: 13px;
+	font-size: 13px; */
 	overflow: hidden;
 }
 
@@ -63,9 +63,9 @@
 
 /* Language Stack Selection List */
 .lang-list-pane {
-	width: 320px;
+	/* width: 320px;
 	background-color: #111827;
-	border-right: 1px solid #334155;
+	border-right: 1px solid #334155; */
 	overflow-y: auto;
 	padding: 12px;
 	display: flex;
@@ -83,6 +83,226 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+}
+
+.lang-item-card .lang-item-icon:before {
+	text-shadow: 1px 2px 3px rgb(from var(--ace-gutter-bg) r g b / 100%);
+}
+
+.lang-item-card[data-id^="0"] .lang-item-icon:before,
+.lang-item-card[data-id^="0"] .lang-item-icon:before {
+	content: "0";
+	display: block;
+}
+
+.lang-item-card[data-id^="1"] .lang-item-icon:before,
+.lang-item-card[data-id^="1"] .lang-item-icon:before {
+	content: "1";
+	display: block;
+}
+
+.lang-item-card[data-id^="2"] .lang-item-icon:before,
+.lang-item-card[data-id^="2"] .lang-item-icon:before {
+	content: "2";
+	display: block;
+}
+
+.lang-item-card[data-id^="3"] .lang-item-icon:before,
+.lang-item-card[data-id^="3"] .lang-item-icon:before {
+	content: "3";
+	display: block;
+}
+
+.lang-item-card[data-id^="4"] .lang-item-icon:before,
+.lang-item-card[data-id^="4"] .lang-item-icon:before {
+	content: "4";
+	display: block;
+}
+
+.lang-item-card[data-id^="5"] .lang-item-icon:before,
+.lang-item-card[data-id^="5"] .lang-item-icon:before {
+	content: "5";
+	display: block;
+}
+
+.lang-item-card[data-id^="6"] .lang-item-icon:before,
+.lang-item-card[data-id^="6"] .lang-item-icon:before {
+	content: "6";
+	display: block;
+}
+
+.lang-item-card[data-id^="7"] .lang-item-icon:before,
+.lang-item-card[data-id^="7"] .lang-item-icon:before {
+	content: "7";
+	display: block;
+}
+
+.lang-item-card[data-id^="8"] .lang-item-icon:before,
+.lang-item-card[data-id^="8"] .lang-item-icon:before {
+	content: "8";
+	display: block;
+}
+
+.lang-item-card[data-id^="9"] .lang-item-icon:before,
+.lang-item-card[data-id^="9"] .lang-item-icon:before {
+	content: "9";
+	display: block;
+}
+
+.lang-item-card[data-id^="A"] .lang-item-icon:before,
+.lang-item-card[data-id^="a"] .lang-item-icon:before {
+	content: "A";
+	display: block;
+}
+
+.lang-item-card[data-id^="B"] .lang-item-icon:before,
+.lang-item-card[data-id^="b"] .lang-item-icon:before {
+	content: "B";
+	display: block;
+}
+
+.lang-item-card[data-id^="C"] .lang-item-icon:before,
+.lang-item-card[data-id^="c"] .lang-item-icon:before {
+	content: "C";
+	display: block;
+}
+
+.lang-item-card[data-id^="D"] .lang-item-icon:before,
+.lang-item-card[data-id^="d"] .lang-item-icon:before {
+	content: "D";
+	display: block;
+}
+
+.lang-item-card[data-id^="E"] .lang-item-icon:before,
+.lang-item-card[data-id^="e"] .lang-item-icon:before {
+	content: "E";
+	display: block;
+}
+
+.lang-item-card[data-id^="F"] .lang-item-icon:before,
+.lang-item-card[data-id^="f"] .lang-item-icon:before {
+	content: "F";
+	display: block;
+}
+
+.lang-item-card[data-id^="G"] .lang-item-icon:before,
+.lang-item-card[data-id^="g"] .lang-item-icon:before {
+	content: "G";
+	display: block;
+}
+
+.lang-item-card[data-id^="H"] .lang-item-icon:before,
+.lang-item-card[data-id^="h"] .lang-item-icon:before {
+	content: "H";
+	display: block;
+}
+
+.lang-item-card[data-id^="I"] .lang-item-icon:before,
+.lang-item-card[data-id^="i"] .lang-item-icon:before {
+	content: "I";
+	display: block;
+}
+
+.lang-item-card[data-id^="J"] .lang-item-icon:before,
+.lang-item-card[data-id^="j"] .lang-item-icon:before {
+	content: "J";
+	display: block;
+}
+
+.lang-item-card[data-id^="K"] .lang-item-icon:before,
+.lang-item-card[data-id^="k"] .lang-item-icon:before {
+	content: "K";
+	display: block;
+}
+
+.lang-item-card[data-id^="L"] .lang-item-icon:before,
+.lang-item-card[data-id^="l"] .lang-item-icon:before {
+	content: "L";
+	display: block;
+}
+
+.lang-item-card[data-id^="M"] .lang-item-icon:before,
+.lang-item-card[data-id^="m"] .lang-item-icon:before {
+	content: "M";
+	display: block;
+}
+
+.lang-item-card[data-id^="N"] .lang-item-icon:before,
+.lang-item-card[data-id^="n"] .lang-item-icon:before {
+	content: "N";
+	display: block;
+}
+
+.lang-item-card[data-id^="O"] .lang-item-icon:before,
+.lang-item-card[data-id^="o"] .lang-item-icon:before {
+	content: "O";
+	display: block;
+}
+
+.lang-item-card[data-id^="P"] .lang-item-icon:before,
+.lang-item-card[data-id^="p"] .lang-item-icon:before {
+	content: "P";
+	display: block;
+}
+
+.lang-item-card[data-id^="Q"] .lang-item-icon:before,
+.lang-item-card[data-id^="q"] .lang-item-icon:before {
+	content: "Q";
+	display: block;
+}
+
+.lang-item-card[data-id^="R"] .lang-item-icon:before,
+.lang-item-card[data-id^="r"] .lang-item-icon:before {
+	content: "R";
+	display: block;
+}
+
+.lang-item-card[data-id^="S"] .lang-item-icon:before,
+.lang-item-card[data-id^="s"] .lang-item-icon:before {
+	content: "S";
+	display: block;
+}
+
+.lang-item-card[data-id^="T"] .lang-item-icon:before,
+.lang-item-card[data-id^="t"] .lang-item-icon:before {
+	content: "T";
+	display: block;
+}
+
+.lang-item-card[data-id^="U"] .lang-item-icon:before,
+.lang-item-card[data-id^="u"] .lang-item-icon:before {
+	content: "U";
+	display: block;
+}
+
+.lang-item-card[data-id^="V"] .lang-item-icon:before,
+.lang-item-card[data-id^="v"] .lang-item-icon:before {
+	content: "V";
+	display: block;
+}
+
+.lang-item-card[data-id^="W"] .lang-item-icon:before,
+.lang-item-card[data-id^="w"] .lang-item-icon:before {
+	content: "W";
+	display: block;
+}
+
+.lang-item-card[data-id^="X"] .lang-item-icon:before,
+.lang-item-card[data-id^="x"] .lang-item-icon:before {
+	content: "X";
+	display: block;
+}
+
+.lang-item-card[data-id^="Y"] .lang-item-icon:before,
+.lang-item-card[data-id^="y"] .lang-item-icon:before {
+	content: "Y";
+	display: block;
+}
+
+.lang-item-card[data-id^="Z"] .lang-item-icon:before,
+.lang-item-card[data-id^="z"] .lang-item-icon:before {
+	content: "Z";
+	display: block;
 }
 
 .lang-item-card:hover {
@@ -128,7 +348,7 @@
 /* Detail Setup Inspector Pane */
 .lang-detail-pane {
 	flex: 1;
-	background-color: #0f172a;
+	/* background-color: #0f172a; */
 	padding: 24px;
 	display: flex;
 	flex-direction: column;
@@ -232,4 +452,16 @@
 
 .lang-action-btn:hover {
 	background-color: #1d4ed8;
+}
+
+
+.lang-empty-state {
+	margin: auto;
+	text-align: center;
+	color: #64748b;
+}
+
+.lang-empty-state i {
+	font-size: 4rem;
+	margin-bottom: 1rem;
 }

@@ -204,6 +204,7 @@ function AntlrWorker(session)
 
 }
 
+
 /** @type {import('../components/rosetta/rosetta-types.d').ImplementedClient | null} */
 let sharedWorkerInstance = null;
 

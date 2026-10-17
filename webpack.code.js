@@ -89,6 +89,10 @@ module.exports = {
 									moduleLocalName: 'SemanticWidget',
 								},
 								{
+									globalName: 'LanguagesWidget',
+									moduleLocalName: 'LanguagesWidget',
+								},
+								{
 									globalName: 'THREE',
 									moduleLocalName: 'THREE',
 								},
@@ -153,6 +157,7 @@ module.exports = {
 					compress: {
 						keep_fnames: true,
 						keep_classnames: true,
+						drop_debugger: false,
 					}
 				},
 			}),

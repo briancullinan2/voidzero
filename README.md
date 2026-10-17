@@ -223,7 +223,7 @@ slightly unnormalized word per path as the key
 * AA-ZZ will be stores with the levenstien distance between all other words from all other stores,
 precomputed, so i can easily add up the values to sort by relevancy.
 * thats 4 tools, search, graph, reverse index, and the llm to convert my prompt to data queries
-* i also wante the graph to show changes between commits, have a way to navigate between branches
+* i also wanted the graph to show changes between commits, have a way to navigate between branches
 and merges. and to filter down and highlight search results and connected nodes, like i can easily
 see in the graph of the entire codebase everywhere that FS is used. this will make sink and bug
 hunting more fun.
@@ -243,3 +243,31 @@ like fork the git client, local databases shows code files pretty like in the fi
 * local browser based MCP where you press CTRL+Space on the code symbol or something and it shows
 you where in the tree it is used and then you start making edits inside the coverflow on a little
 popup next to the node.
+* language analyzer tools, starting with the github supported languages list yaml, filter by
+supported in ace, supported in ANTLR, implemented in either, supported by rosetta has color / lexer
+translations. grab a code sample from rosetta-euler/project euler, show the tree breakdown and
+highlighting features directly through the worker transport without ACE in the middle just for
+posterity not because of anything against putting the full editor on this page. i want to be able
+to use the highlighter independently now that that pipeline works. project euler also has install
+instructions we can parse for out of the readme which is awesome for hot-linking. this would be a
+cool place to start the REPL and show a little step through for the detected parser unit
+translations like function calls and imports pretty much exist in most high level languages so
+those would have a unified API that usable inside of workflow/search/REPL. this is also where i
+could start the CMake/Makefile REPL i wanted for my WASI editor so it can compile any well defined
+app not only quake 3. should be easy to filter and see which languages i can add to ANTLR and which
+languages are missing file associations all the way through to my rosetta parser on the left hand
+side list. all languages available from ANTLR should be enabled by default
+* separate antlr build into language types, databases/logical/declarative so we don't have to
+download all 20MB at once, this is what the install button should reflect, whether the rosetta has
+been cached in IDB.
+* split out babel transpiler into this new API and get it working in service-worker. can service
+workers also start web workers? gemini says yes.
+* use selected ACE theme to color syntax nodes in 3D tree, this should look very beautiful and this
+is how i navigate reality in my head. i mean this B-tree is what my own imagination looks like to
+me. its navigable but also very black. like a broken VR or this old TV in a wooden box, but the
+pixels on the TV are like the drones from the end of Matrix 3. like the pixels are a part of a
+smart matter version of a TV but the pixels are playing the wrong direction i can't see and i have
+to think harder just to spin it around in my head to get down to the detail. i'm literally trying
+to rebuild my imagination into humans smart stones like they asked, but they turn away from me
+anyways.
+
