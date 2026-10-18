@@ -145,7 +145,7 @@ module.exports = {
 		minimize: true,
 		minimizer: [
 			new TerserPlugin({
-				exclude: /.*\.min\.js$/,
+				exclude: /.*\.min\.js$|\/dist\//,
 				parallel: true,
 				terserOptions: {
 					// Prevents name mangling stripping

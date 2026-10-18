@@ -4,6 +4,8 @@ import { Message } from '@lumino/messaging';
 import { load } from 'js-yaml';
 import type { LocalWindow } from '../bundle/local.d';
 import type { GithubWindow } from '../bundle/github.d';
+import JSZip from 'jszip';
+import { marked } from 'marked';
 
 const widgetSelf: WidgetExtensionsWindow & LocalWindow & GithubWindow = self as unknown as any;
 
@@ -66,6 +68,8 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		}
 	];
 	private _loading: Promise<void>;
+	private _loadingDocs?: Promise<string>;
+	private langInstalls: Record<string, string> = {};
 
 	constructor(title?: string, options?: IMainpanelOptions<LanguagesWidget, LanguageRuntime[]>)
 	{
@@ -106,7 +110,56 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 	protected async onAfterAttach(msg: Message): Promise<void>
 	{
 		super.onAfterAttach(msg);
+		this._itemsChanged.emit(this.items);
 		await this._loading;
+		this._loadingDocs = (async () =>
+		{
+			const data = await widgetSelf.cacheFile?.(
+				widgetSelf.DB_STORE_NAME ?? 'FILE_DATA',
+				'seaneshbaugh',
+				'rosetta-euler',
+				'README.md')
+				?? await new JSZip()
+					.loadAsync(await (await fetch('rosetta-euler-master.zip'))
+						.arrayBuffer())
+					.then(zip => zip.file(/README\.md$/i)[0]?.async('text'));
+			if(!data)
+			{
+				return '';
+			} else if(data instanceof ArrayBuffer || data instanceof Uint8Array)
+			{
+				return new TextDecoder().decode(data);
+			} else if(data instanceof FileSystemFileHandle)
+			{
+				return new TextDecoder().decode(await (await data.getFile()).arrayBuffer());
+			} else
+			{
+				return '';
+			}
+		})();
+		const readMe = await this._loadingDocs;
+		if(readMe)
+		{
+			this.langInstalls = {};
+			readMe.split(/^###\s+/gmi).slice(1)
+				.forEach(section =>
+				{
+					const split = section.split('\n');
+					const lang = split[0].trim();
+					if(lang.length > 0)
+					{
+						this.langInstalls[lang] = split.slice(1).join('\n').trim();
+
+						for(const i of this.items)
+						{
+							if(i.label === lang || i.ace_mode?.toLowerCase() === lang.toLowerCase())
+							{
+								i.subtext = this.langInstalls[lang];
+							}
+						}
+					}
+				});
+		}
 		this._itemsChanged.emit(this.items);
 	}
 
@@ -115,7 +168,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		return this.items.find(i => i.id === this._selectedItemId);
 	}
 
-	protected filterAndRender()
+	protected async filterAndRender()
 	{
 		const active = this.getActiveLanguage();
 
@@ -143,8 +196,8 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 					<div class="lang-description-box">${active.description}</div>
 				</div>
 				<div>
-					<div class="lang-section-title">System Dependencies & Architecture</div>
-					<div class="lang-subtext-box">${active.subtext}</div>
+					<div class="lang-section-title">Setup Instructions</div>
+					<div class="lang-subtext-box">${await marked.parse(active.subtext ?? '')}</div>
 				</div>
 			</div>
 			<div class="lang-manager-footer">
@@ -179,6 +232,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 
 export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<LanguagesWidget, LanguageRuntime>
 {
+	private _filter?: string;
 
 	protected override onAfterAttach(msg: Message): void
 	{
@@ -210,6 +264,12 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 				}
 				this.filterAndRender();
 			}
+
+			if((e.target as HTMLButtonElement).value)
+			{
+				this._filter = (e.target as HTMLButtonElement).value;
+				this.filterAndRender();
+			}
 		});
 	}
 
@@ -220,15 +280,24 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 		this.addClass('lang-list-pane');
 		this.node.innerHTML = `
 			<div class="lang-status-badge">
-                    ${this.items?.filter(l => l.installed).length} Runtimes Active
+				${this.items?.filter(l => l.installed).length} Runtimes Active
 			</div>
-			${this.items?.map(lang => `
+			<div class="lang-filter-pills">
+				<button class="lang-pill" value="install">Install</button>
+				<button class="lang-pill"><i class="bx bx-x"></i> Clear</button>
+			</div>
+		${this.items?.filter(i =>
+		{
+			return !this._filter
+				|| this._filter === 'install' && i.subtext;
+		}).map(lang => `
 			<div class="lang-item-card ${lang.id === this._selectedItemId ? 'active' : ''}" data-id="${lang.id}">
 				<div class="lang-item-info">
 					<i class="${lang.iconClass} lang-item-icon" ${lang.color ? `style="color: ${lang.color};"` : ''}></i>
 					<div>
 						<div class="lang-item-name">${lang.label}</div>
-						<div class="lang-item-version">${lang.version}</div>
+						<div class="lang-item-version">${lang.version ? lang.version + ' ' : ''}
+						${lang.subtext ? '<span class="lang-pill">Install</span>' : ''}</div>
 					</div>
 				</div>
 				<input type="checkbox" class="lang-install-checkbox" data-id="${lang.id}" ${lang.installed ? 'checked' : ''} />
