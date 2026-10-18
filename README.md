@@ -254,11 +254,11 @@ like fork the git client, local databases shows code files pretty like in the fi
 * local browser based MCP where you press CTRL+Space on the code symbol or something and it shows
 you where in the tree it is used and then you start making edits inside the coverflow on a little
 popup next to the node.
-* language analyzer tools, starting with the github supported languages list yaml, filter by
-supported in ace, supported in ANTLR, implemented in either, supported by rosetta has color / lexer
-translations. grab a code sample from rosetta-euler/project euler, show the tree breakdown and
+* language analyzer tools, DONE: starting with the github supported languages list yaml, filter by
+supported in ace, TODO: supported in ANTLR, implemented in either, supported by rosetta has color / lexer
+translations. DONE: grab a code sample from rosetta-euler/project euler, show the tree breakdown and
 highlighting features directly through the worker transport without ACE in the middle just for
-posterity not because of anything against putting the full editor on this page. i want to be able
+posterity not because of anything against putting the full editor on this page. DONE: i want to be able
 to use the highlighter independently now that that pipeline works. project euler also has install
 instructions we can parse for out of the readme which is awesome for hot-linking. this would be a
 cool place to start the REPL and show a little step through for the detected parser unit
@@ -268,6 +268,7 @@ could start the CMake/Makefile REPL i wanted for my WASI editor so it can compil
 app not only quake 3. should be easy to filter and see which languages i can add to ANTLR and which
 languages are missing file associations all the way through to my rosetta parser on the left hand
 side list. all languages available from ANTLR should be enabled by default
+* TODO: display the ANTLR grammar.g4 highlighted for the selected language if it exists
 * separate antlr build into language types, databases/logical/declarative so we don't have to
 download all 20MB at once, this is what the install button should reflect, whether the rosetta has
 been cached in IDB.

@@ -404,12 +404,12 @@
 }
 
 .lang-description-box {
-	background-color: #1e293b;
-	border: 1px solid #334155;
-	border-radius: 8px;
+	background-color: var(--ace-bg, #1e293b);
+	/* border: 1px solid #334155;
+	border-radius: 8px; */
 	padding: 14px;
 	font-size: 13px;
-	color: #cbd5e1;
+	color: var(--ace-foreground, #cbd5e1);
 	line-height: 1.5;
 }
 

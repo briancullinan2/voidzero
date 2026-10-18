@@ -1,4 +1,3 @@
-import { Widget } from '@lumino/widgets';
 import type { IMainpanelOptions, WidgetExtensionsWindow } from '../bundle/widget-extensions';
 import { Message } from '@lumino/messaging';
 import { load } from 'js-yaml';
@@ -6,12 +5,15 @@ import type { LocalWindow } from '../bundle/local.d';
 import type { GithubWindow } from '../bundle/github.d';
 import JSZip from 'jszip';
 import { marked } from 'marked';
-import type { EditorWindow } from '../editor/widget.d';
+import type { AceEditor, EditorWindow } from '../editor/widget.d';
+import type { LuminoLayoutWindow } from '../bundle/lumino.d';
+import type { GlobalToolbarsWindow } from '../bundle/menu.d';
 
-const widgetSelf: EditorWindow & WidgetExtensionsWindow & LocalWindow & GithubWindow = self as unknown as any;
+const widgetSelf: LuminoLayoutWindow & EditorWindow & WidgetExtensionsWindow
+	& GlobalToolbarsWindow & LocalWindow & GithubWindow = self as unknown as any;
 
 
-interface LanguageRuntime
+export interface LanguageRuntime
 {
 	id: string;
 	type?: 'programming' | 'data' | 'markup';
@@ -26,6 +28,14 @@ interface LanguageRuntime
 	installed: boolean;
 	subtext?: string;
 	description?: string;
+}
+
+export interface AceMode
+{
+	name: string;
+	caption: string;
+	extensions: string;
+	mode: string;
 }
 
 
@@ -75,7 +85,9 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 	private _fetchZip?: Promise<ArrayBuffer>;
 	private _loadZip?: Promise<JSZip>;
 	private codeSamples: Record<string, string> = {};
-	private _highlighterCallback?: () => void;
+	private _highlighterCallback?: Promise<void>;
+	private _loadAce: Promise<void>;
+	private modes?: Record<string, AceMode>;
 
 	constructor(title?: string, options?: IMainpanelOptions<LanguagesWidget, LanguageRuntime[]>)
 	{
@@ -89,6 +101,32 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		this._loading = this.loadLanguages();
 		this._loadingDocs = this.loadReadme();
 		this._loadingEuler = this.loadEuler();
+		this._loadAce = this.loadAce();
+	}
+
+
+	private async loadAce()
+	{
+		let aceEditor: AceEditor | undefined = widgetSelf.ace;
+		if(!aceEditor)
+		{
+			await widgetSelf.preloadDependencies?.(['/ace/ace-noconflict.js']);
+			aceEditor = widgetSelf.ace;
+			if(aceEditor)
+			{
+				aceEditor.config.setModuleUrl(
+					"ace/ext/keybinding_menu",
+					"/ace/ext-keybinding_menu.js"
+				);
+				aceEditor.config.set('basePath', '/ace');
+				aceEditor.config.set('modePath', '/ace');
+				aceEditor.config.set('workerPath', '/ace');
+				aceEditor.config.set('themePath', '/ace');
+
+				await this.loadModes();
+				await this.loadTheme();
+			}
+		}
 	}
 
 
@@ -104,14 +142,24 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		{
 			return;
 		}
-		const languages: any | undefined = data instanceof ArrayBuffer
+		const languages: Record<string, LanguageRuntime> = data instanceof ArrayBuffer
 			|| data instanceof Uint8Array
-			? load(new TextDecoder().decode(data))
+			? load(new TextDecoder().decode(data)) as Record<string, LanguageRuntime>
 			: data instanceof FileSystemFileHandle
-				? load(new TextDecoder().decode(await (await data.getFile()).arrayBuffer()))
-				: undefined;
+				? load(new TextDecoder().decode(await (await data.getFile()).arrayBuffer())) as Record<string, LanguageRuntime>
+				: {};
+		await this._loadAce;
 		this.items = Object.keys(languages ?? {}).map(k =>
 		{
+			if(languages[k].ace_mode === 'text')
+			{
+				languages[k].ace_mode = undefined;
+			}
+			if(languages[k].ace_mode)
+			{
+				languages[k].ace_mode = this.modes?.[languages[k].ace_mode]
+					? languages[k].ace_mode : undefined;
+			}
 			languages[k].id = k;
 			languages[k].label = k;
 			return languages[k];
@@ -203,7 +251,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 	}
 
 
-	private async loadSampleCode(codeFolder: string)
+	private async loadSampleCode(codeFolder: string, path: string, item: LanguageRuntime)
 	{
 		// Pick a random problem folder or look through them to gather files
 		const languageFolder = await widgetSelf.loadGitHubTree?.('seaneshbaugh', 'rosetta-euler', 'master', codeFolder);
@@ -220,42 +268,38 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		}
 		const fileNodes = Object.values(subTree ?? {}).filter(node => node.type === 'blob' || node.path);
 
-		// 2. Map items against available extensions and fetch via cacheFile
-		for(const i of this.items ?? [])
+		// Find a file in the tree matching one of this language's extensions
+		const matchedFile = fileNodes.find(node =>
+			item.extensions?.some(ext => node.path.toLowerCase().endsWith(ext.toLowerCase()))
+		);
+
+		if(matchedFile)
 		{
-			const extensions = /** @type {string[]} */ (i.extensions ?? [(i as any).extension ?? '']);
+			// Extract parts of path for cacheFile: owner, repo, filePath
+			const filePath = matchedFile.path.startsWith('/') ? matchedFile.path.slice(1) : matchedFile.path;
 
-			// Find a file in the tree matching one of this language's extensions
-			const matchedFile = fileNodes.find(node =>
-				extensions.some(ext => node.path.toLowerCase().endsWith(ext.toLowerCase()))
-			);
-
-			if(matchedFile)
-			{
-				// Extract parts of path for cacheFile: owner, repo, filePath
-				const filePath = matchedFile.path.startsWith('/') ? matchedFile.path.slice(1) : matchedFile.path;
-
-				let fileContent: string | ArrayBuffer | Uint8Array | FileSystemDirectoryHandle | FileSystemFileHandle | null | undefined = await widgetSelf.cacheFile?.(
+			let fileContent: string | ArrayBuffer | Uint8Array | FileSystemDirectoryHandle
+				| FileSystemFileHandle | null | undefined = await widgetSelf.cacheFile?.(
 					widgetSelf.DB_STORE_NAME ?? 'FILE_DATA',
 					'seaneshbaugh',
 					'rosetta-euler',
-					filePath
+					path + '/' + randomFolder.path + '/' + filePath,
+					null, true
 				);
 
-				if(fileContent instanceof ArrayBuffer || fileContent instanceof Uint8Array)
-				{
-					fileContent = new TextDecoder().decode(fileContent);
-				}
-				if(fileContent instanceof FileSystemFileHandle)
-				{
-					fileContent = new TextDecoder().decode(await (await fileContent.getFile()).arrayBuffer());
-				}
+			if(fileContent instanceof ArrayBuffer || fileContent instanceof Uint8Array)
+			{
+				fileContent = new TextDecoder().decode(fileContent);
+			}
+			if(fileContent instanceof FileSystemFileHandle)
+			{
+				fileContent = new TextDecoder().decode(await (await fileContent.getFile()).arrayBuffer());
+			}
 
-				if(typeof fileContent === 'string')
-				{
-					this.codeSamples[i.label] = fileContent;
-					i.description = fileContent; // Store sample code in i.description as requested
-				}
+			if(typeof fileContent === 'string')
+			{
+				this.codeSamples[item.label.toLowerCase()] = fileContent;
+				item.description = fileContent;
 			}
 		}
 	}
@@ -283,7 +327,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 					|| x.id.toLowerCase() === f.path.toLowerCase());
 				if(item)
 				{
-					fresh.push(this.loadSampleCode(f.sha ?? f.path));
+					fresh.push(this.loadSampleCode(f.sha ?? f.path, f.path, item));
 					break;
 				}
 			}
@@ -339,6 +383,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			this._loading,
 			this._loadingDocs,
 			this._loadingEuler,
+			this._loadAce,
 		]);
 	}
 
@@ -397,32 +442,142 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			return 'Not available. Please enter your own code to view the abstract syntax tree (AST) and parse errors.';
 		}
 
-		this._highlighterCallback = () =>
+		this._highlighterCallback = (async () =>
 		{
+			await this._loadAce;
 			// TODO: initiate worker earlier to also share "rosetta" capable languages
-			const modelist = widgetSelf.ace?.require("ace/ext/modelist");
-			const mode = modelist.modes.find((m: any) => m.extensions.split('|').find((e: string) => active.extensions?.includes(e.toLowerCase())));
-			debugger;
-			const results = this.colorizeCode(active.description ?? '', mode);
-			console.log(results);
-
-		};
+			const mode = Object.values(this.modes ?? {}).find((m: any) =>
+				m.name.toLowerCase() === active.ace_mode
+				|| m.caption.toLowerCase() === active.label
+				|| m.extensions.split('|').find((e: string) =>
+					active.extensions?.includes(e.toLowerCase())));
+			if(mode)
+			{
+				const results = await this.colorizeCode(active.description ?? '', mode.mode ?? '');
+				const description = this.node.querySelector('.lang-description-box');
+				if(description)
+				{
+					description.innerHTML = '<pre class="ace-monokai">'
+						+ this.renderTokensToAceHtml(results) + '</pre>';
+				}
+			}
+		})();
 
 		return '<pre>' + this.escapeHTML(active.description) + '</pre>';
+	}
+
+
+	/**
+	 * Converts Ace token lines into Ace-compatible styled HTML
+	 */
+	private renderTokensToAceHtml(tokenLines: Array<Array<{ type: string, value: string; }>>): string
+	{
+		if(!Array.isArray(tokenLines)) return '';
+
+		return tokenLines.map(lineTokens =>
+		{
+			if(!Array.isArray(lineTokens) || lineTokens.length === 0)
+			{
+				return '<div class="ace_line">&nbsp;</div>';
+			}
+
+			const lineHtml = lineTokens.map(token =>
+			{
+				// 1. Escape HTML entities in the token value for safety
+				const escapedValue = (token.value || '')
+					.replace(/&/g, "&amp;")
+					.replace(/</g, "&lt;")
+					.replace(/>/g, "&gt;")
+					.replace(/"/g, "&quot;")
+					.replace(/'/g, "&#039;");
+
+				// 2. Convert dot-separated token types into Ace classes
+				// e.g. "keyword.control" -> "ace_keyword ace_control"
+				const cssClasses = token.type
+					? token.type.split('.').map(t => `ace_${t}`).join(' ')
+					: 'ace_text';
+
+				return `<span class="${cssClasses}">${escapedValue}</span>`;
+			}).join('');
+
+			return `<div class="ace_line">${lineHtml}</div>`;
+		}).join('');
+	}
+
+
+	private async loadModes()
+	{
+		return await new Promise<Record<string, AceMode> | undefined>(resolve =>
+		{
+			widgetSelf.ace?.config.loadModule(['ext', 'ace/ext/modelist'],
+				(...args: any[]) =>
+				{
+					if(args[0] && args[0].modes instanceof Array)
+					{
+						this.modes = args[0].modes.reduce((obj: Record<string, AceMode>, v: AceMode) =>
+						{
+							obj[v.name] = v;
+							return obj;
+						}, {});
+					}
+					resolve(this.modes);
+				});
+		});
+	}
+
+
+	private async loadTheme()
+	{
+		let theme: string | undefined;
+		theme = await new Promise<string | undefined>(resolve =>
+		{
+			const theme = widgetSelf.settingsManager?.get('editor', 'theme');
+			widgetSelf.ace?.config.loadModule(['theme', theme],
+				function (...args: any[])
+				{
+					const theme = args[0];
+					resolve(theme.cssText);
+				});
+		});
+
+		if(theme)
+		{
+			// Create a style element and inject the theme's CSS rules
+			const styleId = 'ace-theme-css-override';
+			let styleEl = document.getElementById(styleId);
+
+			if(!styleEl)
+			{
+				styleEl = document.createElement('style');
+				styleEl.id = styleId;
+				document.head.appendChild(styleEl);
+			}
+
+			styleEl.textContent = theme;
+		}
 	}
 
 
 	private async colorizeCode(codeString: string, mode: string)
 	{
 		// Require Ace core headless components
-		const Document = widgetSelf.ace?.require("ace/document").Document;
-		const EditSession = widgetSelf.ace?.require("ace/edit_session").EditSession;
+		const Document = widgetSelf.ace?.require('ace/document').Document;
+		const EditSession = widgetSelf.ace?.require('ace/edit_session').EditSession;
 
 		// 1. Create a headless document with your code string
 		const doc = new Document(codeString);
 
+		const languageMode = await new Promise<any>(resolve =>
+		{
+			widgetSelf.ace?.config.loadModule(['mode', mode],
+				(...args: any[]) =>
+				{
+					return resolve(new args[0].Mode());
+				});
+		});
+
 		// 2. Instantiate a session with your desired mode (e.g., JavaScript, Python, etc.)
-		const session = new EditSession(doc, mode);
+		const session = new EditSession(doc, languageMode);
 
 		// 3. Force background tokenizer to compute tokens up to the end
 		session.bgTokenizer.start(0);
@@ -447,7 +602,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 
 	private tokenizeCode(codeString: string, mode: string)
 	{
-		const Tokenizer = widgetSelf.ace?.require("ace/tokenizer").Tokenizer;
+		const Tokenizer = widgetSelf.ace?.require('ace/tokenizer').Tokenizer;
 		const ModeClass = widgetSelf.ace?.require(mode).Mode; // Replace with your mode path
 		const modeInstance = new ModeClass();
 
@@ -547,13 +702,15 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 			<div class="lang-filter-pills">
 				<button class="lang-pill" value="install">Install</button>
 				<button class="lang-pill" value="euler">Euler</button>
+				<button class="lang-pill" value="ace">Ace</button>
 				<button class="lang-pill"><i class="bx bx-x"></i> Clear</button>
 			</div>
 		${this.items?.filter(i =>
 		{
 			return !this._filter
 				|| this._filter === 'install' && i.subtext
-				|| this._filter === 'euler' && i.description;
+				|| this._filter === 'euler' && i.description
+				|| this._filter === 'ace' && i.ace_mode;
 		}).map(lang => `
 			<div class="lang-item-card ${lang.id === this._selectedItemId ? 'active' : ''}" data-id="${lang.id}">
 				<div class="lang-item-info">
@@ -563,6 +720,7 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 						<div class="lang-item-version">${lang.version ? lang.version + ' ' : ''}
 						${lang.subtext ? '<span class="lang-pill">Install</span>' : ''}
 						${lang.description ? '<span class="lang-pill">Euler</span>' : ''}
+						${lang.ace_mode ? '<span class="lang-pill">Ace</span>' : ''}
 						</div>
 					</div>
 				</div>

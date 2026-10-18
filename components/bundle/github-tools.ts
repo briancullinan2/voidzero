@@ -64,7 +64,7 @@ export async function cacheFileInternal(storeName: string, repoOwner: string, re
 
 	try
 	{
-		if(!filesRepo[selected])
+		if(!filesRepo[selected] || !filesRepo[selected][localPath.substring(0, localPath.lastIndexOf('/'))])
 		{
 			const branch = await getDefaultBranch(repoOwner, repoName);
 			await loadGitHubTree(repoOwner, repoName, branch);
