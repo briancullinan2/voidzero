@@ -89,6 +89,7 @@ export async function githubRequest(ownerName: string, repoName: string, url: st
 
 githubSelf.githubRequest = githubRequest;
 
+
 export async function getDefaultBranch(ownerName: string, repo: string): Promise<string>
 {
 	const cacheKey = `${ownerName}/${repo}`;
@@ -167,6 +168,7 @@ export async function githubGraphQL(query: string, variables: Record<string, any
 	return result.data;
 }
 
+
 export async function loadGitHubTree(repoOwner: string, repoName: string, branch: string, path?: string): Promise<Record<string, GitHubFileEntry> | undefined>
 {
 	try
@@ -174,7 +176,7 @@ export async function loadGitHubTree(repoOwner: string, repoName: string, branch
 		const database = `${repoOwner}/${repoName}`;
 		const treeData: { tree: GitHubFileEntry[]; } = (path?.replace(/^[\/\\]|[\/\\]$/ig, '') ?? '').length > 0
 			? await githubRequest(repoOwner, repoName, `git/trees/${path}`)
-			: path ? await githubRequest(repoOwner, repoName, `git/trees/${branch}`)
+			: typeof path !== 'undefined' ? await githubRequest(repoOwner, repoName, `git/trees/${branch}`)
 				: await githubRequest(repoOwner, repoName, `git/trees/${branch}?recursive=1`);
 		const commitData = await githubRequest(repoOwner, repoName, `commits/${branch}`);
 		const buildDate = new Date(commitData.commit.author.date);

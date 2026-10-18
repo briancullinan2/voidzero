@@ -23,7 +23,7 @@ export type AceEditor = typeof Ace & {
 		loadModule: (module: [string, string], callback: () => void) => void;
 		set: (key: string, value: string) => void;
 	};
-	require: (modules: string[], callback: (moduleExports: any) => void) => void;
+	require: (modules: string[] | string, callback?: (moduleExports: any) => void) => any;
 	define: (
 		name: string,
 		deps: string[],

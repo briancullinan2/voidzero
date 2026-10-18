@@ -159,6 +159,17 @@ The system uses a unified build pipeline orchestrated via standard build scripts
 
 ## Project History
 
+### 10/18/2026
+
+![alt text](<Screenshot 2026-10-18 112830.png>)
+
+
+I had this idea i think 8 years ago to make this little tree testing tool. i always thought the
+es-lint style visitor patterns were so verbose, thats why i invented the query selector/XPath code
+tree selector pattern style. finally i will show it off the whole world and zero people will ever
+find it useful, but i'll think it looks cool for a moment.
+
+
 
 ### 10/14/2026
 
