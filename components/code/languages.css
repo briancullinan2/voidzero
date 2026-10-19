@@ -473,3 +473,8 @@
 	border-radius: 8px;
 	font-size: small;
 }
+
+.lang-subtext-box code {
+	max-width: 100%;
+	text-wrap: wrap;
+}

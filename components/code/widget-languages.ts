@@ -8,6 +8,7 @@ import { marked } from 'marked';
 import type { AceEditor, EditorWindow } from '../editor/widget.d';
 import type { LuminoLayoutWindow } from '../bundle/lumino.d';
 import type { GlobalToolbarsWindow } from '../bundle/menu.d';
+import { GitHubFileEntry } from '../bundle/github-types';
 
 const widgetSelf: LuminoLayoutWindow & EditorWindow & WidgetExtensionsWindow
 	& GlobalToolbarsWindow & LocalWindow & GithubWindow = self as unknown as any;
@@ -28,6 +29,7 @@ export interface LanguageRuntime
 	installed: boolean;
 	subtext?: string;
 	description?: string;
+	grammars?: GitHubFileEntry[];
 }
 
 export interface AceMode
@@ -85,9 +87,15 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 	private _fetchZip?: Promise<ArrayBuffer>;
 	private _loadZip?: Promise<JSZip>;
 	private codeSamples: Record<string, string> = {};
+	private loadedGrammars: Record<string, string> = {};
+	private grammarMapping: Record<string, GitHubFileEntry[]> = {};
 	private _highlighterCallback?: Promise<void>;
 	private _loadAce: Promise<void>;
 	private modes?: Record<string, AceMode>;
+	private _loadGrammars: Promise<void>;
+	private folderTree?: Record<string, GitHubFileEntry>;
+	private _fetchGrammars?: Promise<ArrayBuffer>;
+	private _loadGrammarsZip?: Promise<JSZip>;
 
 	constructor(title?: string, options?: IMainpanelOptions<LanguagesWidget, LanguageRuntime[]>)
 	{
@@ -102,6 +110,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		this._loadingDocs = this.loadReadme();
 		this._loadingEuler = this.loadEuler();
 		this._loadAce = this.loadAce();
+		this._loadGrammars = this.loadGrammars();
 	}
 
 
@@ -170,7 +179,15 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 
 	private loadEulerZip(): Promise<JSZip>
 	{
-		this._fetchZip = fetch('3rdparty/rosetta-euler-master.zip').then(response => response.arrayBuffer());
+		this._fetchGrammars = fetch('3rdparty/rosetta-euler-master.zip').then(response => response.arrayBuffer());
+		this._loadGrammarsZip = this._fetchGrammars.then(zip => new JSZip().loadAsync(zip));
+		return this._loadGrammarsZip;
+	}
+
+
+	private loadGrammarZip(): Promise<JSZip>
+	{
+		this._fetchZip = fetch('3rdparty/grammars-v4-master.zip').then(response => response.arrayBuffer());
 		this._loadZip = this._fetchZip.then(zip => new JSZip().loadAsync(zip));
 		return this._loadZip;
 	}
@@ -276,7 +293,9 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		if(matchedFile)
 		{
 			// Extract parts of path for cacheFile: owner, repo, filePath
-			const filePath = matchedFile.path.startsWith('/') ? matchedFile.path.slice(1) : matchedFile.path;
+			const filePath = matchedFile.path.startsWith('/')
+				? matchedFile.path.slice(1)
+				: matchedFile.path;
 
 			let fileContent: string | ArrayBuffer | Uint8Array | FileSystemDirectoryHandle
 				| FileSystemFileHandle | null | undefined = await widgetSelf.cacheFile?.(
@@ -301,6 +320,83 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 				this.codeSamples[item.label.toLowerCase()] = fileContent;
 				item.description = fileContent;
 			}
+		}
+	}
+
+
+	private async loadGrammars()
+	{
+		if(!this.folderTree)
+		{
+			this.folderTree = await widgetSelf.loadGitHubTree?.('antlr', 'grammars-v4', 'master');
+		}
+
+		await this._loading;
+
+		const nodes = Object.values(this.folderTree ?? {});
+		const fileNodes = nodes.filter(node => node.type === 'blob' && node.path?.toLowerCase().endsWith('.g4'));
+		this.items.forEach(item =>
+		{
+			const matchedFiles = fileNodes.filter(node => node.path.startsWith(item.ace_mode + '/')
+				|| node.path.startsWith(item.label.toLowerCase() + '/'));
+			this.grammarMapping[item.label.toLowerCase()] = matchedFiles;
+			item.grammars = matchedFiles;
+		});
+
+		await this.loadGrammarZip();
+
+		// TODO: load them all up front like same codes below?
+	}
+
+
+	private async loadGrammar(codeFolder: string, path: string, item: LanguageRuntime)
+	{
+		// 1. Load the language folder from antlr/grammars-v4
+		if(!this.folderTree)
+		{
+			await this._loadGrammars;
+		}
+		if(!this.folderTree) return;
+
+		const nodes = Object.values(this.folderTree ?? {});
+
+		// Find all blob nodes ending with .g4 at this level
+		const fileNodes = nodes.filter(node => node.type === 'blob' && node.path?.toLowerCase().endsWith('.g4'));
+		const matchedFile = fileNodes.find(node => node.path.startsWith(item.ace_mode + '/')
+			|| node.path.startsWith(item.label.toLowerCase() + '/'));
+
+		if(!matchedFile) return;
+
+		// 3. Construct clean cache path for antlr/grammars-v4
+		const filePath = matchedFile.path.startsWith('/')
+			? matchedFile.path.slice(1)
+			: matchedFile.path;
+		const fullCachePath = path ? `${path}/${filePath}` : filePath;
+
+		let fileContent: string | ArrayBuffer | Uint8Array | FileSystemDirectoryHandle
+			| FileSystemFileHandle | null | undefined = await widgetSelf.cacheFile?.(
+				widgetSelf.DB_STORE_NAME ?? 'FILE_DATA',
+				'antlr',
+				'grammars-v4',
+				fullCachePath,
+				null, true
+			);
+
+		if(fileContent instanceof ArrayBuffer || fileContent instanceof Uint8Array)
+		{
+			fileContent = new TextDecoder().decode(fileContent);
+		}
+		else if(fileContent instanceof FileSystemFileHandle)
+		{
+			fileContent = new TextDecoder().decode(await (await fileContent.getFile()).arrayBuffer());
+		}
+
+		if(typeof fileContent === 'string')
+		{
+			this.loadedGrammars[fullCachePath] = fileContent;
+			debugger;
+			// TODO: insert grammar tabs into details page
+			// item.grammars = fileContent;
 		}
 	}
 
@@ -344,25 +440,28 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			try
 			{
 				const zip = await this.loadEulerZip();
-				if(zip)
+				if(!zip)
 				{
-					for(const i of missingItems)
-					{
-						const extensions = /** @type {string[]} */ (i.extensions ?? []);
-						// Search files inside zip matching extensions
-						for(const ext of extensions)
-						{
-							const matchedZipFile = Object.values(zip.files ?? {}).find(f => f.name.endsWith(ext) && !f.dir);
+					return;
+				}
 
-							if(matchedZipFile)
+				for(const i of missingItems)
+				{
+					const extensions = /** @type {string[]} */ (i.extensions ?? []);
+					// Search files inside zip matching extensions
+					for(const ext of extensions)
+					{
+						const matchedZipFile = Object.values(zip.files ?? {}).find(f => f.name.endsWith(ext) && !f.dir);
+
+						if(matchedZipFile)
+						{
+							// TODO: bail out early and only load text if they click on the language
+							const text = await matchedZipFile.async('text');
+							if(text)
 							{
-								const text = await matchedZipFile.async('text');
-								if(text)
-								{
-									this.codeSamples[i.label] = text;
-									i.description = text;
-									break;
-								}
+								this.codeSamples[i.label] = text;
+								i.description = text;
+								break;
 							}
 						}
 					}
@@ -703,6 +802,7 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 				<button class="lang-pill" value="install">Install</button>
 				<button class="lang-pill" value="euler">Euler</button>
 				<button class="lang-pill" value="ace">Ace</button>
+				<button class="lang-pill" value="grammar">Grammar</button>
 				<button class="lang-pill"><i class="bx bx-x"></i> Clear</button>
 			</div>
 		${this.items?.filter(i =>
@@ -710,7 +810,8 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 			return !this._filter
 				|| this._filter === 'install' && i.subtext
 				|| this._filter === 'euler' && i.description
-				|| this._filter === 'ace' && i.ace_mode;
+				|| this._filter === 'ace' && i.ace_mode
+				|| this._filter === 'grammar' && i.grammars && i.grammars.length > 0;
 		}).map(lang => `
 			<div class="lang-item-card ${lang.id === this._selectedItemId ? 'active' : ''}" data-id="${lang.id}">
 				<div class="lang-item-info">
@@ -721,6 +822,7 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 						${lang.subtext ? '<span class="lang-pill">Install</span>' : ''}
 						${lang.description ? '<span class="lang-pill">Euler</span>' : ''}
 						${lang.ace_mode ? '<span class="lang-pill">Ace</span>' : ''}
+						${lang.grammars && lang.grammars.length > 0 ? '<span class="lang-pill">Grammar</span>' : ''}
 						</div>
 					</div>
 				</div>
