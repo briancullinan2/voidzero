@@ -9,6 +9,7 @@ import type { AceEditor, EditorWindow } from '../editor/widget.d';
 import type { LuminoLayoutWindow } from '../bundle/lumino.d';
 import type { GlobalToolbarsWindow } from '../bundle/menu.d';
 import { GitHubFileEntry } from '../bundle/github-types';
+import { StackedPanel, TabBar, TabPanel, Widget } from '@lumino/widgets';
 
 const widgetSelf: LuminoLayoutWindow & EditorWindow & WidgetExtensionsWindow
 	& GlobalToolbarsWindow & LocalWindow & GithubWindow = self as unknown as any;
@@ -29,7 +30,7 @@ export interface LanguageRuntime
 	installed: boolean;
 	subtext?: string;
 	description?: string;
-	grammars?: GitHubFileEntry[];
+	grammars?: GitHubFileEntry[] | JSZip.JSZipObject[];
 }
 
 export interface AceMode
@@ -87,8 +88,10 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 	private _fetchZip?: Promise<ArrayBuffer>;
 	private _loadZip?: Promise<JSZip>;
 	private codeSamples: Record<string, string> = {};
+	private codeFiles: Record<string, JSZip.JSZipObject> = {};
 	private loadedGrammars: Record<string, string> = {};
 	private grammarMapping: Record<string, GitHubFileEntry[]> = {};
+	private grammarFiles: Record<string, JSZip.JSZipObject[]> = {};
 	private _highlighterCallback?: Promise<void>;
 	private _loadAce: Promise<void>;
 	private modes?: Record<string, AceMode>;
@@ -96,21 +99,115 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 	private folderTree?: Record<string, GitHubFileEntry>;
 	private _fetchGrammars?: Promise<ArrayBuffer>;
 	private _loadGrammarsZip?: Promise<JSZip>;
+	private codeTab?: Widget;
+	private setupTab?: Widget;
+	private tabPanel?: TabPanel;
+	private header?: Widget;
+	private footer?: Widget;
+	private emptyDiv?: HTMLDivElement;
+	private parserTab?: Widget;
+	private lexerTab?: Widget;
 
 	constructor(title?: string, options?: IMainpanelOptions<LanguagesWidget, LanguageRuntime[]>)
 	{
 		super(title ?? 'Supported Languages', options);
 		this.addClass('jp-LanguageManagerWidget');
-		this.filterAndRender();
 		this._sidebarWidget = new LanguageListWidget(LanguageListWidget.name, 'Languages', {
 			itemsChanged: this.itemsChanged
 		});
 		this.addClass('lang-detail-pane');
+		this.buildTabs();
+		this.filterAndRender();
 		this._loading = this.loadLanguages();
 		this._loadingDocs = this.loadReadme();
 		this._loadingEuler = this.loadEuler();
 		this._loadAce = this.loadAce();
 		this._loadGrammars = this.loadGrammars();
+	}
+
+
+	private buildTabs()
+	{
+		// 1. Create the TabPanel
+		this.tabPanel = new TabPanel();
+
+		// 2. Create your content widgets
+		if(!this.codeTab)
+		{
+			this.codeTab = new Widget();
+			this.codeTab.addClass('lang-description-box');
+			this.codeTab.title.label = 'Test Code';
+			this.codeTab.title.iconClass = 'bx bx-code-alt';
+			this.codeTab.node.textContent = 'Content for Tab 1';
+		}
+
+		if(!this.setupTab)
+		{
+
+			this.setupTab = new Widget();
+			this.setupTab.addClass('lang-subtext-box');
+			this.setupTab.title.label = 'Setup Instructions';
+			this.setupTab.title.iconClass = 'bx bx-cursor-click';
+			this.setupTab.node.textContent = 'Content for Tab 2';
+		}
+
+		if(!this.parserTab)
+		{
+
+			this.parserTab = new Widget();
+			this.parserTab.addClass('lang-parser-box');
+			this.parserTab.title.label = 'Parser';
+			this.parserTab.title.iconClass = 'bx bx-lambda';
+			this.parserTab.node.textContent = 'Content for Tab 3';
+		}
+
+		if(!this.lexerTab)
+		{
+
+			this.lexerTab = new Widget();
+			this.lexerTab.addClass('lang-lexer-box');
+			this.lexerTab.title.label = 'Lexer';
+			this.lexerTab.title.iconClass = 'bx bx-letter-spacing-alt';
+			this.lexerTab.node.textContent = 'Content for Tab 4';
+		}
+
+		// or tabPanel.currentIndex = 0;
+		if(!this.header)
+		{
+			this.header = new Widget();
+			this.header.addClass('lang-detail-header');
+		}
+		if(!this.footer)
+		{
+			this.footer = new Widget();
+			this.footer.addClass('lang-manager-footer');
+		}
+
+	}
+
+
+	private unbuildTabs()
+	{
+		if(this.codeTab)
+		{
+			this.tabPanel?.layout?.removeWidget(this.codeTab);
+			this.codeTab.parent = null;
+		}
+		if(this.setupTab)
+		{
+			this.tabPanel?.layout?.removeWidget(this.setupTab);
+			this.setupTab.parent = null;
+		}
+		if(this.parserTab)
+		{
+			this.tabPanel?.layout?.removeWidget(this.parserTab);
+			this.parserTab.parent = null;
+		}
+		if(this.lexerTab)
+		{
+			this.tabPanel?.layout?.removeWidget(this.lexerTab);
+			this.lexerTab.parent = null;
+		}
 	}
 
 
@@ -326,26 +423,62 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 
 	private async loadGrammars()
 	{
-		if(!this.folderTree)
+		try
 		{
-			this.folderTree = await widgetSelf.loadGitHubTree?.('antlr', 'grammars-v4', 'master');
+			if(!this.folderTree)
+			{
+				this.folderTree = await widgetSelf.loadGitHubTree?.('antlr', 'grammars-v4', 'master');
+			}
+
+			await this._loading;
+
+			const nodes = Object.values(this.folderTree ?? {});
+			const fileNodes = nodes.filter(node => node.type === 'blob' && node.path?.toLowerCase().endsWith('.g4'));
+			this.items.forEach(item =>
+			{
+				const matchedFiles = fileNodes.filter(node => node.path.startsWith(item.ace_mode + '/')
+					|| node.path.startsWith(item.label.toLowerCase() + '/'));
+				this.grammarMapping[item.label.toLowerCase()] = matchedFiles;
+				item.grammars = matchedFiles;
+			});
+
+			await this.loadGrammarZip();
+
+		} catch(e)
+		{
+
 		}
+
+		const zip = await this.loadGrammarZip();
+		if(!zip)
+		{
+			return;
+		}
+
+		const languageDirectories = Object.values(zip.files ?? {})
+			.filter(f => f.name.endsWith('.g4'))
+			.reduce((obj: Record<string, JSZip.JSZipObject[]>, i: JSZip.JSZipObject) =>
+			{
+				const code = i.name.replace('grammars-v4-master/', '').split('/')[0] ?? i.name;
+				if(!obj[code])
+				{
+					obj[code] = [];
+				}
+				obj[code].push(i);
+				return obj;
+			}, {});
 
 		await this._loading;
 
-		const nodes = Object.values(this.folderTree ?? {});
-		const fileNodes = nodes.filter(node => node.type === 'blob' && node.path?.toLowerCase().endsWith('.g4'));
-		this.items.forEach(item =>
+		for(const i of this.items ?? [])
 		{
-			const matchedFiles = fileNodes.filter(node => node.path.startsWith(item.ace_mode + '/')
-				|| node.path.startsWith(item.label.toLowerCase() + '/'));
-			this.grammarMapping[item.label.toLowerCase()] = matchedFiles;
-			item.grammars = matchedFiles;
-		});
+			const matchedZipFiles = i.ace_mode
+				? languageDirectories[i.ace_mode]
+				: languageDirectories[i.label.toLowerCase()];
+			i.grammars = matchedZipFiles;
+			this.grammarFiles[i.ace_mode ?? i.label.toLowerCase()] = matchedZipFiles;
+		}
 
-		await this.loadGrammarZip();
-
-		// TODO: load them all up front like same codes below?
 	}
 
 
@@ -409,7 +542,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			const rootTree = await widgetSelf.loadGitHubTree?.('seaneshbaugh', 'rosetta-euler', 'master', '/');
 			const problemFolders = Object.values(rootTree ?? {})
 				.filter(node => node.type === 'tree' || node.path);
-			const fresh = [];
+			const fresh: Promise<void>[] = [];
 			// wait for languages list
 			await this._loading;
 			for(const f of problemFolders)
@@ -423,7 +556,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 					|| x.id.toLowerCase() === f.path.toLowerCase());
 				if(item)
 				{
-					fresh.push(this.loadSampleCode(f.sha ?? f.path, f.path, item));
+					// fresh.push(this.loadSampleCode(f.sha ?? f.path, f.path, item));
 					break;
 				}
 			}
@@ -451,18 +584,22 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 					// Search files inside zip matching extensions
 					for(const ext of extensions)
 					{
-						const matchedZipFile = Object.values(zip.files ?? {}).find(f => f.name.endsWith(ext) && !f.dir);
+						const matchedZipFile = Object.values(zip.files ?? {})
+							.find(f => f.name.endsWith(ext) && !f.dir);
 
 						if(matchedZipFile)
 						{
+							this.codeFiles[matchedZipFile.name] = matchedZipFile;
+							this.codeFiles[i.label] = matchedZipFile;
+							i.description = matchedZipFile.name;
 							// TODO: bail out early and only load text if they click on the language
-							const text = await matchedZipFile.async('text');
-							if(text)
-							{
-								this.codeSamples[i.label] = text;
-								i.description = text;
-								break;
-							}
+							// const text = await matchedZipFile.async('text');
+							// if(text)
+							// {
+							// 	this.codeSamples[i.label] = text;
+							// 	i.description = text;
+							// 	break;
+							// }
 						}
 					}
 				}
@@ -478,12 +615,41 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 	{
 		super.onAfterAttach(msg);
 		this._itemsChanged.emit(this.items);
+
+		// Attach it to your DOM container
+		if(this.header)
+			Widget.attach(this.header, this.node);
+		if(this.tabPanel)
+		{
+			Widget.attach(this.tabPanel, this.node);
+			if(this.codeTab)
+			{
+				this.tabPanel.addWidget(this.codeTab);
+				this.tabPanel.currentWidget = this.codeTab;
+			}
+			if(this.setupTab)
+			{
+				this.tabPanel.addWidget(this.setupTab);
+			}
+			if(this.parserTab)
+			{
+				this.tabPanel.addWidget(this.parserTab);
+			}
+			if(this.lexerTab)
+			{
+				this.tabPanel.addWidget(this.lexerTab);
+			}
+		}
+		if(this.footer)
+			Widget.attach(this.footer, this.node);
+
 		await Promise.all([
 			this._loading,
 			this._loadingDocs,
 			this._loadingEuler,
 			this._loadAce,
 		]);
+
 	}
 
 	private getActiveLanguage(): LanguageRuntime | undefined
@@ -497,38 +663,81 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 
 		if(!active)
 		{
-			this.node.innerHTML = `
-                <div class="lang-empty-state">
-                    <i class="bx bx-code-alt"></i>
-                    <p>Select a language from the sidebar to view a demo of system usage.</p>
-                </div>`;
+			if(!this.emptyDiv)
+			{
+				this.emptyDiv = document.createElement('div');
+				this.emptyDiv.classList.add('lang-empty-state');
+				this.emptyDiv.innerHTML = `
+					<i class="bx bx-code-alt"></i>
+					<p>Select a language from the sidebar to view a demo of system usage.</p>
+				`;
+				this.node.appendChild(this.emptyDiv);
+			}
+			this.emptyDiv.style.display = 'block';
 			return;
+		} else if(this.emptyDiv)
+		{
+			this.emptyDiv.style.display = 'none';
 		}
 
-		this.node.innerHTML = `
-			<div class="lang-detail-content">
-				<div class="lang-detail-header">
-					<i class="${active.iconClass} lang-detail-icon-lg"></i>
-					<div class="lang-detail-title-block">
-						<h3>${active.label}</h3>
-						<span class="lang-detail-version-tag">${active.version}</span>
-					</div>
-				</div>
-				<div>
-					<div class="lang-section-title">Test Code</div>
-					<div class="lang-description-box">${this.highlightCode(active)}</div>
-				</div>
-				<div>
-					<div class="lang-section-title">Setup Instructions</div>
-					<div class="lang-subtext-box">${await marked.parse(active.subtext ?? '')}</div>
-				</div>
-			</div>
-			<div class="lang-manager-footer">
+		if(this.header)
+			this.header.node.innerHTML = `
+				<i class="${active.iconClass} lang-detail-icon-lg"></i>
+				<div class="lang-detail-title-block">
+					<h3>${active.label}</h3>
+					<span class="lang-detail-version-tag">${active.version}</span>
+				</div>`;
+
+		if(this.codeTab)
+		{
+			if(active.description && this.codeFiles[active.description])
+			{
+				active.description = await this.codeFiles[active.description].async('text');
+				this.codeTab.node.innerHTML = this.highlightCode(active);
+			} else if(active.description)
+			{
+				this.codeTab.node.innerHTML = this.highlightCode(active);
+			} else
+			{
+				this.codeTab.node.innerHTML = 'No sample code available. Click here to try and generate sample code with an LLM model. <button>Generate Code</button>';
+			}
+		}
+
+		if(this.parserTab)
+		{
+			if(active.grammars && active.grammars.length > 0)
+			{
+				//if('async' in active.grammars[0])
+				{
+					this.parserTab.node.innerHTML = await this.grammarFiles[active.ace_mode ?? active.label.toLowerCase()][0].async('text');
+				}
+			}
+		}
+
+		if(this.lexerTab)
+		{
+			const lexer = active.grammars?.find(g => g.name?.toLowerCase().includes('lexer'));
+			if(lexer)
+			{
+				this.tabPanel?.addWidget(this.lexerTab);
+			} else
+			{
+				//this.tabPanel?.layout?.removeWidget(this.lexerTab);
+				//this.lexerTab.parent = null;
+			}
+		}
+
+		if(this.setupTab)
+			this.setupTab.node.innerHTML = await marked.parse(active.subtext ?? '');
+
+		this.tabPanel?.update();
+
+		if(this.footer)
+			this.footer.node.innerHTML = `
 				<div class="lang-runtime-stats">Storage: 42.8 MB • Memory Sandbox: Active</div>
 				<button class="lang-action-btn" id="toggleInstallBtn">
 					${active.installed ? 'Uninstall Runtime' : 'Install & Provision'}
-				</button>
-			</div>`;
+				</button>`;
 
 		this.attachEventListeners();
 	}

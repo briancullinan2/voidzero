@@ -37,8 +37,8 @@ export class ChatMessageWidget extends Widget
 	{
 		super();
 		this.storage = storage;
-		this.modelName = options.modelName || 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
-		this.workerUrl = options.workerUrl || '/components/chat/chat-worker.mjs';
+		this.modelName = options.modelName ?? 'Qwen2.5-Coder-3B-Instruct-q4f16_1-MLC'; //?? 'Llama-3.2-1B-Instruct-q4f16_1-MLC';
+		this.workerUrl = options.workerUrl ?? '/components/chat/chat-worker.mjs';
 
 		this.id = 'lumino-chat-widget';
 		this.title.label = 'Chat';

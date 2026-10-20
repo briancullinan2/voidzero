@@ -28,11 +28,9 @@ export class ThreadListWidget extends threadsSelf.SingletonSidebarWidget
 
 	constructor(storage: ChatStorageEngine, options?: Widget.IOptions)
 	{
-		super(options, ThreadListWidget.name);
+		super(ThreadListWidget.name, 'Threads', options);
 		this.storage = storage;
 		this.id = 'lumino-thread-list-widget';
-		this.title.label = 'Threads';
-		this.title.closable = true;
 
 		this.addClass('lm-ThreadListWidget');
 		this.buildDOM();
