@@ -146,7 +146,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 
 			this.setupTab = new Widget();
 			this.setupTab.addClass('lang-subtext-box');
-			this.setupTab.title.label = 'Setup Instructions';
+			this.setupTab.title.label = 'Install';
 			this.setupTab.title.iconClass = 'bx bx-cursor-click';
 			this.setupTab.node.textContent = 'Content for Tab 2';
 		}
@@ -709,7 +709,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			{
 				//if('async' in active.grammars[0])
 				{
-					this.parserTab.node.innerHTML = await this.grammarFiles[active.ace_mode ?? active.label.toLowerCase()][0].async('text');
+					this.parserTab.node.innerHTML = '<pre>' + await this.grammarFiles[active.ace_mode ?? active.label.toLowerCase()][0].async('text') + '</pre>';
 				}
 			}
 		}
@@ -720,10 +720,16 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			if(lexer)
 			{
 				this.tabPanel?.addWidget(this.lexerTab);
+				this.lexerTab.node.innerHTML = '<pre>' + await this.grammarFiles[active.ace_mode ?? active.label.toLowerCase()][0].async('text') + '</pre>';
 			} else
 			{
-				//this.tabPanel?.layout?.removeWidget(this.lexerTab);
-				//this.lexerTab.parent = null;
+				if(this.tabPanel && this.setupTab
+					&& this.tabPanel.currentWidget === this.lexerTab)
+				{
+					this.tabPanel.currentWidget = this.setupTab;
+				}
+				this.tabPanel?.tabBar.removeTab(this.lexerTab.title);
+				this.lexerTab.node.style.display = 'none';
 			}
 		}
 
