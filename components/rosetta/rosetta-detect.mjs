@@ -175,6 +175,7 @@ export const EXTENSION_TO_PARSER_ID = {
 	'fsx': 'fsharp',
 	'fth': 'forth',
 	'ftl': 'freemarker',
+	'g4': 'antlr',
 	'gcode': 'gcode',
 	'gitignore': 'ini',
 	'glsl': 'glsl',

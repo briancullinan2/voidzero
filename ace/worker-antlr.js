@@ -19,14 +19,60 @@ function setLanguageContext(fileId)
 	if(!this.languageKey)
 	{
 		const textContent = this.doc.getValue();
-
 		const matchedLanguageNode = workerSelf.TEXT_LANGUAGE_DETECTOR_WATERFALL.find(lang => lang.match(textContent, new TextEncoder().encode(textContent)));
-
+		if(matchedLanguageNode)
+		{
+			this.languageKey = matchedLanguageNode.id;
+		}
 	}
 	this.activeFileId = fileId;
 	this.deferredUpdate.schedule(); // Native trigger to fire onUpdate()
 }
 
+
+/**
+ *
+ * @param {Uint8Array | ArrayBuffer | string} content
+ * @returns
+ */
+async function getGitShaBrowser(content)
+{
+	const encoder = new TextEncoder();
+	let contentBytes;
+
+	if(content instanceof Uint8Array)
+	{
+		contentBytes = content;
+	} else if(content instanceof ArrayBuffer)
+	{
+		// Wrap the raw ArrayBuffer in a Uint8Array view so it has a .length property
+		contentBytes = new Uint8Array(content);
+	} else
+	{
+		contentBytes = encoder.encode(content);
+	}
+
+	// Create Git blob header using .byteLength for accuracy
+	const header = `blob ${contentBytes.byteLength}\0`;
+	const headerBytes = encoder.encode(header);
+
+	// Combine using .byteLength to support all binary types safely
+	const finalBytes = new Uint8Array(headerBytes.byteLength + contentBytes.byteLength);
+	finalBytes.set(headerBytes);
+	finalBytes.set(contentBytes, headerBytes.byteLength);
+
+	// Generate SHA-1 hash
+	const hashBuffer = await crypto.subtle.digest('SHA-1', finalBytes);
+
+	// Convert ArrayBuffer to Hex string
+	return Array.from(new Uint8Array(hashBuffer))
+		.map(b => b.toString(16).padStart(2, '0'))
+		.join('');
+}
+
+
+/** @type {Record<string, any>} */
+const highlightRequests = {};
 
 /**
  *
@@ -38,14 +84,26 @@ async function onUpdate()
 	if(!this.doc) return;
 
 	const fullText = this.doc.getValue();
+	const sha = await getGitShaBrowser(fullText);
+	if(highlightRequests[sha])
+	{
+		this.sender.emit("highlight", {
+			fileId: workerSelf.activeFileId,
+			startLine: 1,
+			endLine: fullText.split('\n').length,
+			tokenLinesChunk: highlightRequests[sha],
+		});
+		return;
+	}
+	highlightRequests[sha] = true;
 
 	/** @type {import('../components/rosetta/rosetta-types.d').ParserEvent[]} */
 	let annotations = [];
 
 	try
 	{
-		// Kick off the unified single-pass compiler pipeline
-		workerSelf.runParserPipeline(fullText, this.languageKey, annotations, this.sender);
+		// TODO: debounce
+		highlightRequests[sha] = workerSelf.runParserPipeline(fullText, this.languageKey, annotations, this.sender);
 	} catch(pipelineCrash)
 	{
 		console.error("[ANTLR Pipeline Crash]:", pipelineCrash);

@@ -156,18 +156,18 @@ function processSyntaxError(lines, annotations, syntaxError)
  * @param {import('./rosetta-types.d').ParserEvent[]} annotations
  * @param {import('./rosetta-types.d').ImplementedLexer} lexer
  * @param {import('./rosetta-types.d').ImplementedBackend} emitter
- * @returns {([Map<number, string>, import('./rosetta-types.d').ImplementedParser | null] | undefined)}
+ * @returns {([Map<number, string>, import('./rosetta-types.d').ImplementedParser | null, any] | undefined)}
  */
 function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations, lexer, emitter)
 {
 	const semanticOverrides = new Map();
-	if(!languageKey) return [semanticOverrides, null];
+	if(!languageKey) return [semanticOverrides, null, null];
 
 	const cleanKey = languageKey.toLowerCase().trim();
 	const lookupKey = `${cleanKey}_parser`;
 	/** @type {typeof import('antlr4').Parser} */
 	let ParserCtor = /** @type {any} */ (workerSelf.AntlrRegistry[lookupKey]);
-	if(!ParserCtor) return [semanticOverrides, null];
+	if(!ParserCtor) return [semanticOverrides, null, null];
 
 	/** @type {import('./rosetta-types.d').ImplementedParser} */
 	const parser = /** @type {any} */ (new ParserCtor(tokenStream));
@@ -507,10 +507,11 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 				tokenLinesChunk: globalTokenLinesChunk,
 				annotationsChunk: annotations.filter(ann => !transmittedLines.has(ann.row))
 			});
+			return [semanticOverrides, parser, globalTokenLinesChunk];
 		}
 	}
 
-	return [semanticOverrides, parser];
+	return [semanticOverrides, parser, null];
 }
 
 
@@ -657,8 +658,8 @@ function preprocessSourceText(sourceText, languageKey, onResolveInclude, onError
  * @param {string} sourceText
  * @param {string} languageKey
  * @param {import('./rosetta-types.d').ParserEvent[]} annotations
- * @param {*} emitter
- * @returns
+ * @param {import('./rosetta-types.d').ImplementedBackend} emitter
+ * @returns {any}
  */
 export function runParserPipeline(sourceText, languageKey, annotations, emitter)
 {
@@ -684,7 +685,7 @@ export function runParserPipeline(sourceText, languageKey, annotations, emitter)
 
 	// 4. Run the deep semantic scanner walker
 	// This directly kicks off chunked streaming passes via your 'exitEveryRule' gates
-	const [semanticOverrides, parser] = _extractSemanticOverrides(
+	const [semanticOverrides, parser, globalTokenLinesChunk] = _extractSemanticOverrides(
 		lines,
 		tokenStream,
 		languageKey,
@@ -693,7 +694,7 @@ export function runParserPipeline(sourceText, languageKey, annotations, emitter)
 		emitter
 	) ?? [];
 
-	return parser;
+	return globalTokenLinesChunk;
 }
 
 workerSelf.runParserPipeline = runParserPipeline;

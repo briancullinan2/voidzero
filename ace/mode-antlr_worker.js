@@ -9,7 +9,7 @@ const workerSelf = /** @type {any} */ (self);
 
 /**
  * @this {import('../components/rosetta/rosetta-types.d').ImplementedClient} _this2
- * @param {} tokenLines
+ * @param {Array<Array<{ type: string, value: string; }>>} tokenLines
  */
 function bridgeApplyCustomWorkerHighlights(tokenLines)
 {

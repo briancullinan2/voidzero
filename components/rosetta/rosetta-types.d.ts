@@ -42,7 +42,7 @@ export interface RosettaWorker
 	};
 	activeFileId?: string;
 	antlr4: typeof antlr4;
-	runParserPipeline(sourceText: string, languageKey: string, annotations: ParserEvent[], emitter: ImplementedBackend): void;
+	runParserPipeline(sourceText: string, languageKey: string, annotations: ParserEvent[], emitter: ImplementedBackend): any;
 	extractCurrentBlock(codeStr: string, lineNumber: number, langId: string): BlockResult;
 	antlrProcessor?: ImplementedBackend;
 	executeGetFoldRegionsCommand(msg: { args: any[]; }, sender: ImplementedBackend): void;
