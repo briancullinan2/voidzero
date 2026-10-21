@@ -107,6 +107,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 	private emptyDiv?: HTMLDivElement;
 	private parserTab?: Widget;
 	private lexerTab?: Widget;
+	private emptyCode?: HTMLDivElement;
 
 	constructor(title?: string, options?: IMainpanelOptions<LanguagesWidget, LanguageRuntime[]>)
 	{
@@ -678,6 +679,14 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			{
 				this.tabPanel.node.style.display = 'none';
 			}
+			if(this.header)
+			{
+				this.header.node.style.display = 'none';
+			}
+			if(this.footer)
+			{
+				this.footer.node.style.display = 'none';
+			}
 			return;
 		} else if(this.emptyDiv)
 		{
@@ -689,6 +698,8 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		}
 
 		if(this.header)
+		{
+			this.header.node.style.display = 'flex';
 			this.header.node.innerHTML = `
 				<i class="${active.iconClass} lang-detail-icon-lg"></i>
 				<div class="lang-detail-title-block">
@@ -700,6 +711,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 					${active.grammars && active.grammars.length > 0 ? '<span class="lang-pill">Grammar</span>' : ''}
 
 				</div>`;
+		}
 
 		if(this.codeTab)
 		{
@@ -714,8 +726,20 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 				this.codeTab.node.innerHTML = this.highlightCode(active);
 			} else
 			{
-				this.codeTab.addClass('lang-empty-state');
-				this.codeTab.node.innerHTML = 'No sample code available. Click here to try and generate sample code with an LLM model. <br /><button>Generate Code</button>';
+				if(!this.emptyCode)
+				{
+					this.emptyCode = document.createElement('div');
+					this.emptyCode.classList.add('lang-empty-state');
+					this.emptyCode.innerHTML = `
+						<i class="bx bx-code-alt"></i>
+						<p>No sample code available.
+						Click here to try and generate sample code with an LLM model.
+						<br /><button>Generate Code</button></p>`;
+				}
+				this.codeTab.node.innerHTML = '';
+				this.codeTab.node.style.display = 'flex';
+				this.codeTab.node.style.flexDirection = 'column';
+				this.codeTab.node.appendChild(this.emptyCode);
 			}
 		}
 
@@ -728,7 +752,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 				(async () =>
 				{
 					await this._loadAce;
-					const results = await this.colorizeCode(await zipFile.async('text'), 'ace/mode/antlr_worker', zipFile.name);
+					const results = await this.colorizeCode(await zipFile.async('text'), 'ace/mode/antlr_worker', zipFile.name, this.parserTab?.node);
 
 					//if('async' in active.grammars[0])
 					if(this.parserTab)
@@ -746,7 +770,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			{
 				await this._loadAce;
 				const zipFile = this.grammarFiles[active.ace_mode ?? active.label.toLowerCase()][0];
-				const results = await this.colorizeCode(await zipFile.async('text'), 'ace/mode/antlr_worker', zipFile.name);
+				const results = await this.colorizeCode(await zipFile.async('text'), 'ace/mode/antlr_worker', zipFile.name, this.lexerTab?.node);
 				if(results)
 				{
 					this.lexerTab.node.innerHTML = '<pre>' + this.renderTokensToAceHtml(results) + '</pre>';
@@ -772,11 +796,24 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		this.tabPanel?.update();
 
 		if(this.footer)
+		{
+			this.footer.node.style.display = 'flex';
 			this.footer.node.innerHTML = `
 				<div class="lang-runtime-stats">Storage: 42.8 MB • Memory Sandbox: Active</div>
 				<button class="lang-action-btn" id="toggleInstallBtn">
 					${active.installed ? 'Uninstall Runtime' : 'Install Language'}
 				</button>`;
+		}
+
+		for(const c of this.tabPanel?.node.classList ?? [])
+		{
+			if(c.startsWith('ace-'))
+			{
+				this.tabPanel?.node.classList.remove(c);
+			}
+			const theme = widgetSelf.settingsManager?.get('editor', 'theme');
+			this.tabPanel?.node.classList.add('ace-' + (theme.split('/').pop() ?? theme));
+		}
 
 		this.attachEventListeners();
 	}
@@ -801,12 +838,11 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			{
 				await this._loadAce;
 				const code = this.codeFiles[active.ace_mode ?? active.label.toLowerCase()];
-				const results = await this.colorizeCode(active.description ?? '', mode.mode ?? '', code.name);
-				const description = this.node.querySelector('.lang-description-box');
-				if(description)
+				const results = await this.colorizeCode(active.description ?? '', mode.mode ?? '', code.name, this.codeTab?.node);
+				if(this.codeTab)
 				{
-					description.innerHTML = '<pre class="ace-monokai">'
-						+ this.renderTokensToAceHtml(results) + '</pre>';
+					const theme = widgetSelf.settingsManager?.get('editor', 'theme');
+					this.codeTab.node.innerHTML = `<pre>` + this.renderTokensToAceHtml(results) + '</pre>';
 				}
 			}
 		})();
@@ -906,7 +942,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 	}
 
 
-	private async colorizeCode(codeString: string, mode: string, file: string)
+	private async colorizeCode(codeString: string, mode: string, file: string, node: HTMLElement | undefined)
 	{
 		// Require Ace core headless components
 		const Document = widgetSelf.ace?.require('ace/document').Document;
@@ -937,6 +973,13 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 
 		// 3. Force background tokenizer to compute tokens up to the end
 		session.bgTokenizer.start(0);
+		session.bgTokenizer.on('update', (e, emitter) =>
+		{
+			if(node)
+			{
+				node.innerHTML = `<pre>` + this.renderTokensToAceHtml(session.bgTokenizer.lines) + '</pre>';
+			}
+		});
 		const totalLines = session.getLength();
 
 		// 4. Extract tokens line-by-line asynchronously or synchronously

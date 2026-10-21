@@ -55,7 +55,7 @@ function onBridgeHighlight(response)
  */
 function onWorkerAnnotate(session, e)
 {
-	let compilerDiagnostics = ace.require("ace/ext/compiler_diagnostics");
+	let compilerDiagnostics = workerSelf.ace?.require("ace/ext/compiler_diagnostics");
 	if(compilerDiagnostics && compilerDiagnostics.getBridge)
 	{
 		let bridge = compilerDiagnostics.getBridge();
@@ -157,7 +157,14 @@ function AntlrWorker(session)
 			command: "importScripts",
 			args: [
 				baseOrigin + "/ace/worker-base.js",
-				baseOrigin + '/components/rosetta/antlr-languages.bundle.js',
+				baseOrigin + '/components/rosetta/languages-game.bundle.js',
+				baseOrigin + '/components/rosetta/languages-high.bundle.js',
+				baseOrigin + '/components/rosetta/languages-low.bundle.js',
+				baseOrigin + '/components/rosetta/languages-meta.bundle.js',
+				baseOrigin + '/components/rosetta/languages-ops.bundle.js',
+				baseOrigin + '/components/rosetta/languages-query.bundle.js',
+				baseOrigin + '/components/rosetta/languages-web.bundle.js',
+				baseOrigin + '/components/rosetta/languages-special.bundle.js',
 				baseOrigin + "/components/rosetta/rosetta.bundle.js"
 			]
 		});
@@ -228,10 +235,10 @@ workerSelf.ace?.define("ace/mode/antlr_worker", [
 	{
 		"use strict";
 
-		let oop = ace.require("ace/lib/oop");
-		let TextMode = ace.require("ace/mode/text").Mode;
-		WorkerClient = ace.require("ace/worker/worker_client").WorkerClient;
-		let TextHighlightRules = ace.require("ace/mode/text_highlight_rules").TextHighlightRules;
+		let oop = workerSelf.ace?.require("ace/lib/oop");
+		let TextMode = workerSelf.ace?.require("ace/mode/text").Mode;
+		WorkerClient = workerSelf.ace?.require("ace/worker/worker_client").WorkerClient;
+		let TextHighlightRules = workerSelf.ace?.require("ace/mode/text_highlight_rules").TextHighlightRules;
 
 		oop.inherits(AntlrWorker, WorkerClient);
 
@@ -343,7 +350,7 @@ function handleWorkerFoldRegions(session, data)
 		function (row)
 		{
 			const humanRow = row + 1;
-			const aceRange = ace.require("ace/range").Range;
+			const aceRange = workerSelf.ace?.require("ace/range").Range;
 
 			// Specificity sort: prioritize the narrowest nested inner rule on multi-block lines
 			const targetBlock = (session.antlrDiscoveredFoldBlocks || [])
@@ -401,11 +408,12 @@ function handleWorkerStreamHighlight(session, responseData)
 
 			// Invalidate the row's state layout frame explicitly
 			bgTokenizer.states[rowIndex] = "start";
-			bgTokenizer.fireUpdateEvent(rowIndex, rowIndex);
+			//bgTokenizer.fireUpdateEvent(rowIndex, rowIndex);
 		}
 		// If lineTokens is completely undefined for this index, we leave Ace's
 		// existing background tokenizer cache completely untouched!
 	}
+	bgTokenizer.fireUpdateEvent(startRow, endRow);
 
 	// 2. Stitch Annotations safely
 	if(Array.isArray(annotationsChunk))
@@ -446,7 +454,7 @@ let lastRenderedBoundsKey = "";
 function handleWorkerBlockHighlight(session, responseData)
 {
 
-	const AceRange = ace.require("ace/range").Range;
+	const AceRange = workerSelf.ace?.require("ace/range").Range;
 
 	// If response is invalid or missing numeric boundaries, clear existing marker and reset
 	if(

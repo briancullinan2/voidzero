@@ -3,7 +3,9 @@
 
 /** @type {Worker & import('../components/rosetta/rosetta-types.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
-
+workerSelf.process = {
+	env: {}
+};
 
 /**
  * Updates the structural targets and re-schedules the parser timeline
@@ -15,6 +17,13 @@ function setLanguageContext(fileId)
 	const ext = fileId.split('.').pop()?.toLowerCase() ?? fileId.toLowerCase();
 	const filenameAsType = fileId.split('/').pop()?.toLowerCase() ?? fileId.toLowerCase();
 	const modeKey = ((!workerSelf.EXTENSION_TO_PARSER_ID[ext] || ext === 'txt') && workerSelf.EXTENSION_TO_PARSER_ID[filenameAsType]) ? filenameAsType : ext;
+	if(modeKey === 'antlr')
+	{
+		/** @type {string | undefined} */
+		this.languageKey = undefined;
+		return;
+	}
+	/** @type {string | undefined} */
 	this.languageKey = workerSelf.EXTENSION_TO_PARSER_ID[modeKey];
 	if(!this.languageKey)
 	{
@@ -132,6 +141,7 @@ function AntlrWorkerBackend(sender)
 	Mirror.call(this, sender);
 
 	this.setTimeout(200);
+	/** @type {string | undefined} */
 	this.languageKey = "c";
 	this.activeFileId = "";
 }

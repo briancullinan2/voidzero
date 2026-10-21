@@ -17,7 +17,7 @@ const UNSAFE_LINE_STARTERS = ['[', '(', '`', '/', '+', '-'];
  */
 function processJavaScriptASI(tokenStream)
 {
-	const tokens = tokenStream.getTokens();
+	const tokens = tokenStream.getTokens(0);
 	const modifiedTokens = [];
 	const asiErrors = []; // Collect discovered bugs here for your UX
 

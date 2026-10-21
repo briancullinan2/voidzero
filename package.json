@@ -15,6 +15,15 @@
 		"build": "webpack --config webpack.prod.js",
 		"build-code": "webpack --config webpack.code.js",
 		"build-rosetta": "webpack --config webpack.rosetta.js",
+		"build-antlr": "webpack --config webpack.antlr.js",
+		"build-game": "webpack --config webpack.antlr.js --env category=game",
+		"build-high": "webpack --config webpack.antlr.js --env category=high",
+		"build-low": "webpack --config webpack.antlr.js --env category=low",
+		"build-meta": "webpack --config webpack.antlr.js --env category=meta",
+		"build-ops": "webpack --config webpack.antlr.js --env category=ops",
+		"build-query": "webpack --config webpack.antlr.js --env category=query",
+		"build-web": "webpack --config webpack.antlr.js --env category=web",
+		"build-special": "webpack --config webpack.antlr.js --env category=special",
 		"set-google": "gcloud storage buckets update gs://quake.games --cors-file=cors-json-file.json"
 	},
 	"dependencies": {

@@ -176,6 +176,7 @@ export const EXTENSION_TO_PARSER_ID = {
 	'fth': 'forth',
 	'ftl': 'freemarker',
 	'g4': 'antlr',
+	// 'antlr': 'antlr', NO this is worker_antlr, it will just double process
 	'gcode': 'gcode',
 	'gitignore': 'ini',
 	'glsl': 'glsl',

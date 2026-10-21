@@ -11,6 +11,7 @@ import { ROSETTA_JSON_MAPPING } from './rosetta-lexer-json.mjs';
 import { ROSETTA_MAKE_MAPPING, ROSETTA_CMAKE_MAPPING } from './rosetta-lexer-make.mjs';
 import { ROSETTA_CREOLE_MAPPING } from './rosetta-lexer-markdown.mjs';
 import { ROSETTA_Q3_MAPPING } from './rosetta-lexer-q3.mjs';
+import {ROSETTA_ANTLR_MAPPING} from './rosetta-lexer-antlr.mjs'
 
 /** @type {Record<string, string[]>} */
 const ROSETTA_CROSS_LANGUAGE_MAPPING = {
@@ -20,6 +21,7 @@ const ROSETTA_CROSS_LANGUAGE_MAPPING = {
 	...ROSETTA_CMAKE_MAPPING,
 	...ROSETTA_CREOLE_MAPPING,
 	...ROSETTA_Q3_MAPPING,
+	...ROSETTA_ANTLR_MAPPING,
 };
 
 // Compiled straight from your CSS tokens to prioritize class positions natively

@@ -475,9 +475,12 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 		let allTokens = [];
 		if('getTokens' in tokenStream && typeof tokenStream.getTokens === 'function')
 		{
-			allTokens = tokenStream.getTokens();
+			allTokens = tokenStream.getTokens(0);
 		}
-		if(!allTokens || allTokens.length === 0) allTokens = tokenStream.tokens || [];
+		if(!allTokens || allTokens.length === 0)
+		{
+			allTokens = tokenStream.tokens.slice(0) || [];
+		}
 
 		allTokens.forEach(token =>
 		{

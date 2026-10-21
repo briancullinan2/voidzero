@@ -51,6 +51,7 @@ export interface RosettaWorker
 	AssetInspector?: typeof AssetInspector;
 	hasSequentialBinaryRegex: RegExp;
 	hexDump(sampleBytes: buffer, content: buffer, filePath: string, rowWidth?: number): string;
+	process: any;
 }
 
 

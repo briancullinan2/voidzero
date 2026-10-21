@@ -2,7 +2,8 @@
 
 // @ts-check
 
-import { GRAMMAR_JAVASCRIPT_MATRIX } from './rosetta-grammars-js.mjs';
+import { GRAMMAR_ANTLR_MATRIX } from './rosetta-grammar-antlr.mjs';
+import { GRAMMAR_JAVASCRIPT_MATRIX } from './rosetta-grammar-js.mjs';
 import { GRAMMAR_Q3_MATRIX } from './rosetta-grammar-q3.mjs';
 
 /** @type {Record<string, string>} */
@@ -173,5 +174,6 @@ export const GRAMMAR_CLASSIFIER_MATRIX = {
 
 	...GRAMMAR_JAVASCRIPT_MATRIX,
 	...GRAMMAR_Q3_MATRIX,
+	...GRAMMAR_ANTLR_MATRIX,
 };
 
