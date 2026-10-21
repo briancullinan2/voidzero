@@ -259,7 +259,6 @@ workerSelf.ace?.define("ace/mode/antlr_worker", [
 					//sharedWorkerInstance.detachFromDocument();
 				}
 				sharedWorkerInstance.activeSession = newSession;
-				debugger;
 				sharedWorkerInstance.attachToDocument?.(newSession.getDocument());
 			}
 
@@ -290,7 +289,6 @@ workerSelf.ace?.define("ace/mode/antlr_worker", [
 			/** @param {import('../components/editor/widget.d').AceSession} session */
 			this.createWorker = function (session)
 			{
-				debugger;
 				if(!session) return null;
 
 				// Hand off control to the switchActiveSession manager

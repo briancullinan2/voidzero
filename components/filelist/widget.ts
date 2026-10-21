@@ -1,7 +1,7 @@
 // components/FileListWidget.ts
 import { Widget } from '@lumino/widgets';
 import type { NestedTreeNode } from '../bundle/github-tools';
-import { Message, MessageLoop } from '@lumino/messaging';
+import { Message } from '@lumino/messaging';
 import Tree from './tree.js';
 import
 {
