@@ -8,8 +8,8 @@ import type { AssetInspector } from './binary-magics.mjs';
 export interface ImplementedBackend extends Mirror
 {
 	// [key: '']: any;
-	languageKey: string;
-	activeFileId: string;
+	languageKey: string | undefined;
+	// activeFileId: string;
 	setTimeout(ms: number): void;
 	sender: ImplementedBackend;
 	emit(name: string, data: any): void;
@@ -42,7 +42,7 @@ export interface RosettaWorker
 	};
 	activeFileId?: string;
 	antlr4: typeof antlr4;
-	runParserPipeline(sourceText: string, languageKey: string, annotations: ParserEvent[], emitter: ImplementedBackend): any;
+	runParserPipeline(sourceText: string, languageKey: string, annotations: ParserEvent[], emitter: ImplementedBackend, fileId: string): any;
 	extractCurrentBlock(codeStr: string, lineNumber: number, langId: string): BlockResult;
 	antlrProcessor?: ImplementedBackend;
 	executeGetFoldRegionsCommand(msg: { args: any[]; }, sender: ImplementedBackend): void;
@@ -52,6 +52,7 @@ export interface RosettaWorker
 	hasSequentialBinaryRegex: RegExp;
 	hexDump(sampleBytes: buffer, content: buffer, filePath: string, rowWidth?: number): string;
 	process: any;
+	activeSessions?: Record<string, AceSession>;
 }
 
 
@@ -302,7 +303,7 @@ export interface ImplementedStream extends CommonTokenStream
 export interface ImplementedClient // extends AntlrWorkerBackend
 {
 	activeMarkerIds?: number[];
-	activeSession?: AceSession | null;
+	// activeSession?: AceSession | null;
 	$worker?: Worker | null;
 	attachToDocument?: (session: Ace.Document) => void;
 	terminate?: () => void;

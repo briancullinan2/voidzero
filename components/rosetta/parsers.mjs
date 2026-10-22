@@ -156,9 +156,10 @@ function processSyntaxError(lines, annotations, syntaxError)
  * @param {import('./rosetta-types.d').ParserEvent[]} annotations
  * @param {import('./rosetta-types.d').ImplementedLexer} lexer
  * @param {import('./rosetta-types.d').ImplementedBackend} emitter
+ * @param {string} fileId
  * @returns {([Map<number, string>, import('./rosetta-types.d').ImplementedParser | null, any] | undefined)}
  */
-function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations, lexer, emitter)
+function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations, lexer, emitter, fileId)
 {
 	const semanticOverrides = new Map();
 	if(!languageKey) return [semanticOverrides, null, null];
@@ -446,13 +447,13 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 							transmittedLines.add(token.line - 1);
 						});
 
-						emitter.emit("highlight", {
-							fileId: workerSelf.activeFileId,
-							startLine: startToken.line,
-							endLine: stopToken.line,
-							tokenLinesChunk: slicedTokenLines,
-							annotationsChunk: blockAnnotations
-						});
+						// emitter.emit("highlight", {
+						// 	fileId: workerSelf.activeFileId,
+						// 	startLine: startToken.line,
+						// 	endLine: stopToken.line,
+						// 	tokenLinesChunk: slicedTokenLines,
+						// 	annotationsChunk: blockAnnotations
+						// });
 					}
 				}
 			},
@@ -504,7 +505,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 		if(Object.keys(globalTokenLinesChunk).length > 0)
 		{
 			emitter.emit("highlight", {
-				fileId: workerSelf.activeFileId,
+				fileId: fileId ?? workerSelf.activeFileId,
 				startLine: 1,
 				endLine: lines.length,
 				tokenLinesChunk: globalTokenLinesChunk,
@@ -662,9 +663,10 @@ function preprocessSourceText(sourceText, languageKey, onResolveInclude, onError
  * @param {string} languageKey
  * @param {import('./rosetta-types.d').ParserEvent[]} annotations
  * @param {import('./rosetta-types.d').ImplementedBackend} emitter
+ * @param {string} fileId
  * @returns {any}
  */
-export function runParserPipeline(sourceText, languageKey, annotations, emitter)
+export function runParserPipeline(sourceText, languageKey, annotations, emitter, fileId)
 {
 	// 1. Safe preprocessing phase pass
 	const lines = sourceText.split('\n');
@@ -694,7 +696,8 @@ export function runParserPipeline(sourceText, languageKey, annotations, emitter)
 		languageKey,
 		annotations,
 		pipelineLexer, // Pass the active lexer for type resolution mapping
-		emitter
+		emitter,
+		fileId
 	) ?? [];
 
 	return globalTokenLinesChunk;

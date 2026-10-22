@@ -1,7 +1,7 @@
 
 // @ts-check
 
-/** @type {Worker & import('../components/rosetta/rosetta-types.d').RosettaWorker} */
+/** @type {Worker & import('../components/rosetta/rosetta-types.d').RosettaWorker & import('../components/editor/widget.d').EditorWindow} */
 const workerSelf = /** @type {any} */ (self);
 workerSelf.process = {
 	env: {}
@@ -34,7 +34,7 @@ function setLanguageContext(fileId)
 			this.languageKey = matchedLanguageNode.id;
 		}
 	}
-	this.activeFileId = fileId;
+	workerSelf.activeFileId = fileId;
 	this.deferredUpdate.schedule(); // Native trigger to fire onUpdate()
 }
 
@@ -90,7 +90,7 @@ const highlightRequests = {};
  */
 async function onUpdate()
 {
-	if(!this.doc) return;
+	if(!this.doc || !this.languageKey) return;
 
 	const fullText = this.doc.getValue();
 	const sha = await getGitShaBrowser(fullText);
@@ -112,7 +112,7 @@ async function onUpdate()
 	try
 	{
 		// TODO: debounce
-		highlightRequests[sha] = workerSelf.runParserPipeline(fullText, this.languageKey, annotations, this.sender);
+		highlightRequests[sha] = workerSelf.runParserPipeline(fullText, this.languageKey, annotations, this.sender, workerSelf.activeFileId ?? '');
 	} catch(pipelineCrash)
 	{
 		console.error("[ANTLR Pipeline Crash]:", pipelineCrash);
@@ -137,20 +137,20 @@ async function onUpdate()
 function AntlrWorkerBackend(sender)
 {
 	/** @type {import('../components/rosetta/rosetta-types.d').Mirror} */
-	const Mirror = ace.require("ace/worker/mirror").Mirror;
+	const Mirror = workerSelf.ace?.require("ace/worker/mirror").Mirror;
 	Mirror.call(this, sender);
 
 	this.setTimeout(200);
 	/** @type {string | undefined} */
 	this.languageKey = "c";
-	this.activeFileId = "";
+	workerSelf.activeFileId = "";
 }
 
 function setupInheritance()
 {
 	/** @type {import('../components/rosetta/rosetta-types.d').Mirror} */
-	const Mirror = ace.require("ace/worker/mirror").Mirror;
-	const oop = ace.require("ace/lib/oop");
+	const Mirror = workerSelf.ace?.require("ace/worker/mirror").Mirror;
+	const oop = workerSelf.ace?.require("ace/lib/oop");
 	oop.inherits(AntlrWorkerBackend, Mirror);
 	AntlrWorkerBackend.prototype.setLanguageContext = setLanguageContext;
 	AntlrWorkerBackend.prototype.onUpdate = onUpdate;

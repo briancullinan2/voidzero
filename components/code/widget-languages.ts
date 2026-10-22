@@ -9,7 +9,7 @@ import type { AceEditor, AceSession, EditorWindow } from '../editor/widget.d';
 import type { LuminoLayoutWindow } from '../bundle/lumino.d';
 import type { GlobalToolbarsWindow } from '../bundle/menu.d';
 import { GitHubFileEntry } from '../bundle/github-types';
-import { StackedPanel, TabBar, TabPanel, Widget } from '@lumino/widgets';
+import { TabPanel, Widget } from '@lumino/widgets';
 
 const widgetSelf: LuminoLayoutWindow & EditorWindow & WidgetExtensionsWindow
 	& GlobalToolbarsWindow & LocalWindow & GithubWindow = self as unknown as any;
@@ -749,34 +749,31 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 				?.filter(f => !f.name.toLowerCase().includes('lexer'))[0];
 			if(zipFile)
 			{
-				(async () =>
-				{
-					await this._loadAce;
-					const results = await this.colorizeCode(await zipFile.async('text'), 'ace/mode/antlr_worker', zipFile.name, this.parserTab?.node);
+				await this._loadAce;
+				const results = await this.colorizeCode(await zipFile.async('text'), 'ace/mode/antlr_worker', zipFile.name, this.parserTab.node);
 
-					//if('async' in active.grammars[0])
-					if(this.parserTab)
-					{
-						this.parserTab.node.innerHTML = '<pre>' + this.renderTokensToAceHtml(results) + '</pre>';
-					}
-				})();
+				//if('async' in active.grammars[0])
+				if(results)
+				{
+					this.parserTab.node.innerHTML = '<pre>' + this.renderTokensToAceHtml(results) + '</pre>';
+				}
 			}
 		}
 
 		if(this.lexerTab)
 		{
-			const lexer = active.grammars?.find(g => g.name?.toLowerCase().includes('lexer'));
-			if(lexer)
+			const zipFile = this.grammarFiles[active.ace_mode ?? active.label?.toLowerCase()]
+				?.filter(f => f.name.toLowerCase().includes('lexer'))[0];
+			if(zipFile)
 			{
 				await this._loadAce;
-				const zipFile = this.grammarFiles[active.ace_mode ?? active.label.toLowerCase()][0];
-				const results = await this.colorizeCode(await zipFile.async('text'), 'ace/mode/antlr_worker', zipFile.name, this.lexerTab?.node);
+				const results = await this.colorizeCode(await zipFile.async('text'), 'ace/mode/antlr_worker', zipFile.name, this.lexerTab.node);
 				if(results)
 				{
 					this.lexerTab.node.innerHTML = '<pre>' + this.renderTokensToAceHtml(results) + '</pre>';
 				}
-				this.lexerTab.node.style.display = 'block';
-				this.tabPanel?.addWidget(this.lexerTab);
+				this.tabPanel?.stackedPanel.addWidget(this.lexerTab);
+				this.tabPanel?.tabBar.addTab(this.lexerTab.title);
 			} else
 			{
 				if(this.tabPanel && this.setupTab
@@ -784,13 +781,15 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 				{
 					this.tabPanel.currentWidget = this.setupTab;
 				}
-				this.lexerTab.node.style.display = 'none';
+				this.tabPanel?.stackedPanel.layout?.removeWidget(this.lexerTab);
 				this.tabPanel?.tabBar.removeTab(this.lexerTab.title);
 			}
 		}
 
 		if(this.setupTab)
+		{
 			this.setupTab.node.innerHTML = await marked.parse(active.subtext ?? '');
+		}
 
 		this.tabPanel?.tabBar.update();
 		this.tabPanel?.update();
@@ -963,26 +962,30 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		// 2. Instantiate a session with your desired mode (e.g., JavaScript, Python, etc.)
 		const session: AceSession = new EditSession(doc, languageMode);
 		session.workspaceFileId = file;
-		widgetSelf.ace?.require(["ace/mode/antlr_worker"], (antlrWorkerModule) =>
+		await new Promise(resolve =>
 		{
-			if(antlrWorkerModule && antlrWorkerModule.switchActiveSession)
+			session.bgTokenizer.start(0);
+			session.bgTokenizer.on('update', (e, emitter) =>
 			{
-				antlrWorkerModule.switchActiveSession(session);
-			}
+				if(node)
+				{
+					node.innerHTML = `<pre>` + this.renderTokensToAceHtml(session.bgTokenizer.lines) + '</pre>';
+					return resolve(undefined);
+				}
+			});
+
+
+			widgetSelf.ace?.require(["ace/mode/antlr_worker"], (antlrWorkerModule) =>
+			{
+				if(antlrWorkerModule && antlrWorkerModule.switchActiveSession)
+				{
+					antlrWorkerModule.switchActiveSession(session);
+				}
+			});
 		});
 
-		// 3. Force background tokenizer to compute tokens up to the end
-		session.bgTokenizer.start(0);
-		session.bgTokenizer.on('update', (e, emitter) =>
-		{
-			if(node)
-			{
-				node.innerHTML = `<pre>` + this.renderTokensToAceHtml(session.bgTokenizer.lines) + '</pre>';
-			}
-		});
+
 		const totalLines = session.getLength();
-
-		// 4. Extract tokens line-by-line asynchronously or synchronously
 		const tokenLinesByRow = [];
 
 		for(let row = 0; row < totalLines; row++)
@@ -1106,15 +1109,21 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 				<button class="lang-pill" value="programming">Programming</button>
 				<button class="lang-pill" value="data">Data</button>
 				<button class="lang-pill" value="markup">Markup</button>
-				<button class="lang-pill"><i class="bx bx-x"></i> Clear</button>
+				<button class="lang-pill" value="all"><i class="bx bx-x"></i> Clear</button>
+				<button class="lang-pill" value="missing">Missing</button>
 			</div>
 		${this.items?.filter(i =>
 		{
 			return !this._filter
+				|| this._filter === 'all'
 				|| this._filter === 'install' && i.subtext
 				|| this._filter === 'euler' && i.description
 				|| this._filter === 'ace' && i.ace_mode
-				|| this._filter === 'grammar' && i.grammars && i.grammars.length > 0;
+				|| this._filter === 'grammar' && i.grammars && i.grammars.length > 0
+				|| this._filter === 'missing' && (
+					!i.subtext || !i.description || !i.grammars
+					|| i.grammars.length === 0
+				);
 		}).map(lang => `
 			<div class="lang-item-card ${lang.id === this._selectedItemId ? 'active' : ''}" data-id="${lang.id}">
 				<div class="lang-item-info">

@@ -9,14 +9,15 @@ const workerSelf = /** @type {any} */ (self);
 
 /**
  * @this {import('../components/rosetta/rosetta-types.d').ImplementedClient} _this2
+ * @param {string} fileId
  * @param {Array<Array<{ type: string, value: string; }>>} tokenLines
  */
-function bridgeApplyCustomWorkerHighlights(tokenLines)
+function bridgeApplyCustomWorkerHighlights(fileId, tokenLines)
 {
-	if(!this.activeSession?.$editor || !tokenLines) return;
+	if(!workerSelf.activeSessions?.[fileId]?.$editor || !tokenLines) return;
 
-	this.activeSession.bgTokenizer.lines = tokenLines;
-	this.activeSession.bgTokenizer.fireUpdateEvent(0, tokenLines.length - 1);
+	workerSelf.activeSessions[fileId].bgTokenizer.lines = tokenLines;
+	workerSelf.activeSessions[fileId].bgTokenizer.fireUpdateEvent(0, tokenLines.length - 1);
 }
 
 /**
@@ -25,13 +26,13 @@ function bridgeApplyCustomWorkerHighlights(tokenLines)
  */
 function onBridgeHighlight(response)
 {
-	const { totalLines, antlrTokensByLine } = response.data;
+	const { totalLines, antlrTokensByLine, fileId } = response.data;
 
 	// 1. Tell Ace's background tokenizer to stop fighting your data
-	if(this.activeSession?.bgTokenizer)
+	if(workerSelf.activeSessions?.[fileId]?.bgTokenizer)
 	{
 		// Clear Ace's default internal cache lines
-		this.activeSession.bgTokenizer.lines = this.activeSession.bgTokenizer.lines || [];
+		workerSelf.activeSessions[fileId].bgTokenizer.lines = workerSelf.activeSessions[fileId].bgTokenizer.lines || [];
 
 		// 2. Overwrite Ace's token cache arrays with your precise ANTLR tokens
 		for(let row = 0; row < totalLines; row++)
@@ -39,12 +40,12 @@ function onBridgeHighlight(response)
 			if(antlrTokensByLine[row])
 			{
 				// Format expected by Ace: [{ type: "keyword.antlr", value: "void" }, ...]
-				this.activeSession.bgTokenizer.lines[row] = antlrTokensByLine[row];
+				workerSelf.activeSessions[fileId].bgTokenizer.lines[row] = antlrTokensByLine[row];
 			}
 		}
 
 		// 3. Force Ace to redraw the viewport using your newly injected arrays
-		this.activeSession._emit("tokenizerUpdate", { first: 0, last: totalLines - 1 });
+		workerSelf.activeSessions[fileId]._emit("tokenizerUpdate", { first: 0, last: totalLines - 1 });
 	}
 }
 
@@ -116,7 +117,15 @@ let WorkerClient;
  */
 function AntlrWorker(session)
 {
-	this.activeSession = session;
+	if(!workerSelf.activeSessions)
+	{
+		workerSelf.activeSessions = {};
+	}
+	if(session.workspaceFileId)
+	{
+		workerSelf.activeSessions[session.workspaceFileId] = session;
+	}
+
 	const that = this;
 	let baseOrigin = window.location.origin;
 	let targetUrl = baseOrigin + "/ace/worker-antlr.js";
@@ -173,37 +182,41 @@ function AntlrWorker(session)
 	// Forward messages ONLY to the active session
 	this.on?.("highlight", function (response)
 	{
-		if(that.activeSession && typeof handleWorkerStreamHighlight === 'function')
+		if(workerSelf.activeSessions && typeof handleWorkerStreamHighlight === 'function')
 		{
-			handleWorkerStreamHighlight(that.activeSession, response.data);
+			const { fileId } = response.data;
+			handleWorkerStreamHighlight(workerSelf.activeSessions[fileId], response.data);
 		}
 	});
 
 	this.on?.("blockRange", function (response)
 	{
-		if(that.activeSession && typeof handleWorkerBlockHighlight === 'function')
+		if(workerSelf.activeSessions && typeof handleWorkerBlockHighlight === 'function')
 		{
-			handleWorkerBlockHighlight(that.activeSession, response.data);
+			const { fileId } = response.data;
+			handleWorkerBlockHighlight(workerSelf.activeSessions[fileId], response.data);
 		}
 	});
 
 	this.on?.("annotate", function (response)
 	{
-		if(that.activeSession)
+		if(workerSelf.activeSessions)
 		{
-			that.activeSession.setAnnotations(response.data);
-			if(typeof handleWorkerAnnotate === 'function')
+			const { fileId } = response.data;
+			if(workerSelf.activeSessions[fileId] && typeof handleWorkerAnnotate === 'function')
 			{
-				handleWorkerAnnotate(that.activeSession, response.data);
+				workerSelf.activeSessions[fileId].setAnnotations(response.data);
+				handleWorkerAnnotate(workerSelf.activeSessions[fileId], response.data);
 			}
 		}
 	});
 
 	this.on?.("foldRegionsCalculated", function (response)
 	{
-		if(that.activeSession && typeof handleWorkerFoldRegions === 'function')
+		const { fileId } = response.data;
+		if(workerSelf.activeSessions && workerSelf.activeSessions[fileId] && typeof handleWorkerFoldRegions === 'function')
 		{
-			handleWorkerFoldRegions(that.activeSession, response.data);
+			handleWorkerFoldRegions(workerSelf.activeSessions[fileId], response.data);
 		}
 	});
 
@@ -259,27 +272,33 @@ workerSelf.ace?.define("ace/mode/antlr_worker", [
 			}
 
 			// --- CRITICAL FIX 2: Re-bind document listener on the worker ---
-			if(sharedWorkerInstance.activeSession !== newSession)
+			// if(sharedWorkerInstance.activeSession !== newSession)
 			{
-				if(sharedWorkerInstance.activeSession)
+				// if(sharedWorkerInstance.activeSession)
 				{
 					//sharedWorkerInstance.detachFromDocument();
 				}
-				sharedWorkerInstance.activeSession = newSession;
+
 				sharedWorkerInstance.attachToDocument?.(newSession.getDocument());
 			}
 
-			let modeId = (sharedWorkerInstance.activeSession.getMode()
-				&& /** @type {any} */ (sharedWorkerInstance.activeSession.getMode()).$id)
-				|| sharedWorkerInstance.activeSession.$modeId
+			// const activeSession = workerSelf.activeSessions?.[newSession.workspaceFileId ?? ''];
+			const modeId = (newSession?.getMode()
+				&& /** @type {any} */ (newSession?.getMode()).$id)
+				|| newSession?.$modeId
 				|| "";
-			let languageKey = modeId.split("/").pop() || "c";
-			let fileId = sharedWorkerInstance.activeSession.workspaceFileId
-				?? (sharedWorkerInstance.activeSession.getDocument()
-					&& /** @type {any} */ (sharedWorkerInstance.activeSession.getDocument()).$fileId)
+			const languageKey = modeId.split("/").pop() || "c";
+			const fileId = newSession?.workspaceFileId
+				?? (newSession?.getDocument()
+					&& /** @type {any} */ (newSession?.getDocument()).$fileId)
 				?? "temp_buffer." + languageKey;
 
-			sharedWorkerInstance.activeSession.workspaceFileId = fileId;
+			newSession.workspaceFileId ??= fileId;
+
+			if(newSession.workspaceFileId && workerSelf.activeSessions)
+			{
+				workerSelf.activeSessions[newSession.workspaceFileId] = newSession;
+			}
 
 			// Notify worker about the new file context
 			sharedWorkerInstance.setLanguageTarget?.(fileId);
