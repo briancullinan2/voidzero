@@ -160,6 +160,10 @@ function AntlrWorker(session)
 			{
 				workerSelf.activeSessions[fileId].workspaceFileSha = sha;
 			}
+			console.warn({
+				command: "setLanguageContext",
+				args: [fileId, baseOrigin, sha]
+			});
 			this.$worker.postMessage({
 				command: "setLanguageContext",
 				args: [fileId, baseOrigin, sha]

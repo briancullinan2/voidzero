@@ -1013,25 +1013,37 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		this.fileSessions[file] = session;
 		return await new Promise(resolve =>
 		{
-			session.bgTokenizer.start(0);
-			session.bgTokenizer.on('update', (e, emitter) =>
-			{
-				if(node)
-				{
-					session.highlightedLines = session.bgTokenizer.lines;
-					session.highlightHTML = this.renderTokensToAceHtml(session.bgTokenizer.lines);
-					node.innerHTML = `<pre>` + session.highlightHTML + '</pre>';
-					return resolve(session.bgTokenizer.lines);
-				}
-			});
-
 			widgetSelf.ace?.require(["ace/mode/antlr_worker"], (antlrWorkerModule) =>
 			{
 				if(antlrWorkerModule && antlrWorkerModule.switchActiveSession)
 				{
 					antlrWorkerModule.switchActiveSession(session);
+					let afterStart = 0;
+					session.bgTokenizer.on('update', (e, emitter) =>
+					{
+						if(node)
+						{
+							afterStart++;
+						}
+						if(node && afterStart === 2)
+						{
+							session.highlightedLines = session.bgTokenizer.lines;
+							session.highlightHTML = this.renderTokensToAceHtml(session.bgTokenizer.lines);
+							if(node === this.parserTab?.node && session.highlightHTML.includes('lexer</span>'))
+							{
+								debugger;
+								console.error('God fucking damnit you fucking retard');
+							} else
+							{
+								node.innerHTML = `<pre>` + session.highlightHTML + '</pre>';
+							}
+							return resolve(session.bgTokenizer.lines);
+						}
+					});
+					session.bgTokenizer.start(0);
 				}
 			});
+
 		});
 
 		// const totalLines = session.getLength();
