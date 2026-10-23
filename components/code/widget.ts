@@ -2,14 +2,20 @@ import { Widget } from '@lumino/widgets';
 import Graph from 'graphology';
 import Sigma from 'sigma';
 import forceAtlas2 from 'graphology-layout-forceatlas2';
-import { WillowWidget } from './widget-willow';
+import { WillowEdge, WillowNode, WillowWidget } from './widget-willow';
 import * as THREE from 'three';
 import { SemanticWidget } from './widget-semantic';
 import { SearchCodeWidget } from './widget-search';
 import type { WidgetExtensionsWindow } from '../bundle/widget-extensions';
 import { LanguageListWidget, LanguagesWidget } from './widget-languages';
+import type { GlobalToolbarsWindow } from '../bundle/menu.d';
+import type { GithubWindow } from '../bundle/github.d';
+import { GitHubFileEntry } from '../bundle/github-types';
+import { PROJECT_LAYOUT_TIERS, TierRule } from './widget-tiers';
 
-const widgetSelf: WidgetExtensionsWindow & {
+import { hsl } from 'd3';
+
+const widgetSelf: WidgetExtensionsWindow & GlobalToolbarsWindow & GithubWindow & {
 	THREE: typeof THREE;
 	CodeWidget: typeof CodeWidget,
 	WillowWidget: typeof WillowWidget,
@@ -29,10 +35,19 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private _container?: HTMLDivElement;
 	private _isInitialized = false;
 	private _willow?: WillowWidget;
+	private selector?: string;
+	private files?: Record<string, GitHubFileEntry> | undefined;
+	private tier0Services: Record<string, WillowNode[]> = {};
+	private _loading: Promise<never[] | undefined>;
+	private _loadTier0: Promise<WillowNode[]>;
+	private tier1Services: Record<string, WillowNode[]> = {};
+	private tier1Edges: Record<string, WillowEdge[]> = {};
 
 	constructor()
 	{
 		super();
+		this._loading = this.loadFiles();
+		this._loadTier0 = this.getTier0Services();
 		this.initDom();
 	}
 
@@ -61,11 +76,35 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	protected onAfterAttach(msg: any): void
 	{
 		super.onAfterAttach(msg);
-		this._willow = new WillowWidget;
-		Widget.attach(this._willow, this.node);
-		//this.tryInit();
-
+		this.renderLayout();
 	}
+
+	public renderLayout()
+	{
+		if(this.viewMode === this.VIEW_1)
+		{
+			this.tryInit();
+			if(this._willow)
+			{
+				this._willow.node.style.display = 'none';
+			}
+		} else
+		{
+			if(!this._willow)
+			{
+				this._willow = new WillowWidget;
+			}
+			if(this._willow && !this._willow.isAttached)
+			{
+				Widget.attach(this._willow, this.node);
+			}
+			if(this._willow)
+			{
+				this._willow.node.style.display = '';
+			}
+		}
+	}
+
 
 	protected onResize(msg: any): void
 	{
@@ -92,7 +131,246 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			this.initGraph();
 		}
 	}
-	private initGraph()
+
+
+	protected async loadFiles()
+	{
+		const owner = widgetSelf.RepositoryToolbar?.owner?.value;
+		const repo = widgetSelf.RepositoryToolbar?.repository?.value;
+		this.selector = owner + '/' + repo;
+		// TODO: local filesystem with lg2
+		if(!owner || !repo)
+		{
+			return [];
+		}
+		const branch = await widgetSelf.getDefaultBranch?.(owner, repo);
+		// TODO: detached local?
+		if(!branch)
+		{
+			return [];
+		}
+		this.files = widgetSelf.filesRepo?.[this.selector];
+		if(widgetSelf.filesRepo && !widgetSelf.filesRepo[this.selector])
+		{
+			this.files = widgetSelf.filesRepo[this.selector] = await widgetSelf.loadGitHubTree?.(owner, repo, branch);
+		}
+
+	}
+
+
+	protected async getTier0Services(commitName?: string, centerX?: number): Promise<WillowNode[]>
+	{
+		if(!this.files)
+		{
+			await this._loading;
+		}
+
+
+		const services: ({ id: string, name: string, color?: string; })[] = [];
+		const alreadyTiered: TierRule[] = [];
+		const alreadyExted: string[] = [];
+		for(const n of Object.values(this.files ?? {}))
+		{
+			if(n.name?.startsWith('.'))
+			{
+				continue;
+			}
+			const leaf = (n.name ?? n.path)?.split(/[\\\/]/gi).pop();
+			const ext = leaf?.includes('.') ? leaf?.split('.').pop() : undefined;
+			// const extSafe = ext?.toLowerCase().replace(/[^a-z0-9]/gi, '_');
+			// if(ext && extSafe && !alreadyExted.includes(extSafe))
+			// {
+			// 	services.push({
+			// 		id: `${commitName}_ext___${extSafe}`,
+			// 		name: 'Ext: .' + ext,
+			// 	});
+			// 	alreadyExted.push(extSafe);
+			// }
+			if(ext && !alreadyExted.includes('Extension'))
+			{
+				services.push({
+					id: `${commitName ?? 'HEAD'}_ext`,
+					name: 'Extension',
+				});
+				alreadyExted.push('Extension');
+			}
+
+			const pathParts = n.path?.split(/[\\\/]/gi);
+			if(pathParts.length > 2 && !alreadyExted.includes(pathParts[0]))
+			{
+				services.push({
+					id: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
+					name: 'Folder: ' + pathParts[0],
+				});
+				alreadyExted.push(pathParts[0]);
+			}
+			// if(pathParts.length > 3 && !alreadyExted.includes(pathParts[1]))
+			// {
+			// 	services.push({
+			// 		id: `${commitName}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
+			// 		name: 'Folder: ' + pathParts[1],
+			// 	});
+			// 	alreadyExted.push(pathParts[1]);
+			// }
+			for(const t of PROJECT_LAYOUT_TIERS)
+			{
+				if(alreadyTiered.includes(t))
+				{
+					continue;
+				}
+				for(const r of t.patterns)
+				{
+					if(typeof r === 'string' && !(n.path ?? n.name).includes(r))
+					{
+						continue;
+					}
+					else if(r instanceof RegExp && !(n.path ?? n.name).match(r))
+					{
+						continue;
+					}
+					services.push({
+						id: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
+						name: t.name,
+						// color: isGhost ? '#facc15' : '#60a5fa'
+					});
+					alreadyTiered.push(t);
+				}
+			}
+		}
+
+		this.tier0Services[commitName ?? 'HEAD'] = services.map((h, i) =>
+		{
+			const angle = (2 * Math.PI * i) / services.length;
+			const radius = 75;
+			return ({
+				id: h.id,
+				name: h.name,
+				val: 16,
+				color: h.color ?? hsl(360 / services.length * i, 0.5, 0.5).formatHex(),
+				fx: (centerX ?? 0) + Math.cos(angle) * radius,
+				fy: 100,
+				fz: /* (isGhost ? -60 : 0) +*/ Math.sin(angle) * radius * 0.45,
+				commitX: centerX ?? 0,
+				offsetX: Math.cos(angle) * radius,
+				commitName: commitName ?? 'HEAD'
+			});
+			// links.push({ source: rootId, target: h.id });
+		});
+		return this.tier0Services[commitName ?? 'HEAD'];
+	}
+
+
+	protected async getTier1Services(commitName?: string, centerX?: number): Promise<{ nodes: WillowNode[], edges: WillowEdge[]; }>
+	{
+		if(!this.files)
+		{
+			await this._loading;
+		}
+
+		// TODO: uncomment and edge into infinity
+
+		const services: ({ id: string, name: string, color?: string; })[] = [];
+		const alreadyTiered: TierRule[] = [];
+		const alreadyExted: string[] = [];
+		for(const n of Object.values(this.files ?? {}))
+		{
+			if(n.name?.startsWith('.'))
+			{
+				continue;
+			}
+			const leaf = (n.name ?? n.path)?.split(/[\\\/]/gi).pop();
+			const ext = leaf?.includes('.') ? leaf?.split('.').pop() : undefined;
+			// const extSafe = ext?.toLowerCase().replace(/[^a-z0-9]/gi, '_');
+			// if(ext && extSafe && !alreadyExted.includes(extSafe))
+			// {
+			// 	services.push({
+			// 		id: `${commitName}_ext___${extSafe}`,
+			// 		name: 'Ext: .' + ext,
+			// 	});
+			// 	alreadyExted.push(extSafe);
+			// }
+			if(ext && !alreadyExted.includes('Extension'))
+			{
+				services.push({
+					id: `${commitName ?? 'HEAD'}_ext`,
+					name: 'Extension',
+				});
+				alreadyExted.push('Extension');
+			}
+
+			const pathParts = n.path?.split(/[\\\/]/gi);
+			if(pathParts.length > 2 && !alreadyExted.includes(pathParts[0]))
+			{
+				services.push({
+					id: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
+					name: 'Folder: ' + pathParts[0],
+				});
+				alreadyExted.push(pathParts[0]);
+			}
+			// if(pathParts.length > 3 && !alreadyExted.includes(pathParts[1]))
+			// {
+			// 	services.push({
+			// 		id: `${commitName}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
+			// 		name: 'Folder: ' + pathParts[1],
+			// 	});
+			// 	alreadyExted.push(pathParts[1]);
+			// }
+			for(const t of PROJECT_LAYOUT_TIERS)
+			{
+				if(alreadyTiered.includes(t))
+				{
+					continue;
+				}
+				for(const r of t.patterns)
+				{
+					if(typeof r === 'string' && !(n.path ?? n.name).includes(r))
+					{
+						continue;
+					}
+					else if(r instanceof RegExp && !(n.path ?? n.name).match(r))
+					{
+						continue;
+					}
+					services.push({
+						id: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
+						name: t.name,
+						// color: isGhost ? '#facc15' : '#60a5fa'
+					});
+					alreadyTiered.push(t);
+				}
+			}
+		}
+
+		this.tier1Services[commitName ?? 'HEAD'] = services.map((h, i) =>
+		{
+			const angle = (2 * Math.PI * i) / services.length;
+			const radius = 75;
+			return ({
+				id: h.id,
+				name: h.name,
+				val: 16,
+				color: h.color ?? hsl(
+					(360 / services.length) * i - (360 / (services.length * 2)),
+					0.25 + (0.5) * (((i * 2) % services.length) / services.length),
+					0.25 + (0.5) * (((i * 3) % services.length) / services.length)).formatHex(),
+				fx: (centerX ?? 0) + Math.cos(angle) * radius,
+				fy: 100,
+				fz: /* (isGhost ? -60 : 0) +*/ Math.sin(angle) * radius * 0.45,
+				commitX: centerX ?? 0,
+				offsetX: Math.cos(angle) * radius,
+				commitName: commitName ?? 'HEAD'
+			});
+			// links.push({ source: rootId, target: h.id });
+		});
+		return {
+			nodes: this.tier1Services[commitName ?? 'HEAD'],
+			edges: this.tier1Edges[commitName ?? 'HEAD']
+		};
+	}
+
+
+
+	private async initGraph()
 	{
 		if(!this._graph || !this._container)
 		{
@@ -114,22 +392,22 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		});
 
 		// Rich test dataset ready out-of-the-box
-		const services = [
-			{ id: 'Core.js', service: 'Core', color: '#7f8c8d' },
-			{ id: 'test-cells.js', service: 'Frameworks', color: '#2ecc71' },
-			{ id: 'sigma-script.js', service: 'Frontends', color: '#d35400' },
-			{ id: 'zuora-to-eloqua.ipynb', service: 'Databases', color: '#1abc9c' },
-			{ id: 'node-graph.json', service: 'Cloud Services', color: '#f1c40f' },
-			{ id: 'cache-notebook.js', service: 'Core', color: '#7f8c8d' },
-			{ id: 'watch-files.js', service: 'Utilities', color: '#e67e22' }
+		const services = await this._loadTier0 ?? [
+			{ id: 'Core.js', name: 'Core', color: '#7f8c8d' },
+			{ id: 'test-cells.js', name: 'Frameworks', color: '#2ecc71' },
+			{ id: 'sigma-script.js', name: 'Frontends', color: '#d35400' },
+			{ id: 'zuora-to-eloqua.ipynb', name: 'Databases', color: '#1abc9c' },
+			{ id: 'node-graph.json', name: 'Cloud Services', color: '#f1c40f' },
+			{ id: 'cache-notebook.js', name: 'Core', color: '#7f8c8d' },
+			{ id: 'watch-files.js', name: 'Utilities', color: '#e67e22' }
 		];
 
 		const legendContainer = this.node.querySelector('#legend') as HTMLDivElement;
-		const uniqueServices = Array.from(new Set(services.map(s => s.service)));
+		const uniqueServices = Array.from(new Set(services.map(s => s.name)));
 
 		uniqueServices.forEach((serviceName) =>
 		{
-			const match = services.find(s => s.service === serviceName);
+			const match = services.find(s => s.name === serviceName);
 			const item = document.createElement('div');
 			item.className = 'legend-item';
 			item.style.display = 'flex';
@@ -145,12 +423,12 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		{
 			const angle = (2 * Math.PI * i) / services.length;
 			this._graph?.addNode(node.id, {
-				label: node.id,
+				label: node.name,
 				x: Math.cos(angle) * radius,
 				y: Math.sin(angle) * radius,
-				size: 1, // Smaller dot size for a cleaner look
+				size: (node.val ?? 10) / 10, // Smaller dot size for a cleaner look
 				color: node.color,
-				service: node.service
+				service: node.name
 			});
 		});
 
@@ -190,7 +468,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 		this._renderer.refresh();
 
-		// 🌟 Fix: Zoom out the camera so the entire graph is visible and not giant
+		// Fix: Zoom out the camera so the entire graph is visible and not giant
 		const camera = this._renderer.getCamera();
 		camera.setState({ x: 0, y: 0, ratio: 1.5, angle: 0 });
 	}

@@ -236,7 +236,7 @@ const LOCAL_SETTINGS: Record<string, Record<string, SettingConfig>> = {
 		},
 		repositoriesList: {
 			key: 'repositories',
-			default: ['Quake3e', 'baseq3a'],
+			default: ['voidzero', 'Quake3e', 'baseq3a'],
 			elementId: RepositoryToolbar.repository?.id,
 			type: 'csv',
 			description: 'Comma/semicolon-separated list of target GitHub repository names available for compilation selection.',
@@ -247,7 +247,7 @@ const LOCAL_SETTINGS: Record<string, Record<string, SettingConfig>> = {
 		},
 		defaultRepository: {
 			key: 'default_repository',
-			default: 'briancullinan2/Quake3e',
+			default: 'briancullinan2/voidzero',
 			elementId: RepositoryToolbar.repository?.id,
 			description: 'The fallback or preferred primary repository string formatted as "owner/repo" used when loading the workspace workspace initial state.',
 			get: (storage: string | null, defaultRepo: string): string =>
@@ -260,7 +260,7 @@ const LOCAL_SETTINGS: Record<string, Record<string, SettingConfig>> = {
 		},
 		engineRepository: {
 			key: 'engine_repository',
-			default: 'briancullinan2/Quake3e',
+			default: 'briancullinan2/voidzero',
 			description: 'The specific Git repository designated for compiling the core Quake 3 WebAssembly engine architecture.',
 			set: configureRepository
 		},

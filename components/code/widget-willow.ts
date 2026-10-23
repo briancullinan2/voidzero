@@ -7,6 +7,14 @@ import type { LuminoLayoutWindow } from '../bundle/lumino.d';
 import { Message } from '@lumino/messaging';
 import type { GlobalToolbarsWindow } from '../bundle/menu.d';
 
+export interface WillowEdge extends NodeObject
+{
+	source: string;
+	target: string;
+	color?: string;
+	size?: number;
+}
+
 export interface WillowNode extends NodeObject
 {
 	id: string;
@@ -15,7 +23,7 @@ export interface WillowNode extends NodeObject
 	color: string;
 	commitX: number;
 	offsetX: number;
-	isGhost: boolean;
+	// isGhost?: boolean;
 	commitName: string;
 	position?: { x: number, y: number; };
 }
@@ -549,7 +557,6 @@ export class WillowWidget extends Widget
 				fx: centerX, fy: 150, fz: 0,  //isGhost ? -60 : 0, // Ghost tree angled slightly behind (Z: -60)
 				commitX: centerX,
 				offsetX: 0,
-				isGhost: isGhost,
 				commitName
 			});
 
@@ -577,7 +584,6 @@ export class WillowWidget extends Widget
 					fz: /* (isGhost ? -60 : 0) +*/ Math.sin(angle) * radius * 0.45,
 					commitX: centerX,
 					offsetX: Math.cos(angle) * radius,
-					isGhost: isGhost,
 					commitName
 				});
 				links.push({ source: rootId, target: h.id });
@@ -611,7 +617,6 @@ export class WillowWidget extends Widget
 					fz: (parent.fz ?? 0) + c.dz,
 					commitX: centerX,
 					offsetX: parent.offsetX + c.dx,
-					isGhost: isGhost,
 					commitName
 				});
 				links.push({ source: c.parent, target: c.id });
@@ -648,7 +653,6 @@ export class WillowWidget extends Widget
 						fz: (file.fz ?? 0) + (Math.random() - 0.5) * 20,
 						commitX: centerX,
 						offsetX: file.offsetX + (t - count / 2) * 12 + (Math.random() - 0.5) * 8,
-						isGhost: isGhost,
 						commitName
 					});
 					links.push({ source: fileId, target: astId, isToken: true });

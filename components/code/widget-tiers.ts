@@ -1,6 +1,5 @@
 export interface TierRule
 {
-	tier: number;
 	name: string;
 	description: string;
 	patterns: (string | RegExp)[];
@@ -8,8 +7,7 @@ export interface TierRule
 
 export const PROJECT_LAYOUT_TIERS: TierRule[] = [
 	{
-		tier: 1,
-		name: "Infrastructure, Build & DevOps",
+		name: "Build Config",
 		description: "Orchestration, containerization, dependency manifests, and compiler/bundler configurations.",
 		patterns: [
 			/(^|\/)(Dockerfile|docker-compose|k8s|helm|\.github|jenkins|gitlab-ci|\.env)/i,
@@ -17,8 +15,7 @@ export const PROJECT_LAYOUT_TIERS: TierRule[] = [
 		]
 	},
 	{
-		tier: 2,
-		name: "Documentation & Static Assets",
+		name: "Documentation",
 		description: "Markdown guides, project wikis, media files, font packages, and raw static deliverables.",
 		patterns: [
 			/(^|\/)(docs?|assets|static|public|media|images?|fonts?|locales?|resources?)(\/|$)/i,
@@ -27,8 +24,7 @@ export const PROJECT_LAYOUT_TIERS: TierRule[] = [
 		]
 	},
 	{
-		tier: 3,
-		name: "Database, Schemas & Migrations",
+		name: "Databases",
 		description: "Data models, ORM definitions, SQL statements, migration scripts, and seed files.",
 		patterns: [
 			/(^|\/)(migrations?|seeds?|prisma|schema|entities|models?|sql|db)(\/|$)/i,
@@ -36,8 +32,7 @@ export const PROJECT_LAYOUT_TIERS: TierRule[] = [
 		]
 	},
 	{
-		tier: 4,
-		name: "Services, Workers & Background Runtime",
+		name: "Services",
 		description: "Web workers, background daemons, network proxies, socket handlers, and async task queues.",
 		patterns: [
 			/(^|\/)(workers?|services?|daemons?|proxies|proxy|queues?|jobs?|rpc|tasks?|wasm)(\/|$)/i,
@@ -45,8 +40,7 @@ export const PROJECT_LAYOUT_TIERS: TierRule[] = [
 		]
 	},
 	{
-		tier: 5,
-		name: "API, Controllers & Routing",
+		name: "Routing",
 		description: "HTTP endpoints, server route handlers, RPC controllers, and gateway dispatchers.",
 		patterns: [
 			/(^|\/)(routes?|controllers?|api|endpoints?|handlers?|views\/http|actions?)(\/|$)/i,
@@ -54,8 +48,7 @@ export const PROJECT_LAYOUT_TIERS: TierRule[] = [
 		]
 	},
 	{
-		tier: 6,
-		name: "UI, Components & Presentation",
+		name: "Components",
 		description: "User interface widgets, page templates, style sheets, themes, and view components.",
 		patterns: [
 			/(^|\/)(components?|views?|pages?|ui|widgets?|layouts?|styles?|templates?|css|themes?|screens?)(\/|$)/i,
@@ -63,16 +56,14 @@ export const PROJECT_LAYOUT_TIERS: TierRule[] = [
 		]
 	},
 	{
-		tier: 7,
-		name: "Core Utilities, Helpers & Libraries",
+		name: "Libraries",
 		description: "Shared code, formatting extensions, mathematical helpers, and internal library wrappers.",
 		patterns: [
 			/(^|\/)(utils?|helpers?|lib|common|shared|extensions?|node_modules|\.nuget|core|mixins?|parsers?)(\/|$)/i
 		]
 	},
 	{
-		tier: 8,
-		name: "Testing, Mocks & Benchmarks",
+		name: "Testing",
 		description: "Unit tests, integration suites, test fixtures, mock data, and performance benchmarks.",
 		patterns: [
 			/(^|\/)(tests?|__tests__|spec|benchmarks?|mocks?|fixtures?)(\/|$)/i,

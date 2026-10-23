@@ -238,7 +238,7 @@ precomputed, so i can easily add up the values to sort by relevancy.
 and merges. and to filter down and highlight search results and connected nodes, like i can easily
 see in the graph of the entire codebase everywhere that FS is used. this will make sink and bug
 hunting more fun.
-* the REPL tool i just wrote about. full force, any language, any environment, using litegraph and
+* the REPL tool i just wrote about. any language, any environment, using litegraph and
 3D to visualize it.
 * test runner, same thing as repl but test dir and in 3D. matching the one i made for studysauce in
 principal.
