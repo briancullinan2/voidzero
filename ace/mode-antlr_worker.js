@@ -149,13 +149,20 @@ function AntlrWorker(session)
 		}
 	};
 
-	this.setLanguageTarget = function (fileId)
+	this.setLanguageTarget = async function (fileId)
 	{
 		if(this.$worker)
 		{
+			const sha = workerSelf.activeSessions?.[fileId]
+				? await workerSelf.getGitShaBrowser?.(workerSelf.activeSessions[fileId].getValue())
+				: undefined;
+			if(workerSelf.activeSessions?.[fileId])
+			{
+				workerSelf.activeSessions[fileId].workspaceFileSha = sha;
+			}
 			this.$worker.postMessage({
 				command: "setLanguageContext",
-				args: [fileId, baseOrigin]
+				args: [fileId, baseOrigin, sha]
 			});
 		}
 	};
@@ -192,6 +199,7 @@ function AntlrWorker(session)
 		if(workerSelf.activeSessions && typeof handleWorkerStreamHighlight === 'function')
 		{
 			const { fileId } = response.data;
+			workerSelf.activeSessions[fileId].highlightData = response.data;
 			handleWorkerStreamHighlight(workerSelf.activeSessions[fileId], response.data);
 		}
 	});

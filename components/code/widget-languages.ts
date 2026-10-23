@@ -115,6 +115,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 	private parserTab?: Widget;
 	private lexerTab?: Widget;
 	private emptyCode?: HTMLDivElement;
+	private fileSessions: Record<string, AceSession> = {};
 
 	constructor(title?: string, options?: IMainpanelOptions<LanguagesWidget, LanguageRuntime[]>)
 	{
@@ -804,6 +805,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 				{
 					this.lexerTab.node.innerHTML = '<pre>' + this.renderTokensToAceHtml(results) + '</pre>';
 				}
+				this.lexerTab.node.style.display = '';
 				this.tabPanel?.stackedPanel.addWidget(this.lexerTab);
 				this.tabPanel?.tabBar.addTab(this.lexerTab.title);
 			} else
@@ -977,7 +979,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 	}
 
 
-	private async colorizeCode(codeString: string, mode: string, file: string, node: HTMLElement | undefined)
+	private async colorizeCode(codeString: string, mode: string, file: string, node: HTMLElement | undefined): Promise<Array<Array<{ type: string, value: string; }>>>
 	{
 		// Require Ace core headless components
 		const Document = widgetSelf.ace?.require('ace/document').Document;
@@ -995,21 +997,33 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 				});
 		});
 
+		if(this.fileSessions[file])
+		{
+			if(node)
+			{
+				node.innerHTML = `<pre>` + this.fileSessions[file].highlightHTML + '</pre>';
+			}
+			return this.fileSessions[file].highlightedLines;
+		}
+
+
 		// 2. Instantiate a session with your desired mode (e.g., JavaScript, Python, etc.)
 		const session: AceSession = new EditSession(doc, languageMode);
 		session.workspaceFileId = file;
-		await new Promise(resolve =>
+		this.fileSessions[file] = session;
+		return await new Promise(resolve =>
 		{
 			session.bgTokenizer.start(0);
 			session.bgTokenizer.on('update', (e, emitter) =>
 			{
 				if(node)
 				{
-					node.innerHTML = `<pre>` + this.renderTokensToAceHtml(session.bgTokenizer.lines) + '</pre>';
-					return resolve(undefined);
+					session.highlightedLines = session.bgTokenizer.lines;
+					session.highlightHTML = this.renderTokensToAceHtml(session.bgTokenizer.lines);
+					node.innerHTML = `<pre>` + session.highlightHTML + '</pre>';
+					return resolve(session.bgTokenizer.lines);
 				}
 			});
-
 
 			widgetSelf.ace?.require(["ace/mode/antlr_worker"], (antlrWorkerModule) =>
 			{
@@ -1020,21 +1034,21 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			});
 		});
 
+		// const totalLines = session.getLength();
+		// const tokenLinesByRow = [];
 
-		const totalLines = session.getLength();
-		const tokenLinesByRow = [];
+		// for(let row = 0; row < totalLines; row++)
+		// {
+		// 	// bgTokenizer caches lines as they finish computing
+		// 	const lineTokens = session.bgTokenizer.lines[row] || session.getTokens(row);
+		// 	tokenLinesByRow.push(lineTokens);
 
-		for(let row = 0; row < totalLines; row++)
-		{
-			// bgTokenizer caches lines as they finish computing
-			const lineTokens = session.bgTokenizer.lines[row] || session.getTokens(row);
-			tokenLinesByRow.push(lineTokens);
+		// 	// Optional: Yield to event loop if processing massive files
+		// 	if(row % 100 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+		// }
 
-			// Optional: Yield to event loop if processing massive files
-			if(row % 100 === 0) await new Promise(resolve => setTimeout(resolve, 0));
-		}
+		// return tokenLinesByRow;
 
-		return tokenLinesByRow;
 	}
 
 

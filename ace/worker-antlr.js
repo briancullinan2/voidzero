@@ -23,8 +23,9 @@ workerSelf.dirs = {
  * @this {import('../components/rosetta/rosetta-types').ImplementedBackend}
  * @param {string} fileId
  * @param {string} baseOrigin
+ * @param {string} sha
  */
-async function setLanguageContext(fileId, baseOrigin)
+async function setLanguageContext(fileId, baseOrigin, sha)
 {
 	if(baseOrigin)
 	{
@@ -43,6 +44,7 @@ async function setLanguageContext(fileId, baseOrigin)
 	}
 	this.languageKey = await workerSelf.resolveLanguageContext(fileId, this.doc.getValue());
 	workerSelf.activeFileId = fileId;
+	workerSelf.activeFileSha = sha;
 	this.deferredUpdate.schedule(); // Native trigger to fire onUpdate()
 }
 
@@ -102,10 +104,11 @@ async function onUpdate()
 	if(!this.doc || !this.languageKey) return;
 
 	const fullText = this.doc.getValue();
-	const sha = await getGitShaBrowser(fullText);
+	const sha = workerSelf.activeFileSha ?? await getGitShaBrowser(fullText);
 	if(highlightRequests[sha])
 	{
 		this.sender.emit("highlight", {
+			fileSha: workerSelf.activeFileSha,
 			fileId: workerSelf.activeFileId,
 			startLine: 1,
 			endLine: fullText.split('\n').length,

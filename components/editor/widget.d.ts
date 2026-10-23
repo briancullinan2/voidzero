@@ -1,11 +1,15 @@
 
 import type { Ace } from "ace-builds";
 import type { AceEditorWidget } from "./widget";
-import type { BlockResult, ParserEvent } from "../rosetta/rosetta-types";
+import type { BlockResult, HilightResult, ParserEvent } from "../rosetta/rosetta-types";
 
 export interface AceSession extends Ace.EditSession
 {
 	workspaceFileId?: string;
+	workspaceFileSha?: string;
+	highlightData: HilightResult;
+	highlightedLines: Array<Array<{ type: string, value: string; }>>;
+	highlightHTML: string;
 	$worker?: Worker;
 	$editor: Ace.Editor;
 	antlrDiscoveredFoldBlocks?: BlockResult[];

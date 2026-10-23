@@ -503,6 +503,7 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 		if(Object.keys(globalTokenLinesChunk).length > 0)
 		{
 			emitter.emit("highlight", {
+				fileSha: workerSelf.activeFileSha,
 				fileId: fileId ?? workerSelf.activeFileId,
 				startLine: 1,
 				endLine: lines.length,
