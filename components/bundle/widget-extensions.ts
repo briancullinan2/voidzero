@@ -317,9 +317,9 @@ export abstract class SidebarChangeWidget<TMain, TList> extends SidebarUpdateWid
 {
 	protected _selectedItemId?: string;
 	protected isEditing: boolean = false;
-	protected _selectedItem: Signal<SidebarChangeWidget<TMain, TList>, TList> = new Signal(this);
+	protected _selectedItem: Signal<SidebarChangeWidget<TMain, TList>, TList | undefined> = new Signal(this);
 
-	public get selectedItem(): ISignal<SidebarChangeWidget<TMain, TList>, TList>
+	public get selectedItem(): ISignal<SidebarChangeWidget<TMain, TList>, TList | undefined>
 	{
 		return this._selectedItem;
 	}
@@ -381,7 +381,7 @@ export abstract class WithChangingWidget<TMain extends WithChangingWidget<TMain,
 	}
 
 
-	protected subSelected: (_: Widget, item: TList | string) => any = (_, item) =>
+	protected subSelected: (_: Widget, item: TList | string | undefined) => any = (_, item) =>
 	{
 		const t = this.items?.find(t => t === item
 			|| 'id' in t

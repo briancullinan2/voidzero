@@ -11,7 +11,10 @@ import { ROSETTA_JSON_MAPPING } from './rosetta-lexer-json.mjs';
 import { ROSETTA_MAKE_MAPPING, ROSETTA_CMAKE_MAPPING } from './rosetta-lexer-make.mjs';
 import { ROSETTA_CREOLE_MAPPING } from './rosetta-lexer-markdown.mjs';
 import { ROSETTA_Q3_MAPPING } from './rosetta-lexer-q3.mjs';
-import {ROSETTA_ANTLR_MAPPING} from './rosetta-lexer-antlr.mjs'
+import { ROSETTA_ANTLR_MAPPING } from './rosetta-lexer-antlr.mjs';
+
+/** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
+const workerSelf = /** @type {any} */ (self);
 
 /** @type {Record<string, string[]>} */
 const ROSETTA_CROSS_LANGUAGE_MAPPING = {
@@ -23,6 +26,8 @@ const ROSETTA_CROSS_LANGUAGE_MAPPING = {
 	...ROSETTA_Q3_MAPPING,
 	...ROSETTA_ANTLR_MAPPING,
 };
+
+workerSelf.ROSETTA_CROSS_LANGUAGE_MAPPING = ROSETTA_CROSS_LANGUAGE_MAPPING;
 
 // Compiled straight from your CSS tokens to prioritize class positions natively
 const ACE_COLORED_CLASSES = [
@@ -38,9 +43,6 @@ const ACE_COLORED_CLASSES = [
 	"variable",
 	"function" // Explicitly included to guarantee rendering dominance
 ];
-
-/** @type {Worker & import('./rosetta-types.d').RosettaWorker} */
-const workerSelf = /** @type {any} */ (self);
 
 /**
  *

@@ -6,6 +6,9 @@ import { GRAMMAR_ANTLR_MATRIX } from './rosetta-grammar-antlr.mjs';
 import { GRAMMAR_JAVASCRIPT_MATRIX } from './rosetta-grammar-js.mjs';
 import { GRAMMAR_Q3_MATRIX } from './rosetta-grammar-q3.mjs';
 
+/** @type {import('./rosetta-types.d').RosettaWorker} */
+const workerSelf = /** @type {any} */ (self);
+
 /** @type {Record<string, string>} */
 
 export const GRAMMAR_CLASSIFIER_MATRIX = {
@@ -177,3 +180,4 @@ export const GRAMMAR_CLASSIFIER_MATRIX = {
 	...GRAMMAR_ANTLR_MATRIX,
 };
 
+workerSelf.GRAMMAR_CLASSIFIER_MATRIX = GRAMMAR_CLASSIFIER_MATRIX;

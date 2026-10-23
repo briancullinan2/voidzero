@@ -1,6 +1,7 @@
 
 // @ts-check
 
+import { load } from 'js-yaml';
 import { _resolveTokenTypeName, getFoldRegions } from './rosetta-blocks.mjs';
 
 /**
@@ -191,3 +192,49 @@ const onAnyMessage =
 	};
 
 self.addEventListener('message', onAnyMessage);
+
+
+/** @returns {Promise<import('../code/widget-languages').LanguageRuntime[] | undefined>} */
+export async function loadLanguages()
+{
+	const data = await workerSelf.cacheFile?.(
+		workerSelf.DB_STORE_NAME ?? 'FILE_DATA',
+		'briancullinan2',
+		'voidzero',
+		'components/rosetta/languages.yml')
+		?? await (await fetch(workerSelf.location.origin + '/components/rosetta/languages.yml'))?.arrayBuffer();
+	if(!data)
+	{
+		return;
+	}
+
+	/** @type {Record<string, import('../code/widget-languages').LanguageRuntime>} */
+	const languages = /** @type {any} */ (data instanceof ArrayBuffer
+		|| data instanceof Uint8Array
+		? load(new TextDecoder().decode(data))
+		: data instanceof FileSystemFileHandle
+			? load(new TextDecoder().decode(await (await data.getFile()).arrayBuffer()))
+			: {});
+
+
+	return Object.keys(languages ?? {}).map(k =>
+	{
+		if(languages[k].ace_mode === 'text')
+		{
+			languages[k].aceMissing = true;
+		} else if(languages[k].ace_mode)
+		{
+			// if(!this.modes?.[languages[k].ace_mode])
+			// {
+			// 	languages[k].aceMissing = true;
+			// }
+			// languages[k].ace_mode = this.modes?.[languages[k].ace_mode]
+			// 	? languages[k].ace_mode : undefined;
+		}
+		languages[k].id = k;
+		languages[k].label = k;
+		return languages[k];
+	});
+}
+
+workerSelf.loadLanguages = loadLanguages;

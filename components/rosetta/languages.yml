@@ -8854,3 +8854,58 @@ xBase:
   tm_scope: source.harbour
   ace_mode: text
   language_id: 421
+
+Quake 3 Camera:
+  type: data
+  color: "#6b7280"
+  extensions:
+  - ".cam"
+  tm_scope: source.q3camera
+  ace_mode: q3camera
+  language_id: 849201101
+
+Quake 3 Shader:
+  type: data
+  color: "#f59e0b"
+  extensions:
+  - ".shader"
+  - ".shaderx"
+  tm_scope: source.q3shader
+  ace_mode: q3shader
+  language_id: 849201102
+
+Quake 3 Map:
+  type: data
+  color: "#10b981"
+  extensions:
+  - ".map"
+  tm_scope: source.q3map
+  ace_mode: q3map
+  language_id: 849201103
+
+Quake 3 Arena:
+  type: data
+  color: "#3b82f6"
+  extensions:
+  - ".arena"
+  tm_scope: source.q3arena
+  ace_mode: q3arena
+  language_id: 849201104
+
+Quake 3 Menu:
+  type: data
+  color: "#8b5cf6"
+  extensions:
+  - ".menu"
+  tm_scope: source.q3menu
+  ace_mode: q3menu
+  language_id: 849201105
+
+Quake 3 Skin:
+  type: data
+  color: "#ec4899"
+  extensions:
+  - ".skin"
+  tm_scope: source.q3skin
+  ace_mode: q3skin
+  language_id: 849201106

@@ -3,7 +3,7 @@ import { Message } from '@lumino/messaging';
 import { load } from 'js-yaml';
 import type { LocalWindow } from '../bundle/local.d';
 import type { GithubWindow } from '../bundle/github.d';
-import JSZip from 'jszip';
+import JSZip, { JSZipObject } from 'jszip';
 import { marked } from 'marked';
 import type { AceEditor, AceSession, EditorWindow } from '../editor/widget.d';
 import type { LuminoLayoutWindow } from '../bundle/lumino.d';
@@ -12,7 +12,9 @@ import { GitHubFileEntry } from '../bundle/github-types';
 import { TabPanel, Widget } from '@lumino/widgets';
 
 const widgetSelf: LuminoLayoutWindow & EditorWindow & WidgetExtensionsWindow
-	& GlobalToolbarsWindow & LocalWindow & GithubWindow = self as unknown as any;
+	& GlobalToolbarsWindow & LocalWindow & GithubWindow & {
+		languages?: LanguageRuntime[] | undefined;
+	} = self as unknown as any;
 
 
 export interface LanguageRuntime
@@ -24,6 +26,7 @@ export interface LanguageRuntime
 	label: string;
 	tm_scope?: string;
 	ace_mode?: string;
+	aceMissing?: boolean;
 	languageId?: number;
 	version: string;
 	iconClass?: string;
@@ -31,6 +34,10 @@ export interface LanguageRuntime
 	subtext?: string;
 	description?: string;
 	grammars?: GitHubFileEntry[] | JSZip.JSZipObject[];
+	antlrSupport?: boolean;
+	antlrPercent?: number;
+	antlrCount?: number;
+	antlrTotal?: number;
 }
 
 export interface AceMode
@@ -232,6 +239,15 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 
 				await this.loadModes();
 				await this.loadTheme();
+
+				const languageMode = await new Promise<any>(resolve =>
+				{
+					aceEditor?.config.loadModule(['mode', 'ace/mode/antlr_worker'],
+						(...args: any[]) =>
+						{
+							return resolve(new args[0].Mode());
+						});
+				});
 			}
 		}
 	}
@@ -244,7 +260,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			'briancullinan2',
 			'voidzero',
 			'components/rosetta/languages.yml')
-			?? await (await fetch('components/rosetta/languages.yml'))?.arrayBuffer();
+			?? await (await fetch('/components/rosetta/languages.yml'))?.arrayBuffer();
 		if(!data)
 		{
 			return;
@@ -260,12 +276,15 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		{
 			if(languages[k].ace_mode === 'text')
 			{
-				languages[k].ace_mode = undefined;
-			}
-			if(languages[k].ace_mode)
+				languages[k].aceMissing = true;
+			} else if(languages[k].ace_mode)
 			{
-				languages[k].ace_mode = this.modes?.[languages[k].ace_mode]
-					? languages[k].ace_mode : undefined;
+				if(!this.modes?.[languages[k].ace_mode])
+				{
+					languages[k].aceMissing = true;
+				}
+				// languages[k].ace_mode = this.modes?.[languages[k].ace_mode]
+				// 	? languages[k].ace_mode : undefined;
 			}
 			languages[k].id = k;
 			languages[k].label = k;
@@ -443,8 +462,6 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 				item.grammars = matchedFiles;
 			});
 
-			await this.loadGrammarZip();
-
 		} catch(e)
 		{
 
@@ -473,13 +490,27 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 
 		for(const i of this.items ?? [])
 		{
-			const matchedZipFiles = i.ace_mode
-				? languageDirectories[i.ace_mode]
-				: languageDirectories[i.label.toLowerCase()];
-			i.grammars = matchedZipFiles;
-			this.grammarFiles[i.ace_mode ?? i.label.toLowerCase()] = matchedZipFiles;
+			const matchedZipFiles: JSZipObject[] | undefined = languageDirectories[i.ace_mode ?? i.label.toLowerCase()]
+				?? languageDirectories[i.label.toLowerCase()];
+			i.grammars ??= matchedZipFiles;
+			if(i.ace_mode && i.ace_mode !== 'text')
+			{
+				if(!this.grammarFiles[i.ace_mode])
+				{
+					this.grammarFiles[i.ace_mode] = [];
+				}
+				for(const f of matchedZipFiles ?? [])
+				{
+					if(!this.grammarFiles[i.ace_mode].includes(f))
+					{
+						this.grammarFiles[i.ace_mode].push(f);
+					}
+				}
+			}
+			this.grammarFiles[i.label.toLowerCase()] ??= matchedZipFiles;
 		}
 
+		this._itemsChanged.emit(this.items);
 	}
 
 
@@ -592,6 +623,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 							this.codeFiles[matchedZipFile.name] = matchedZipFile;
 							this.codeFiles[i.label] = matchedZipFile;
 							this.codeFiles[i.ace_mode ?? i.label?.toLowerCase()] = matchedZipFile;
+							this.codeFiles[i.label?.toLowerCase()] = matchedZipFile;
 							i.description = matchedZipFile.name;
 							// TODO: bail out early and only load text if they click on the language
 							// const text = await matchedZipFile.async('text');
@@ -707,7 +739,7 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 					${active.version ? `<span class="lang-detail-version-tag">${active.version}</span>` : ''}
 					${active.subtext ? '<span class="lang-pill">Install</span>' : ''}
 					${active.description ? '<span class="lang-pill">Euler</span>' : ''}
-					${active.ace_mode ? '<span class="lang-pill">Ace</span>' : ''}
+					${active.ace_mode && !active.aceMissing ? '<span class="lang-pill">Ace</span>' : ''}
 					${active.grammars && active.grammars.length > 0 ? '<span class="lang-pill">Grammar</span>' : ''}
 
 				</div>`;
@@ -717,12 +749,10 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 		{
 			if(active.description && this.codeFiles[active.description])
 			{
-				this.codeTab.removeClass('lang-empty-state');
 				active.description = await this.codeFiles[active.description].async('text');
 				this.codeTab.node.innerHTML = this.highlightCode(active);
 			} else if(active.description)
 			{
-				this.codeTab.removeClass('lang-empty-state');
 				this.codeTab.node.innerHTML = this.highlightCode(active);
 			} else
 			{
@@ -745,7 +775,8 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 
 		if(this.parserTab)
 		{
-			const zipFile = this.grammarFiles[active.ace_mode ?? active.label?.toLowerCase()]
+			const zipFile = (this.grammarFiles[active.ace_mode ?? active.label?.toLowerCase()]
+				?? this.grammarFiles[active.label?.toLowerCase()])
 				?.filter(f => !f.name.toLowerCase().includes('lexer'))[0];
 			if(zipFile)
 			{
@@ -762,7 +793,8 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 
 		if(this.lexerTab)
 		{
-			const zipFile = this.grammarFiles[active.ace_mode ?? active.label?.toLowerCase()]
+			const zipFile = (this.grammarFiles[active.ace_mode ?? active.label?.toLowerCase()]
+				?? this.grammarFiles[active.label?.toLowerCase()])
 				?.filter(f => f.name.toLowerCase().includes('lexer'))[0];
 			if(zipFile)
 			{
@@ -781,8 +813,11 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 				{
 					this.tabPanel.currentWidget = this.setupTab;
 				}
-				this.tabPanel?.stackedPanel.layout?.removeWidget(this.lexerTab);
-				this.tabPanel?.tabBar.removeTab(this.lexerTab.title);
+				this.lexerTab.node.style.display = 'none';
+				if(this.tabPanel?.tabBar.titles.includes(this.lexerTab.title))
+				{
+					this.tabPanel?.tabBar.removeTab(this.lexerTab.title);
+				}
 			}
 		}
 
@@ -836,7 +871,8 @@ export class LanguagesWidget extends widgetSelf.WithChangingWidget<LanguagesWidg
 			if(mode)
 			{
 				await this._loadAce;
-				const code = this.codeFiles[active.ace_mode ?? active.label.toLowerCase()];
+				const code = this.codeFiles[active.label.toLowerCase()]
+					?? this.codeFiles[active.ace_mode ?? active.label.toLowerCase()];
 				const results = await this.colorizeCode(active.description ?? '', mode.mode ?? '', code.name, this.codeTab?.node);
 				if(this.codeTab)
 				{
@@ -1077,10 +1113,7 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 			{
 				this._selectedItemId = id;
 				const item = this.items?.find(i => i.id === id);
-				if(item)
-				{
-					this._selectedItem.emit(item);
-				}
+				this._selectedItem.emit(item);
 				this.filterAndRender();
 			}
 
@@ -1109,17 +1142,25 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 				<button class="lang-pill" value="programming">Programming</button>
 				<button class="lang-pill" value="data">Data</button>
 				<button class="lang-pill" value="markup">Markup</button>
+				<button class="lang-pill" value="antlr">ANTLR</button>
 				<button class="lang-pill" value="all"><i class="bx bx-x"></i> Clear</button>
 				<button class="lang-pill" value="missing">Missing</button>
 			</div>
 		${this.items?.filter(i =>
 		{
+			if(typeof i.antlrSupport === 'undefined' && widgetSelf.languages)
+			{
+				const matchSpec = widgetSelf.languages?.find(l => l.id === i.id);
+				i.antlrSupport = !!matchSpec?.antlrSupport;
+				i.antlrPercent = matchSpec?.antlrPercent;
+			}
 			return !this._filter
 				|| this._filter === 'all'
 				|| this._filter === 'install' && i.subtext
 				|| this._filter === 'euler' && i.description
-				|| this._filter === 'ace' && i.ace_mode
+				|| this._filter === 'ace' && i.ace_mode && !i.aceMissing
 				|| this._filter === 'grammar' && i.grammars && i.grammars.length > 0
+				|| this._filter === 'antlr' && i.antlrSupport
 				|| this._filter === 'missing' && (
 					!i.subtext || !i.description || !i.grammars
 					|| i.grammars.length === 0
@@ -1133,8 +1174,9 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 						<div class="lang-item-version">${lang.version ? lang.version + ' ' : ''}
 						${lang.subtext ? '<span class="lang-pill">Install</span>' : ''}
 						${lang.description ? '<span class="lang-pill">Euler</span>' : ''}
-						${lang.ace_mode ? '<span class="lang-pill">Ace</span>' : ''}
+						${lang.ace_mode && !lang.aceMissing ? '<span class="lang-pill">Ace</span>' : ''}
 						${lang.grammars && lang.grammars.length > 0 ? '<span class="lang-pill">Grammar</span>' : ''}
+						${lang.antlrSupport ? `<span class="lang-pill">ANTLR (${Math.round((lang.antlrPercent ?? 0) * 100)}%)</span>` : ''}
 						</div>
 					</div>
 				</div>

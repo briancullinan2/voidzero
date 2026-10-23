@@ -115,221 +115,6 @@ export const TEXT_LANGUAGE_DETECTOR_WATERFALL = [
 
 workerSelf.TEXT_LANGUAGE_DETECTOR_WATERFALL = TEXT_LANGUAGE_DETECTOR_WATERFALL;
 
-// =====================================================================
-// 1. TOP-LEVEL GLOBAL MICRO-UTILITY FUNCTIONS
-// =====================================================================
-/** @type {Record<string, string>} */
-export const EXTENSION_TO_PARSER_ID = {
-	'abap': 'abap',
-	'abc': 'abc',
-	'ada': 'ada',
-	'adb': 'ada',
-	'ahk': 'autohotkey',
-	'apex': 'apex',
-	'applescript': 'applescript',
-	'as': 'angelscript',
-	'asm': 'asm',
-	'bat': 'batchfile',
-	'bash': 'sh',
-	'c': 'c',
-	'cbl': 'cobol',
-	'cc': 'cpp',
-	'cfc': 'coldfusion',
-	'cfm': 'coldfusion',
-	'cfg': 'q3config',
-	'cjs': 'javascript',
-	'cl': 'lisp',
-	'clj': 'clojure',
-	'cljs': 'clojure',
-	'cls': 'apex',
-	'cmakelists.txt': 'cmake',
-	'cmake': 'cmake',
-	'cmd': 'batchfile',
-	'cob': 'cobol',
-	'coffee': 'coffee',
-	'conf': 'apache_conf',
-	'cpp': 'cpp',
-	'cs': 'csharp',
-	'css': 'css3',
-	'csx': 'csharp',
-	'cxx': 'cpp',
-	'd': 'd',
-	'dart': 'dart',
-	'diff': 'diff',
-	'dockerfile': 'dockerfile',
-	'dot': 'dot',
-	'e': 'eiffel',
-	'edn': 'clojure',
-	'ejs': 'ejs',
-	'erl': 'erlang',
-	'ex': 'elixir',
-	'exs': 'elixir',
-	'f': 'fortran',
-	'f90': 'fortran',
-	'f95': 'fortran',
-	'for': 'fortran',
-	'forth': 'forth',
-	'frag': 'glsl',
-	'fs': 'fsharp',
-	'fsi': 'fsharp',
-	'fsx': 'fsharp',
-	'fth': 'forth',
-	'ftl': 'freemarker',
-	'g4': 'antlr',
-	// 'antlr': 'antlr', NO this is worker_antlr, it will just double process
-	'gcode': 'gcode',
-	'gitignore': 'ini',
-	'glsl': 'glsl',
-	'vlsl': 'glsl',
-	'hlsl': 'glsl',
-	'go': 'golang',
-	'gql': 'graphql',
-	'graphql': 'graphql',
-	'groovy': 'groovy',
-	'gsh': 'groovy',
-	'gvy': 'groovy',
-	'gy': 'groovy',
-	'h': 'c',
-	'haml': 'haml',
-	'handlebars': 'handlebars',
-	'hbs': 'handlebars',
-	'hh': 'cpp',
-	'hjson': 'hjson',
-	'hpp': 'cpp',
-	'hrl': 'erlang',
-	'hs': 'haskell',
-	'htm': 'html',
-	'html': 'html',
-	'htaccess': 'apache_conf',
-	'hxx': 'cpp',
-	'i': 'c',
-	'ini': 'ini',
-	'ino': 'c',
-	'io': 'io',
-	'java': 'java',
-	'jade': 'pug',
-	'jl': 'julia',
-	'js': 'javascript',
-	'json': 'json',
-	'jsm': 'javascript',
-	'jsp': 'jsp',
-	'jsx': 'jsx',
-	'kt': 'kotlin',
-	'kts': 'kotlin',
-	'less': 'less',
-	'liquid': 'liquid',
-	'lisp': 'lisp',
-	'log': 'text',
-	'ls': 'livescript',
-	'lsp': 'lisp',
-	'ltx': 'latex',
-	'lua': 'lua',
-	'm': 'matlab',
-	'makefile': 'makefile',
-	'make': 'makefile',
-	'markdown': 'creole',
-	'md': 'creole',
-	'mel': 'mel',
-	'mjs': 'javascript',
-	'mk': 'makefile',
-	'ml': 'ocaml',
-	'mli': 'ocaml',
-	'mm': 'objectivec',
-	'mysql': 'mysql',
-	'nginx': 'nginx',
-	'nim': 'nim',
-	'nix': 'nix',
-	'nsh': 'nsis',
-	'nsi': 'nsis',
-	'pas': 'pascal',
-	'patch': 'diff',
-	'perl': 'perl',
-	'pgsql': 'postgresql',
-	'php': 'php',
-	'phtml': 'php',
-	'pig': 'pig',
-	'pl': 'perl',
-	'plsql': 'plsql',
-	'pm': 'perl',
-	'pp': 'pascal',
-	'powershell': 'powershell',
-	'prefs': 'ini',
-	'properties': 'properties',
-	'props': 'properties',
-	'proto': 'protobuf3',
-	'ps1': 'powershell',
-	'psm1': 'powershell',
-	'pug': 'pug',
-	'puppet': 'puppet',
-	'py': 'python3',
-	'pyw': 'python3',
-	'q': 'q',
-	'r': 'r',
-	'rb': 'ruby',
-	'rdoc': 'rdoc',
-	'rhtml': 'ruby',
-	'rprofile': 'r',
-	'rs': 'rust',
-	's': 'asm',
-	'sass': 'sass',
-	'sbt': 'scala',
-	'scad': 'scad',
-	'scala': 'scala',
-	'scheme': 'scheme',
-	'scm': 'scheme',
-	'scss': 'scss',
-	'sh': 'sh',
-	'sieve': 'sieve',
-	'slim': 'slim',
-	'smali': 'smali',
-	'smarty': 'smarty',
-	'sql': 'sql',
-	'ss': 'scheme',
-	'styl': 'stylus',
-	'svg': 'svg',
-	'swift': 'swift',
-	'tcl': 'tcl',
-	'tex': 'latex',
-	'toml': 'toml',
-	'tpl': 'smarty',
-	'ts': 'typescript',
-	'tsx': 'tsx',
-	'twig': 'twig',
-	'txt': 'text',
-	'wasm': 'wat',
-	'qvm': 'wat',
-	'v': 'verilog',
-	'vala': 'vala',
-	'vapi': 'vala',
-	'vbe': 'vbscript',
-	'vbs': 'vbscript',
-	'vert': 'glsl',
-	'vh': 'verilog',
-	'vhd': 'vhdl',
-	'vhdl': 'vhdl',
-	'vue': 'vue',
-	'xhtml': 'html',
-	'xml': 'xml',
-	'xsd': 'xml',
-	'xsl': 'xml',
-	'yaml': 'yaml',
-	'yml': 'yaml',
-	'zig': 'zig',
-	'zsh': 'sh',
-
-
-	'cam': 'q3camera',
-	'shader': 'q3shader',
-	'shaderx': 'q3shader',
-	'map': 'q3map', // Or 'quakemap' if targeting your legacy BSP parser
-	'arena': 'q3arena',
-	'menu': 'q3menu',
-	'skin': 'q3skin',
-};
-
-
-workerSelf.EXTENSION_TO_PARSER_ID = EXTENSION_TO_PARSER_ID;
-
 /**
  *
  * @param {string} fileText
@@ -352,3 +137,74 @@ function autodetectLanguage(fileText, fileBuffer)
 
 workerSelf.autodetectLanguage = autodetectLanguage;
 
+/**
+ * Resolves the target language key for a given file ID and optional text/buffer content.
+ * Combines file extension mapping, filename fallback, and waterfall content autodetection.
+ *
+ * @param {string} fileId - The file path, name, or extension identifier.
+ * @param {string} [fileText] - The textual content of the file (optional).
+ * @param {Uint8Array} [fileBuffer] - The binary representation of the file (optional).
+ * @returns {Promise<string | undefined>} The resolved language key, or undefined if explicit 'antlr' mode or unresolvable.
+ */
+export async function resolveLanguageContext(fileId, fileText = "", fileBuffer)
+{
+	if(!fileId) return "text";
+
+	const normalizedFileId = fileId.toLowerCase();
+	const ext = normalizedFileId.split('.').pop() ?? normalizedFileId;
+	if(ext === 'antlr')
+	{
+		return undefined;
+	}
+
+	const filenameAsType = normalizedFileId.toLowerCase().split('/').pop()?.split('\\').pop() ?? normalizedFileId;
+
+	if(!workerSelf.languages)
+	{
+		workerSelf.languages = await workerSelf.loadLanguages?.() ?? [];
+	}
+
+	const languageMode = workerSelf.languages?.find(
+		/** @param {import('../code/widget-languages').LanguageRuntime} l */
+		(l) => l.extensions?.includes('.' + ext)
+			|| l.ace_mode === ext
+			|| l.extensions?.includes('.' + filenameAsType)
+			|| l.ace_mode === filenameAsType);
+
+	/** @type {string | undefined} */
+	let languageKey;
+	if(languageMode)
+	{
+		let lexer = workerSelf.AntlrRegistry[languageMode.ace_mode + "_lexer"];
+		if(lexer)
+		{
+			languageKey = languageMode.ace_mode;
+		} else
+		{
+			lexer = workerSelf.AntlrRegistry[languageMode.id.toLowerCase() + "_lexer"];
+			if(lexer)
+			{
+				languageKey = languageMode.id.toLowerCase();
+			}
+		}
+	}
+
+	if(!languageKey)
+	{
+		const cleanBuffer = fileBuffer ?? (
+			typeof TextEncoder !== 'undefined' && fileText
+				? new TextEncoder().encode(fileText)
+				: new Uint8Array(0)
+		);
+
+		const waterfall = workerSelf.TEXT_LANGUAGE_DETECTOR_WATERFALL || [];
+		const matchedLanguageNode = waterfall.find(lang => lang.match(fileText, cleanBuffer));
+
+		languageKey = matchedLanguageNode ? matchedLanguageNode.id : "text";
+		console.info(`[AUTODETECT SUCCESS] File classified cleanly as: ${languageKey}`);
+	}
+
+	return languageKey;
+}
+
+workerSelf.resolveLanguageContext = resolveLanguageContext;

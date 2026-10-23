@@ -1,9 +1,12 @@
 import type antlr4 from 'antlr4';
 import type { Lexer, Parser, ParserRuleContext, Token, CommonTokenStream } from 'antlr4';
 import type { Ace } from 'ace-builds';
-import type { AceSession } from '../editor/widget.d';
+import type { AceSession, EditorWindow } from '../editor/widget.d';
 import type mime from 'mime';
 import type { AssetInspector } from './binary-magics.mjs';
+import type { GithubWindow } from '../bundle/github.d';
+import type { LocalWindow } from '../bundle/local.d';
+import type { LanguageRuntime } from '../code/widget-languages';
 
 export interface ImplementedBackend extends Mirror
 {
@@ -25,13 +28,15 @@ export interface ImplementedBackend extends Mirror
 
 
 
-export interface RosettaWorker
+export interface RosettaWorker extends Worker, EditorWindow, GithubWindow, LocalWindow
 {
 	window: Window | any;
 	mime: typeof mime;
 	TEXT_LANGUAGE_DETECTOR_WATERFALL: TextDetector[];
-	EXTENSION_TO_PARSER_ID: Record<string, string>;
+	ROSETTA_CROSS_LANGUAGE_MAPPING: Record<string, string[]>;
+	GRAMMAR_CLASSIFIER_MATRIX: Record<string, string>;
 	autodetectLanguage(fileText: string, fileBuffer: Buffer): string;
+	resolveLanguageContext(fileId, fileText?: string, fileBuffer?: Uint8Array): Promise<string | undefined>;
 	BINARY_DETECTOR: Record<string, BinaryDetector>;
 	detectBinaryType(sourceBuffer: Buffer | Uint8Array): string;
 	__missingHeaders: Set<string>;
@@ -53,6 +58,14 @@ export interface RosettaWorker
 	hexDump(sampleBytes: buffer, content: buffer, filePath: string, rowWidth?: number): string;
 	process: any;
 	activeSessions?: Record<string, AceSession>;
+	loadLanguages?: () => Promise<LanguageRuntime[] | undefined>;
+	languages?: LanguageRuntime[] | undefined;
+	FS: {
+		virtual: Record<string, FileRecord | null | undefined>;
+		pointers?: ([number, string, FileRecord, string, number, number])[];
+	};
+	dirs: any;
+	location: URL;
 }
 
 

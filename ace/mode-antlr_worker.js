@@ -155,7 +155,7 @@ function AntlrWorker(session)
 		{
 			this.$worker.postMessage({
 				command: "setLanguageContext",
-				args: [fileId]
+				args: [fileId, baseOrigin]
 			});
 		}
 	};
@@ -174,12 +174,19 @@ function AntlrWorker(session)
 				baseOrigin + '/components/rosetta/languages-query.bundle.js',
 				baseOrigin + '/components/rosetta/languages-web.bundle.js',
 				baseOrigin + '/components/rosetta/languages-special.bundle.js',
+				baseOrigin + "/components/workers/local.js",
+				baseOrigin + "/components/workers/github.js",
 				baseOrigin + "/components/rosetta/rosetta.bundle.js"
 			]
 		});
 	}
 
 	// Forward messages ONLY to the active session
+	this.on?.("supportedLanguages", function (response)
+	{
+		workerSelf.languages = /** @type {any} */ (response.data);
+	});
+
 	this.on?.("highlight", function (response)
 	{
 		if(workerSelf.activeSessions && typeof handleWorkerStreamHighlight === 'function')

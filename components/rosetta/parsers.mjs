@@ -209,8 +209,6 @@ function _extractSemanticOverrides(lines, tokenStream, languageKey, annotations,
 	});
 
 
-
-
 	// --- STEP 2: CUSTOM ERROR STRATEGY FOR SOFT ERROR ABSORPTION ---
 	/** @type {import('antlr4').ErrorStrategy | undefined} */
 	let customStrategyInstance = workerSelf.AntlrRegistry.antlr4

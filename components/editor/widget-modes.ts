@@ -206,6 +206,6 @@ export function getModeByFilename(filePath: string)
 		return `ace/mode/${EXTENSION_TO_MODE[modeKey] || 'text'}`;
 	} else
 	{
-		return `ace/mode/'text'`;
+		return `ace/mode/text`;
 	}
 }

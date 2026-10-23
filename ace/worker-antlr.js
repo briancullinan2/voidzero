@@ -1,42 +1,51 @@
 
 // @ts-check
 
-/** @type {Worker & import('../components/rosetta/rosetta-types.d').RosettaWorker & import('../components/editor/widget.d').EditorWindow} */
+/** @type {import('../components/rosetta/rosetta-types.d').RosettaWorker} */
 const workerSelf = /** @type {any} */ (self);
 workerSelf.process = {
 	env: {}
 };
 
+workerSelf.api = {
+
+};
+workerSelf.FS = {
+	virtual: {}
+};
+workerSelf.dirs = {
+
+};
+
+
 /**
  * Updates the structural targets and re-schedules the parser timeline
  * @this {import('../components/rosetta/rosetta-types').ImplementedBackend}
  * @param {string} fileId
+ * @param {string} baseOrigin
  */
-function setLanguageContext(fileId)
+async function setLanguageContext(fileId, baseOrigin)
 {
-	const ext = fileId.split('.').pop()?.toLowerCase() ?? fileId.toLowerCase();
-	const filenameAsType = fileId.split('/').pop()?.toLowerCase() ?? fileId.toLowerCase();
-	const modeKey = ((!workerSelf.EXTENSION_TO_PARSER_ID[ext] || ext === 'txt') && workerSelf.EXTENSION_TO_PARSER_ID[filenameAsType]) ? filenameAsType : ext;
-	if(modeKey === 'antlr')
+	if(baseOrigin)
 	{
-		/** @type {string | undefined} */
+		workerSelf.location = new URL(baseOrigin);
+	}
+	const ext = fileId.split('.').pop()?.toLowerCase() ?? fileId.toLowerCase();
+	if(ext === 'antlr')
+	{
 		this.languageKey = undefined;
 		return;
 	}
-	/** @type {string | undefined} */
-	this.languageKey = workerSelf.EXTENSION_TO_PARSER_ID[modeKey];
-	if(!this.languageKey)
+	// TODO
+	if(!workerSelf.languages)
 	{
-		const textContent = this.doc.getValue();
-		const matchedLanguageNode = workerSelf.TEXT_LANGUAGE_DETECTOR_WATERFALL.find(lang => lang.match(textContent, new TextEncoder().encode(textContent)));
-		if(matchedLanguageNode)
-		{
-			this.languageKey = matchedLanguageNode.id;
-		}
+		workerSelf.languages = await workerSelf.loadLanguages?.() ?? [];
 	}
+	this.languageKey = await workerSelf.resolveLanguageContext(fileId, this.doc.getValue());
 	workerSelf.activeFileId = fileId;
 	this.deferredUpdate.schedule(); // Native trigger to fire onUpdate()
 }
+
 
 
 /**
@@ -159,7 +168,7 @@ function setupInheritance()
 
 
 
-self.addEventListener('message', function (e)
+self.addEventListener('message', async function (e)
 {
 	const msg = e.data;
 	if(!msg) return;
@@ -255,6 +264,70 @@ self.addEventListener('message', function (e)
 
 		// Construct your independent workspace engine instance!
 		workerSelf.antlrProcessor = /** @type {any} */ (new AntlrWorkerBackend(cleanSender));
+
+		if(!workerSelf.languages)
+		{
+			workerSelf.languages = await workerSelf.loadLanguages?.();
+		}
+		if(workerSelf.languages)
+		{
+			self.postMessage({
+				type: "event", name: 'supportedLanguages', data: workerSelf.languages.map(l =>
+				{
+					/** @type {typeof import('antlr4').Lexer | typeof import('antlr4').Parser | undefined} */
+					let lexer = undefined;
+					/** @type {typeof import('antlr4').Lexer | typeof import('antlr4').Parser | undefined} */
+					let parser = undefined;
+					if(l.ace_mode && (lexer = workerSelf.AntlrRegistry[l.ace_mode + '_lexer'])
+						&& (parser = workerSelf.AntlrRegistry[l.ace_mode + '_parser']))
+					{
+						l.antlrSupport = true;
+					}
+					if(l.id && (lexer = workerSelf.AntlrRegistry[l.id.toLowerCase() + '_lexer'])
+						&& (parser = workerSelf.AntlrRegistry[l.id.toLowerCase() + '_parser']))
+					{
+						l.antlrSupport = true;
+					}
+					if(l.antlrSupport && lexer && parser && typeof l.antlrPercent === 'undefined')
+					{
+						let count = 0;
+						(/** @type {any} */(parser).ruleNames
+							?? /** @type {any} */ (parser).constructor.ruleNames)?.forEach(
+								/** @param {string} s */
+								(s) =>
+								{
+									if(workerSelf.GRAMMAR_CLASSIFIER_MATRIX[s])
+									{
+										count++;
+									}
+									if(workerSelf.ROSETTA_CROSS_LANGUAGE_MAPPING[s])
+									{
+										count++;
+									}
+								});
+						(/** @type {any} */(lexer).ruleNames
+							?? /** @type {any} */ (lexer).constructor.ruleNames)?.forEach(
+								/** @param {string} s */
+								(s) =>
+								{
+									if(workerSelf.ROSETTA_CROSS_LANGUAGE_MAPPING[s])
+									{
+										count++;
+									}
+								});
+						l.antlrCount = count;
+						l.antlrTotal = ((/** @type {any} */(lexer).ruleNames
+							?? /** @type {any} */ (lexer).constructor.ruleNames)?.length ?? 0)
+							+ ((/** @type {any} */(parser).ruleNames
+								?? /** @type {any} */ (parser).constructor.ruleNames)?.length ?? 0) * 2;
+						l.antlrPercent = l.antlrCount / (l.antlrTotal ?? 1);
+					}
+
+					return l;
+				})
+			});
+		}
+
 		return;
 	}
 
