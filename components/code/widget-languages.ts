@@ -1206,7 +1206,7 @@ export class LanguageListWidget extends widgetSelf.SidebarChangeWidget<Languages
 						</div>
 					</div>
 				</div>
-				<input type="checkbox" class="lang-install-checkbox" data-id="${lang.id}" ${lang.installed ? 'checked' : ''} />
+				<input type="checkbox" class="lang-install-checkbox" data-id="${lang.id}" ${lang.installed || lang.antlrSupport ? 'checked' : ''} />
 			</div>
 		`).join('')}`;
 	}

@@ -5,6 +5,7 @@ import type { CodeWidget } from './widget';
 import type { SemanticWidget } from './widget-semantic';
 import type { LuminoLayoutWindow } from '../bundle/lumino.d';
 import { Message } from '@lumino/messaging';
+import type { GlobalToolbarsWindow } from '../bundle/menu.d';
 
 export interface WillowNode extends NodeObject
 {
@@ -24,13 +25,14 @@ const widgetSelf: {
 	CodeWidget: typeof CodeWidget,
 	WillowWidget: typeof WillowWidget,
 	SemanticWidget: typeof SemanticWidget,
-} & LuminoLayoutWindow = self as unknown as any;
+} & LuminoLayoutWindow & GlobalToolbarsWindow = self as unknown as any;
 
 export class WillowWidget extends Widget
 {
 	private _container: HTMLDivElement;
 	private _graph: ForceGraph3DInstance | null = null;
 	private hoverNode?: WillowNode;
+	private hoverNode2?: WillowNode;
 
 	constructor()
 	{
@@ -42,11 +44,7 @@ export class WillowWidget extends Widget
 		this.node.style.overflow = 'hidden';
 
 		this.node.innerHTML = `
-      <div id="willow-container" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;"></div>
-      <div style="position: absolute; top: 12px; left: 12px; z-index: 10; background: rgba(255,255,255,0.9); padding: 8px 12px; border-radius: 6px; font-family: sans-serif; font-size: 12px;">
-        3D Weeping Willow Code Graph (Z-Depth Opacity)
-      </div>
-    `;
+      		<div id="willow-container" style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;"></div>`;
 
 		this._container = this.node.querySelector('#willow-container') as HTMLDivElement;
 		this.initCustomControls();
@@ -87,9 +85,9 @@ export class WillowWidget extends Widget
 	private _centerX = 0;
 	private _centerY = 0;
 	private _centerZ = 0; // Level of Detail / Z-Height axis
-	private _theta = Math.PI / 5 * 3; // Orbit angle horizontal
-	private _phi = Math.PI / 5 * 2;   // Orbit angle vertical
-	private _orbitRadius = 500;
+	private _theta = 2; // Orbit angle horizontal
+	private _phi = 1;   // Orbit angle vertical
+	private _orbitRadius = 600;
 	private _focalX = 0;
 	private _focalY = 0;
 	private _animFrameId: number | null = null;
@@ -171,6 +169,7 @@ export class WillowWidget extends Widget
 				{
 					//this.animateToFocal(0, 0, 250);
 				}
+				this.updateStatus();
 				return;
 			}
 
@@ -209,16 +208,15 @@ export class WillowWidget extends Widget
 					{
 						this._centerX2 = Math.max(-50, Math.min(WillowWidget.COMMIT_GRAPH_DISTANCE + 50, -(1 - (progress - 0.50) / 0.50) * WillowWidget.COMMIT_GRAPH_DISTANCE));
 					}
-
-					this.updateHUD();
 				} else
 				{
 					// Control vertical height (_centerY) so dragging up/down pans through tree tiers
 					this._centerY = Math.max(-120, Math.min(120, this._centerY - dy * 1.5));
-					this.updateHUD();
 				}
 				this.updateCameraPosition();
 			}
+
+			this.updateStatus();
 		});
 
 		this.node.addEventListener('wheel', (e: WheelEvent) =>
@@ -226,25 +224,104 @@ export class WillowWidget extends Widget
 			e.preventDefault();
 			this._orbitRadius = Math.max(150, Math.min(1200, this._orbitRadius + e.deltaY * 0.5));
 			this.updateCameraPosition();
+			this.updateStatus();
 		}, { passive: false });
 	}
 
-	private updateHUD()
-	{
-		const hud = this.node.querySelector('#hud-status');
-		if(!hud) return;
-		const timeState = this._centerX < -150 ? 'Previous Commit (v0.9)' : this._centerX > 150 ? 'Future Branch (v1.1)' : 'HEAD (Active Commit)';
-		const tierState = this._centerY > 60 ? 'Project Root & Configs' : this._centerY < -40 ? 'AST Code Tokens & Statements' : 'Modules & Components';
-		hud.textContent = `Timeline: ${timeState} | View: ${tierState}`;
-		widgetSelf.statusBar?.updateStatusItem('env-state', 'Graph: '
-			+ `Mouse: ${this._mouseX}x${this._mouseY}, `
-			+ `Cursor: ${this._centerX}x${this._centerY}x${this._centerZ}, `
-			+ `Radius: ${this._orbitRadius}, `
-			//+ errorInfo
-			+ `Node: ${this.hoverNode?.name}, Commit: ${this.hoverNode?.commitName}`
-		);
 
+	static toPrettyFraction(value: number, maxDenominator = 64)
+	{
+		if(isNaN(value)) return { numerator: 0, denominator: 1, string: '0', toString: () => '0/1' };
+
+		const sign = value < 0 ? -1 : 1;
+		let val = Math.abs(value);
+
+		// Separate integer and fractional parts for cleaner handling
+		const whole = Math.floor(val);
+		val -= whole;
+
+		let bestNumerator = 0;
+		let bestDenominator = 1;
+		let minError = Infinity;
+
+		// Test denominators up to maxDenominator
+		for(let d = 1; d <= maxDenominator; d++)
+		{
+			const n = Math.round(val * d);
+			const error = Math.abs(val - (n / d));
+
+			if(error < minError)
+			{
+				minError = error;
+				bestNumerator = n;
+				bestDenominator = d;
+			}
+		}
+
+		// Euclidean algorithm for Greatest Common Divisor (GCD)
+		const gcd: (a: number, b: number) => number = (a, b) => (b === 0 ? a : gcd(b, a % b));
+		const common = gcd(bestNumerator, bestDenominator);
+
+		const num = (bestNumerator / common);
+		const den = (bestDenominator / common);
+
+		// Format the output string
+		let resultString = '';
+		const actualNum = sign * (whole * den + num);
+		const actualDen = den;
+
+		if(whole === 0)
+		{
+			resultString = `${sign * num}/${den}`;
+		} else if(num === 0)
+		{
+			resultString = `${sign * whole}`;
+		} else
+		{
+			resultString = `${sign * whole} ${num}/${den}`;
+		}
+
+		return {
+			whole: sign * whole,
+			numerator: sign * num,
+			denominator: den,
+			string: resultString,
+			error: minError,
+			toString: (): string => (sign * num) + '/' + den
+		};
 	}
+
+
+	private updateStatus()
+	{
+		widgetSelf.statusBar?.updateStatusItem('env-state',
+			`Willow: Mouse: ${this._mouseX}x${this._mouseY}, `
+			+ `Cursor: ${this._centerX}x${this._centerY}x${this._centerZ}, `
+			+ `Zoom: ${this._orbitRadius}, `
+			+ `θ: ${WillowWidget.toPrettyFraction(this._theta).toString()} (${Math.round(this._theta * 1000) / 1000}), `
+			+ `φ: ${WillowWidget.toPrettyFraction(this._phi).toString()} (${Math.round(this._phi * 1000) / 1000}), `
+			// TODO: this selected repo
+			+ `Node: ${this.hoverNode?.name ?? this.hoverNode2?.name}, Commit: ${this.hoverNode?.commitName ?? this.hoverNode2?.commitName}, `
+			+ `Repository: ${widgetSelf.RepositoryToolbar?.owner?.value}/${widgetSelf.RepositoryToolbar?.repository?.value}`
+		);
+	}
+
+
+	// private updateHUD()
+	// {
+	// 	const hud = this.node.querySelector('#hud-status');
+	// 	if(!hud) return;
+	// 	const timeState = this._centerX < -150 ? 'Previous Commit (v0.9)' : this._centerX > 150 ? 'Future Branch (v1.1)' : 'HEAD (Active Commit)';
+	// 	const tierState = this._centerY > 60 ? 'Project Root & Configs' : this._centerY < -40 ? 'AST Code Tokens & Statements' : 'Modules & Components';
+	// 	hud.textContent = `Timeline: ${timeState} | View: ${tierState}`;
+	// 	widgetSelf.statusBar?.updateStatusItem('env-state', 'Graph: '
+	// 		+ `Mouse: ${this._mouseX}x${this._mouseY}, `
+	// 		+ `Cursor: ${this._centerX}x${this._centerY}x${this._centerZ}, `
+	// 		+ `Radius: ${this._orbitRadius}, `
+	// 		//+ errorInfo
+	// 	);
+
+	// }
 
 	private updateCameraPosition()
 	{
@@ -293,6 +370,10 @@ export class WillowWidget extends Widget
 					this.hoverNode = node;
 				} else
 				{
+					if(node)
+					{
+						this.hoverNode2 = node;
+					}
 					this.hoverNode = undefined;
 				}
 			})

@@ -255,21 +255,21 @@ like fork the git client, local databases shows code files pretty like in the fi
 you where in the tree it is used and then you start making edits inside the coverflow on a little
 popup next to the node.
 * language analyzer tools, DONE: starting with the github supported languages list yaml, filter by
-supported in ace, TODO: supported in ANTLR, implemented in either, supported by rosetta has color / lexer
+supported in ace, DONE: supported in ANTLR, implemented in either, supported by rosetta has color / lexer
 translations. DONE: grab a code sample from rosetta-euler/project euler, show the tree breakdown and
 highlighting features directly through the worker transport without ACE in the middle just for
 posterity not because of anything against putting the full editor on this page. DONE: i want to be able
-to use the highlighter independently now that that pipeline works. project euler also has install
-instructions we can parse for out of the readme which is awesome for hot-linking. this would be a
+to use the highlighter independently now that that pipeline works. DONE: project euler also has install
+instructions we can parse for out of the readme which is awesome for hot-linking. TODO: this would be a
 cool place to start the REPL and show a little step through for the detected parser unit
 translations like function calls and imports pretty much exist in most high level languages so
 those would have a unified API that usable inside of workflow/search/REPL. this is also where i
 could start the CMake/Makefile REPL i wanted for my WASI editor so it can compile any well defined
-app not only quake 3. should be easy to filter and see which languages i can add to ANTLR and which
+app not only quake 3. DONE: should be easy to filter and see which languages i can add to ANTLR and which
 languages are missing file associations all the way through to my rosetta parser on the left hand
-side list. all languages available from ANTLR should be enabled by default
-* TODO: display the ANTLR grammar.g4 highlighted for the selected language if it exists
-* separate antlr build into language types, databases/logical/declarative so we don't have to
+side list. TODO: all languages available from ANTLR should be enabled by default
+* DONE: display the ANTLR grammar.g4 highlighted for the selected language if it exists
+* DONE: separate antlr build into language types, databases/logical/declarative so we don't have to
 download all 20MB at once, this is what the install button should reflect, whether the rosetta has
 been cached in IDB.
 * split out babel transpiler into this new API and get it working in service-worker. can service
@@ -282,4 +282,7 @@ smart matter version of a TV but the pixels are playing the wrong direction i ca
 to think harder just to spin it around in my head to get down to the detail. i'm literally trying
 to rebuild my imagination into humans smart stones like they asked, but they turn away from me
 anyways.
+* webpack bundle ws, express, proxy server to make project zero dependency except node
+* try to bundle webpack with babel and IDB node mock because it would be cooler for morpheus quine
+if i could also bundle this entire platform inside the platform
 

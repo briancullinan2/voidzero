@@ -28,6 +28,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private _renderer: Sigma | null = null;
 	private _container?: HTMLDivElement;
 	private _isInitialized = false;
+	private _willow?: WillowWidget;
 
 	constructor()
 	{
@@ -60,7 +61,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	protected onAfterAttach(msg: any): void
 	{
 		super.onAfterAttach(msg);
-		Widget.attach(new WillowWidget, this.node);
+		this._willow = new WillowWidget;
+		Widget.attach(this._willow, this.node);
 		//this.tryInit();
 
 	}
@@ -72,6 +74,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		{
 			this._renderer.refresh();
 		}
+		this._willow?.update();
 	}
 
 	private tryInit()

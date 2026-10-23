@@ -141,16 +141,16 @@ function main(): void
 
 		if(msg.type === 'child-added' && (msg as any).child)
 		{
-			const addingWidget = (msg as any).child as Widget;
-			const newType = addingWidget?.constructor.name;
-			const lastType = luminoSelf.lastInteractedWidget?.constructor.name;
+			// const addingWidget = (msg as any).child as Widget;
+			// const newType = addingWidget?.constructor.name;
+			// const lastType = luminoSelf.lastInteractedWidget?.constructor.name;
 
 			// Only update history if the incoming widget type is different from the last tracked type
-			if(newType !== lastType)
-			{
-				luminoSelf.previousInteractedWidget = luminoSelf.lastInteractedWidget;
-				luminoSelf.lastInteractedWidget = addingWidget;
-			}
+			// if(newType !== lastType)
+			// {
+			// 	luminoSelf.previousInteractedWidget = luminoSelf.lastInteractedWidget;
+			// 	luminoSelf.lastInteractedWidget = addingWidget;
+			// }
 
 			console.log('Added widget: ' + luminoSelf.lastInteractedWidget?.constructor.name + ' inActive: ' + luminoSelf.previousInteractedWidget?.constructor.name);
 			requestAnimationFrame(() =>

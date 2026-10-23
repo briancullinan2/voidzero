@@ -421,6 +421,8 @@ function initializeTabsMenu(commands: CommandRegistry, mainDock: DockPanel, view
 			return false;
 		}
 	});
+
+
 	commands.addCommand('previous-tab', {
 		label: 'Previous Tab',
 		iconClass: 'bx bx-chevron-left-square',
