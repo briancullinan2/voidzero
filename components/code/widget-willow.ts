@@ -20,7 +20,7 @@ export interface WillowNode extends NodeObject
 	id: string;
 	name: string;
 	val: number;
-	color: string;
+	color?: string;
 	commitX: number;
 	offsetX: number;
 	// isGhost?: boolean;

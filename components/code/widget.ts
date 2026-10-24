@@ -177,15 +177,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			}
 			const leaf = (n.name ?? n.path)?.split(/[\\\/]/gi).pop();
 			const ext = leaf?.includes('.') ? leaf?.split('.').pop() : undefined;
-			// const extSafe = ext?.toLowerCase().replace(/[^a-z0-9]/gi, '_');
-			// if(ext && extSafe && !alreadyExted.includes(extSafe))
-			// {
-			// 	services.push({
-			// 		id: `${commitName}_ext___${extSafe}`,
-			// 		name: 'Ext: .' + ext,
-			// 	});
-			// 	alreadyExted.push(extSafe);
-			// }
+
+
 			if(ext && !alreadyExted.includes('Extension'))
 			{
 				services.push({
@@ -204,14 +197,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				});
 				alreadyExted.push(pathParts[0]);
 			}
-			// if(pathParts.length > 3 && !alreadyExted.includes(pathParts[1]))
-			// {
-			// 	services.push({
-			// 		id: `${commitName}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-			// 		name: 'Folder: ' + pathParts[1],
-			// 	});
-			// 	alreadyExted.push(pathParts[1]);
-			// }
+
+
 			for(const t of PROJECT_LAYOUT_TIERS)
 			{
 				if(alreadyTiered.includes(t))
@@ -231,10 +218,10 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 					services.push({
 						id: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
 						name: t.name,
-						// color: isGhost ? '#facc15' : '#60a5fa'
 					});
 					alreadyTiered.push(t);
 				}
+				break;
 			}
 		}
 
@@ -270,7 +257,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		// TODO: uncomment and edge into infinity
 
 		const services: ({ id: string, name: string, color?: string; })[] = [];
-		const alreadyTiered: TierRule[] = [];
+		const edges: ({ source: string, target: string; })[] = [];
+		const alreadyEdged: string[] = [];
 		const alreadyExted: string[] = [];
 		for(const n of Object.values(this.files ?? {}))
 		{
@@ -280,47 +268,62 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			}
 			const leaf = (n.name ?? n.path)?.split(/[\\\/]/gi).pop();
 			const ext = leaf?.includes('.') ? leaf?.split('.').pop() : undefined;
-			// const extSafe = ext?.toLowerCase().replace(/[^a-z0-9]/gi, '_');
-			// if(ext && extSafe && !alreadyExted.includes(extSafe))
-			// {
-			// 	services.push({
-			// 		id: `${commitName}_ext___${extSafe}`,
-			// 		name: 'Ext: .' + ext,
-			// 	});
-			// 	alreadyExted.push(extSafe);
-			// }
-			if(ext && !alreadyExted.includes('Extension'))
+
+			const extSafe = ext?.toLowerCase().replace(/[^a-z0-9]/gi, '_');
+			if(ext && extSafe && !alreadyExted.includes(extSafe))
 			{
 				services.push({
-					id: `${commitName ?? 'HEAD'}_ext`,
-					name: 'Extension',
+					id: `${commitName ?? 'HEAD'}_ext___${extSafe}`,
+					name: 'Ext: .' + ext,
 				});
-				alreadyExted.push('Extension');
+				alreadyExted.push(extSafe);
+				edges.push({
+					source: `${commitName ?? 'HEAD'}_ext___${extSafe}`,
+					target: `${commitName ?? 'HEAD'}_ext`
+				});
+				alreadyEdged.push(`${commitName}_ext___${extSafe}->${commitName ?? 'HEAD'}_ext`);
 			}
 
+
 			const pathParts = n.path?.split(/[\\\/]/gi);
-			if(pathParts.length > 2 && !alreadyExted.includes(pathParts[0]))
+			if(pathParts.length > 2) // && !alreadyExted.includes(pathParts[0]))
 			{
-				services.push({
-					id: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-					name: 'Folder: ' + pathParts[0],
-				});
-				alreadyExted.push(pathParts[0]);
+				if(ext && extSafe)
+				{
+					const edge: WillowEdge = {
+						source: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
+						target: `${commitName ?? 'HEAD'}_ext___${extSafe}`
+					};
+					if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
+					{
+						edges.push(edge);
+						alreadyEdged.push(`${edge.source}->${edge.target}`);
+					}
+				}
+				// alreadyExted.push(pathParts[0]);
 			}
-			// if(pathParts.length > 3 && !alreadyExted.includes(pathParts[1]))
-			// {
-			// 	services.push({
-			// 		id: `${commitName}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-			// 		name: 'Folder: ' + pathParts[1],
-			// 	});
-			// 	alreadyExted.push(pathParts[1]);
-			// }
+			if(pathParts.length > 3)
+			{
+				if(!alreadyExted.includes(pathParts[1]))
+				{
+					services.push({
+						id: `${commitName ?? 'HEAD'}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
+						name: 'Folder: ' + pathParts[1],
+					});
+					alreadyExted.push(pathParts[1]);
+				}
+				const edge: WillowEdge = {
+					source: `${commitName ?? 'HEAD'}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
+					target: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
+				};
+				if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
+				{
+					edges.push(edge);
+					alreadyEdged.push(`${edge.source}->${edge.target}`);
+				}
+			}
 			for(const t of PROJECT_LAYOUT_TIERS)
 			{
-				if(alreadyTiered.includes(t))
-				{
-					continue;
-				}
 				for(const r of t.patterns)
 				{
 					if(typeof r === 'string' && !(n.path ?? n.name).includes(r))
@@ -331,16 +334,57 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 					{
 						continue;
 					}
-					services.push({
-						id: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-						name: t.name,
-						// color: isGhost ? '#facc15' : '#60a5fa'
-					});
-					alreadyTiered.push(t);
+					if(pathParts.length > 3)
+					{
+						const edge: WillowEdge = {
+							source: `${commitName ?? 'HEAD'}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
+							target: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
+						};
+						if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
+						{
+							edges.push(edge);
+							alreadyEdged.push(`${edge.source}->${edge.target}`);
+						}
+					} else if(pathParts.length > 2)
+					{
+
+						const edge: WillowEdge = {
+							source: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
+							target: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
+						};
+						if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
+						{
+							edges.push(edge);
+							alreadyEdged.push(`${edge.source}->${edge.target}`);
+						}
+					}
+					if(ext && extSafe)
+					{
+						const edge: WillowEdge = {
+							source: `${commitName ?? 'HEAD'}_ext___${extSafe}`,
+							target: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
+						};
+						if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
+						{
+							edges.push(edge);
+							alreadyEdged.push(`${edge.source}->${edge.target}`);
+						}
+					}
+					break;
 				}
 			}
 		}
 
+		this.tier1Edges[commitName ?? 'HEAD'] = edges.map((h, i) =>
+		{
+			return ({
+				source: h.source,
+				target: h.target,
+				// color: h.color
+				color: '#cbd5e1',
+				size: 1.2
+			});
+		});
 		this.tier1Services[commitName ?? 'HEAD'] = services.map((h, i) =>
 		{
 			const angle = (2 * Math.PI * i) / services.length;
@@ -348,11 +392,11 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			return ({
 				id: h.id,
 				name: h.name,
-				val: 16,
-				color: h.color ?? hsl(
-					(360 / services.length) * i - (360 / (services.length * 2)),
-					0.25 + (0.5) * (((i * 2) % services.length) / services.length),
-					0.25 + (0.5) * (((i * 3) % services.length) / services.length)).formatHex(),
+				val: 11,
+				// color: h.color ?? hsl(
+				// 	(360 / services.length) * i - (360 / (services.length * 2)),
+				// 	0.25 + (0.5) * (((i * 2) % services.length) / services.length),
+				// 	0.25 + (0.5) * (((i * 3) % services.length) / services.length)).formatHex(),
 				fx: (centerX ?? 0) + Math.cos(angle) * radius,
 				fy: 100,
 				fz: /* (isGhost ? -60 : 0) +*/ Math.sin(angle) * radius * 0.45,
@@ -448,6 +492,81 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				// Ignore duplicate edges
 			}
 		}
+
+		const { nodes: nodes1, edges: edges1 } = await this.getTier1Services();
+
+		// 1. Group secondary nodes by their connected parent service ID
+		const childrenByParent = new Map<string, string[]>();
+		edges1.forEach(edge =>
+		{
+			const parentId = services.some(s => s.id === edge.source) ? edge.source : edge.target;
+			const childId = services.some(s => s.id === edge.target) ? edge.source : edge.target;
+
+			if(!childrenByParent.has(parentId))
+			{
+				childrenByParent.set(parentId, []);
+			}
+			childrenByParent.get(parentId)?.push(childId);
+		});
+
+		// 2. Position secondary nodes in a sub-circle around each parent node
+		const subRadius = 55; // Distance of secondary nodes from their parent
+		services.forEach((serviceNode, i) =>
+		{
+			const parentAngle = (2 * Math.PI * i) / services.length;
+			const parentX = Math.cos(parentAngle) * radius;
+			const parentY = Math.sin(parentAngle) * radius;
+
+			const childIds = childrenByParent.get(serviceNode.id) || [];
+			const root = Math.round(Math.sqrt(childIds.length) - 0.8);
+			const segment = (360 / services.length / (childIds.length - root * root));
+			const parent = serviceNode.color ? hsl(serviceNode.color) : hsl(360 / services.length * i, 0.5, 0.5);
+			const offset = 360 / (services.length * 2);
+
+			childIds.forEach((childId, j) =>
+			{
+				const childNodeData = nodes1.find(n => n.id === childId);
+				if(!childNodeData) return;
+
+				// Spread children evenly in a ring around the parent's coordinates
+				const childAngle = (2 * Math.PI * j) / childIds.length;
+				const childX = parentX + Math.cos(childAngle) * subRadius;
+				const childY = parentY + Math.sin(childAngle) * subRadius;
+
+				if(!this._graph!.hasNode(childId))
+				{
+					this._graph!.addNode(childId, {
+						label: childNodeData.name || childId,
+						x: childX,
+						y: childY,
+						size: (childNodeData.val ?? 8) / 10,
+						color: serviceNode.color ?? hsl(
+							(parent.h - offset + ((j / 3) + (j % 3) * segment)) % 360,
+							Math.min(1, Math.max(0.2, parent.s + ((j % 2 === 0 ? 0.05 : -0.05)))),
+							Math.min(0.8, Math.max(0.2, parent.l + (((j % 3) - 1) * 0.05)))
+						).formatHex(),
+						service: serviceNode.name
+					});
+				}
+			});
+		});
+
+		// 3. Add Tier 1 edges to the graph safely
+		edges1.forEach(edge =>
+		{
+			try
+			{
+				if(!this._graph!.hasEdge(edge.source, edge.target) &&
+					this._graph!.hasNode(edge.source) &&
+					this._graph!.hasNode(edge.target))
+				{
+					this._graph!.addEdge(edge.source, edge.target, { color: '#e2e8f0', size: 1 });
+				}
+			} catch(e)
+			{
+				// Ignore duplicate edges
+			}
+		});
 
 		// Apply ForceAtlas2 safely with fallback
 		try
