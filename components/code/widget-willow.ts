@@ -17,6 +17,7 @@ export interface WillowEdge extends NodeObject
 
 export interface WillowNode extends NodeObject
 {
+	tier?: number;
 	id: string;
 	name: string;
 	val: number;

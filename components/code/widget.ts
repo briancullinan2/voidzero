@@ -13,7 +13,7 @@ import type { GithubWindow } from '../bundle/github.d';
 import { GitHubFileEntry } from '../bundle/github-types';
 import { PROJECT_LAYOUT_TIERS, TierRule } from './widget-tiers';
 
-import { hsl } from 'd3';
+import { hsl as d3HSL, rgb as d3RGB } from 'd3';
 
 const widgetSelf: WidgetExtensionsWindow & GlobalToolbarsWindow & GithubWindow & {
 	THREE: typeof THREE;
@@ -234,10 +234,11 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			const angle = (2 * Math.PI * i) / services.length;
 			const radius = 75;
 			return ({
+				tier: 0,
 				id: h.id,
 				name: h.name,
 				val: 22,
-				color: h.color ?? hsl(360 / services.length * i, 0.5, 0.5).formatHex(),
+				color: h.color ?? d3HSL(360 / services.length * i, 0.5, 0.5).formatHex(),
 				fx: (centerX ?? 0) + Math.cos(angle) * radius,
 				fy: 100,
 				fz: /* (isGhost ? -60 : 0) +*/ Math.sin(angle) * radius * 0.45,
@@ -394,10 +395,11 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			const angle = (2 * Math.PI * i) / services.length;
 			const radius = 75;
 			return ({
+				tier: 1,
 				id: h.id,
 				name: h.name,
 				val: 16,
-				// color: h.color ?? hsl(
+				// color: h.color ?? d3HSL(
 				// 	(360 / services.length) * i - (360 / (services.length * 2)),
 				// 	0.25 + (0.5) * (((i * 2) % services.length) / services.length),
 				// 	0.25 + (0.5) * (((i * 3) % services.length) / services.length)).formatHex(),
@@ -539,10 +541,11 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			const angle = (2 * Math.PI * i) / services.length;
 			const radius = 75;
 			return ({
+				tier: 2,
 				id: h.id,
 				name: h.name,
 				val: 11,
-				// color: h.color ?? hsl(
+				// color: h.color ?? d3HSL(
 				// 	(360 / services.length) * i - (360 / (services.length * 2)),
 				// 	0.25 + (0.5) * (((i * 2) % services.length) / services.length),
 				// 	0.25 + (0.5) * (((i * 3) % services.length) / services.length)).formatHex(),
@@ -685,10 +688,11 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			const angle = (2 * Math.PI * i) / services.length;
 			const radius = 75;
 			return ({
+				tier: 3,
 				id: h.id,
 				name: h.name,
 				val: 8,
-				// color: h.color ?? hsl(
+				// color: h.color ?? d3HSL(
 				// 	(360 / services.length) * i - (360 / (services.length * 2)),
 				// 	0.25 + (0.5) * (((i * 2) % services.length) / services.length),
 				// 	0.25 + (0.5) * (((i * 3) % services.length) / services.length)).formatHex(),
@@ -726,7 +730,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				//labelSize: 11,
 				// Adjust label rendering settings for clarity at a distance
 				renderEdgeLabels: false,
-				minCameraRatio: 0.1,
+				minCameraRatio: 0.001,
 				maxCameraRatio: 10.0,
 			},
 		});
@@ -764,12 +768,14 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			const angle = (2 * Math.PI * i) / services.length;
 			node.x = Math.cos(angle) * radius;
 			node.y = Math.sin(angle) * radius;
+			const targetColor = d3RGB(node.color ?? '#FFFFFF');
 			this._graph?.addNode(node.id, {
+				tier: node.tier,
 				label: node.name,
 				x: node.x,
 				y: node.y,
 				size: node.val ?? 10, // Smaller dot size for a cleaner look
-				color: node.color,
+				color: `rgba(${targetColor.r}, ${targetColor.g}, ${targetColor.b}, 0.5)`,
 				service: node.name
 			});
 		});
@@ -854,8 +860,11 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 					this._graph!.hasNode(edge.source) &&
 					this._graph!.hasNode(edge.target))
 				{
-					const targetColor = this._graph?.getNodeAttribute(edge.target, 'color');
-					this._graph!.addEdge(edge.source, edge.target, { color: targetColor ?? edge.color ?? '#e2e8f0', size: edge.size ?? 1 });
+					const targetTier = this._graph?.getNodeAttribute(edge.target, 'tier') ?? 0;
+					const targetColor = this._graph?.getNodeAttribute(edge.target, 'color') ?? '#FFFFFF';
+					const translucent = d3RGB(targetColor);
+					const targetStr = `rgba(${translucent.r}, ${translucent.g}, ${translucent.b}, ${0.5 - 0.10 * (targetTier ?? 0)})`;
+					this._graph!.addEdge(edge.source, edge.target, { color: targetStr ?? edge.color ?? '#e2e8f0', size: edge.size ?? 1 });
 				}
 			} catch(e)
 			{
@@ -897,7 +906,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			const root = Math.round(Math.sqrt(childIds.length) - 0.8);
 			const totalPieces = childIds.length - root * root;
 			const segment = (360 / totalServices / totalPieces);
-			const parent = serviceNode.color ? hsl(serviceNode.color) : hsl((360 / totalServices / totalPieces) * i, 0.5, 0.5);
+			const parent = serviceNode.color ? d3HSL(serviceNode.color) : d3HSL((360 / totalServices / totalPieces) * i, 0.5, 0.5);
 			const offset = 360 / (totalServices * totalPieces * 2);
 
 			childIds.forEach((childId, j) =>
@@ -912,16 +921,19 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 				if(!this._graph!.hasNode(childId))
 				{
+					const targetColor = serviceNode.color ? d3RGB(serviceNode.color) : d3HSL(
+						(parent.h - offset + ((j / totalPieces) * segment)) % 360,
+						Math.min(0.8, Math.max(0.2, 0.25 + ((j % root) / root * 0.5))),
+						Math.min(0.8, Math.max(0.2, 0.25 + ((j % root) / root * 0.5)))
+					).rgb();
+					const targetTier = childNodeData.tier;
 					this._graph!.addNode(childId, {
+						tier: childNodeData.tier,
 						label: childNodeData.name || childId,
 						x: childX,
 						y: childY,
 						size: (childNodeData.val ?? 8) / 10,
-						color: serviceNode.color ?? hsl(
-							(parent.h - offset + ((j / totalPieces) * segment)) % 360,
-							Math.min(0.8, Math.max(0.2, 0.25 + ((j % root) / root * 0.5))),
-							Math.min(0.8, Math.max(0.2, 0.25 + ((j % root) / root * 0.5)))
-						).formatHex(),
+						color: `rgba(${Math.round(targetColor.r)}, ${Math.round(targetColor.g)}, ${Math.round(targetColor.b)}, ${0.5 - 0.10 * (targetTier ?? 0)})`,
 						service: serviceNode.name
 					});
 				}
