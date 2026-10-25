@@ -15,6 +15,9 @@ import { PROJECT_LAYOUT_TIERS, TierRule } from './widget-tiers';
 
 import { hsl as d3HSL, rgb as d3RGB } from 'd3';
 
+const SCALE_FACTOR = 100;
+
+
 const widgetSelf: WidgetExtensionsWindow & GlobalToolbarsWindow & GithubWindow & {
 	THREE: typeof THREE;
 	CodeWidget: typeof CodeWidget,
@@ -46,12 +49,18 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private tier2Edges: Record<string, WillowEdge[]> = {};
 	private tier3Services: Record<string, WillowNode[]> = {};
 	private tier3Edges: Record<string, WillowEdge[]> = {};
+	private _loadTier1: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
+	private _loadTier2: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
+	private _loadTier3: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
 
 	constructor()
 	{
 		super();
 		this._loading = this.loadFiles();
 		this._loadTier0 = this.getTier0Services();
+		this._loadTier1 = this.getTier1Services();
+		this._loadTier2 = this.getTier2Services();
+		this._loadTier3 = this.getTier3Files();
 		this.initDom();
 	}
 
@@ -387,7 +396,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				target: h.target,
 				// color: h.color
 				color: '#cbd5e1',
-				size: 1.2
+				// size: 1.2
 			});
 		});
 		this.tier1Services[commitName ?? 'HEAD'] = services.map((h, i) =>
@@ -409,7 +418,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				commitX: centerX ?? 0,
 				offsetX: Math.cos(angle) * radius,
 				commitName: commitName ?? 'HEAD'
-			});
+			} as WillowNode);
 			// links.push({ source: rootId, target: h.id });
 		});
 		return {
@@ -533,7 +542,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				target: h.target,
 				// color: h.color
 				color: '#cbd5e1',
-				size: 1
+				// size: 1
 			});
 		});
 		this.tier2Services[commitName ?? 'HEAD'] = services.map((h, i) =>
@@ -544,7 +553,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				tier: 2,
 				id: h.id,
 				name: h.name,
-				val: 11,
+				// val: 11,
 				// color: h.color ?? d3HSL(
 				// 	(360 / services.length) * i - (360 / (services.length * 2)),
 				// 	0.25 + (0.5) * (((i * 2) % services.length) / services.length),
@@ -680,7 +689,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				target: h.target,
 				// color: h.color
 				color: '#cbd5e1',
-				size: 0.8
+				// size: 0.8
 			});
 		});
 		this.tier3Services[commitName ?? 'HEAD'] = services.map((h, i) =>
@@ -691,7 +700,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				tier: 3,
 				id: h.id,
 				name: h.name,
-				val: 8,
+				// val: 8,
 				// color: h.color ?? d3HSL(
 				// 	(360 / services.length) * i - (360 / (services.length * 2)),
 				// 	0.25 + (0.5) * (((i * 2) % services.length) / services.length),
@@ -712,39 +721,13 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	}
 
 
-	private async initGraph()
+
+	private appendServices(services: WillowNode[], grouped: Map<string, string[]>)
 	{
-		if(!this._graph || !this._container)
-		{
-			this.initDom();
-		}
-		if(!this._graph || !this._container)
+		if(!this._graph)
 		{
 			return;
 		}
-		// Initialize Sigma renderer
-		this._renderer = new Sigma(this._graph, this._container, {
-			settings: {
-				//defaultNodeColor: '#999',
-				labelDensity: 0.07,
-				//labelSize: 11,
-				// Adjust label rendering settings for clarity at a distance
-				renderEdgeLabels: false,
-				minCameraRatio: 0.001,
-				maxCameraRatio: 10.0,
-			},
-		});
-
-		// Rich test dataset ready out-of-the-box
-		const services = await this._loadTier0 ?? [
-			{ id: 'Core.js', name: 'Core', color: '#7f8c8d' },
-			{ id: 'test-cells.js', name: 'Frameworks', color: '#2ecc71' },
-			{ id: 'sigma-script.js', name: 'Frontends', color: '#d35400' },
-			{ id: 'zuora-to-eloqua.ipynb', name: 'Databases', color: '#1abc9c' },
-			{ id: 'node-graph.json', name: 'Cloud Services', color: '#f1c40f' },
-			{ id: 'cache-notebook.js', name: 'Core', color: '#7f8c8d' },
-			{ id: 'watch-files.js', name: 'Utilities', color: '#e67e22' }
-		];
 
 		const legendContainer = this.node.querySelector('#legend') as HTMLDivElement;
 		const uniqueServices = Array.from(new Set(services.map(s => s.name)));
@@ -774,8 +757,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				label: node.name,
 				x: node.x,
 				y: node.y,
-				size: node.val ?? 10, // Smaller dot size for a cleaner look
-				color: `rgba(${targetColor.r}, ${targetColor.g}, ${targetColor.b}, 0.5)`,
+				size: this.getScaledSize(node, (grouped.get(node.id) ?? []).length),
+				color: `rgba(${Math.round(targetColor.r)}, ${Math.round(targetColor.g)}, ${Math.round(targetColor.b)}, 0.5)`,
 				service: node.name
 			});
 		});
@@ -789,7 +772,10 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			{
 				if(!this._graph.hasEdge(source, target) && source !== target)
 				{
-					this._graph.addEdge(source, target, { color: '#cbd5e1', size: 1.5 });
+					this._graph.addEdge(source, target, {
+						color: '#cbd5e1',
+						size: this.getScaledEdge(services[i])
+					});
 				}
 			} catch(e)
 			{
@@ -797,13 +783,92 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			}
 		}
 
-		const { nodes: nodes1, edges: edges1 } = await this.getTier1Services();
-		const { nodes: nodes2, edges: edges2 } = await this.getTier2Services();
-		const { nodes: nodes3, edges: edges3 } = await this.getTier3Files();
-		//const nodes2: WillowNode[] = [], edges2: WillowEdge[] = [];
+		return services;
+	}
 
-		// 1. Group secondary nodes by their connected parent service ID
+
+	private getScaledSize(node: WillowNode, children: number)
+	{
+		const units = (this._graph?.nodes.length ?? 0) / SCALE_FACTOR;
+		return (Math.max(1, units) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, units))
+			* (SCALE_FACTOR / 10) + Math.max(SCALE_FACTOR / 10, Math.min(0, children / SCALE_FACTOR));
+	}
+
+	private getScaledEdge(node: WillowNode)
+	{
+		const units = (this._graph?.nodes.length ?? 0) / SCALE_FACTOR;
+		return Math.max(1, units) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, units);
+	}
+
+
+	private async initGraph()
+	{
+		if(!this._graph || !this._container)
+		{
+			this.initDom();
+		}
+		if(!this._graph || !this._container)
+		{
+			return;
+		}
+		// Initialize Sigma renderer
+		this._renderer = new Sigma(this._graph, this._container, {
+			settings: {
+				//defaultNodeColor: '#999',
+				labelDensity: 0.07,
+				//labelSize: 11,
+				// Adjust label rendering settings for clarity at a distance
+				renderEdgeLabels: false,
+				minCameraRatio: 0.001,
+				maxCameraRatio: 10.0,
+			},
+			nodeReducer: (node, data) =>
+			{
+				const res = { ...data };
+				const ratio = this._renderer?.getCamera().ratio; // Get current zoom level
+
+				if(ratio && (data as any).tier === 0)
+				{
+					const alpha = Math.max(0, Math.min(0.5, (ratio - 0.1) / 0.4));
+					const rgb = d3HSL(data.color || '#333').rgb();
+					res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
+				}
+
+				return res;
+			},
+			edgeReducer: (edge, data) =>
+			{
+				const res = { ...data };
+				const ratio = this._renderer?.getCamera().ratio;
+
+				if(ratio && ratio < 0.5)
+				{
+					const alpha = Math.max(0, Math.min(0.5, (ratio - 0.1) / 0.4));
+					const rgb = d3HSL(data.color || '#cbd5e1').rgb();
+					res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha * 0.4})`;
+				}
+
+				return res;
+			}
+		});
+
+		const services = await this._loadTier0 ?? [
+			{ id: 'Core.js', name: 'Core', color: '#7f8c8d' },
+			{ id: 'test-cells.js', name: 'Frameworks', color: '#2ecc71' },
+			{ id: 'sigma-script.js', name: 'Frontends', color: '#d35400' },
+			{ id: 'zuora-to-eloqua.ipynb', name: 'Databases', color: '#1abc9c' },
+			{ id: 'node-graph.json', name: 'Cloud Services', color: '#f1c40f' },
+			{ id: 'cache-notebook.js', name: 'Core', color: '#7f8c8d' },
+			{ id: 'watch-files.js', name: 'Utilities', color: '#e67e22' }
+		];
+
+		const { nodes: nodes1, edges: edges1 } = await this._loadTier1;
+		const { nodes: nodes2, edges: edges2 } = await this._loadTier2;
+		const { nodes: nodes3, edges: edges3 } = await this._loadTier3;
+
 		const childrenByParent = new Map<string, string[]>();
+		const childrenByParent2 = new Map<string, string[]>();
+		const childrenByParentAll = new Map<string, string[]>();
 		edges1.forEach(edge =>
 		{
 			const parentId = services.some(s => s.id === edge.source) ? edge.source : edge.target;
@@ -812,12 +877,16 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			if(!childrenByParent.has(parentId))
 			{
 				childrenByParent.set(parentId, []);
+				childrenByParent2.set(parentId, []);
+				childrenByParentAll.set(parentId, []);
 			}
+
 			childrenByParent.get(parentId)?.push(childId);
+			childrenByParent2.get(parentId)?.push(childId);
+			childrenByParentAll.get(parentId)?.push(childId);
 		});
 
 		const servicesAndNodes = [...services, ...nodes1];
-		const childrenByParent2 = new Map<string, string[]>();
 		edges2.forEach(edge =>
 		{
 			const parentId = servicesAndNodes.some(s => s.id === edge.source) ? edge.source : edge.target;
@@ -826,32 +895,35 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			if(!childrenByParent2.has(parentId))
 			{
 				childrenByParent2.set(parentId, []);
+				childrenByParentAll.get(parentId)?.push(childId);
 			}
 			childrenByParent2.get(parentId)?.push(childId);
+			childrenByParentAll.get(parentId)?.push(childId);
 		});
 
 		const servicesAndNodesAndMore = [...services, ...nodes1, ...nodes2];
-		const childrenByParent3 = new Map<string, string[]>();
 		edges3.forEach(edge =>
 		{
 			const parentId = servicesAndNodesAndMore.some(s => s.id === edge.source) ? edge.source : edge.target;
 			const childId = servicesAndNodesAndMore.some(s => s.id === edge.target) ? edge.source : edge.target;
 
-			if(!childrenByParent3.has(parentId))
+			if(!childrenByParentAll.has(parentId))
 			{
-				childrenByParent3.set(parentId, []);
+				childrenByParentAll.set(parentId, []);
 			}
-			childrenByParent3.get(parentId)?.push(childId);
+			childrenByParentAll.get(parentId)?.push(childId);
 		});
 
-		this.appendGraph(services, childrenByParent, nodes1, services.length);
 
-		this.appendGraph(servicesAndNodes, childrenByParent2, nodes2, services.length);
+		this.appendServices(services, childrenByParentAll);
 
-		this.appendGraph(servicesAndNodesAndMore, childrenByParent3, nodes3, services.length + nodes1.length);
+		this.appendGraph(services, childrenByParent, nodes1, services.length, childrenByParentAll);
 
+		this.appendGraph(servicesAndNodes, childrenByParent2, nodes2, services.length, childrenByParentAll);
 
-		// 3. Add Tier 1 edges to the graph safely
+		this.appendGraph(servicesAndNodesAndMore, childrenByParentAll, nodes3, services.length + nodes1.length, childrenByParentAll);
+
+		const allNodes = [...services, ...nodes1, ...nodes2, ...nodes3];
 		[...edges1, ...edges2, ...edges3].forEach(edge =>
 		{
 			try
@@ -860,11 +932,15 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 					this._graph!.hasNode(edge.source) &&
 					this._graph!.hasNode(edge.target))
 				{
+					const node = allNodes.find(n => n.id === edge.source);
 					const targetTier = this._graph?.getNodeAttribute(edge.target, 'tier') ?? 0;
 					const targetColor = this._graph?.getNodeAttribute(edge.target, 'color') ?? '#FFFFFF';
 					const translucent = d3RGB(targetColor);
 					const targetStr = `rgba(${translucent.r}, ${translucent.g}, ${translucent.b}, ${0.5 - 0.10 * (targetTier ?? 0)})`;
-					this._graph!.addEdge(edge.source, edge.target, { color: targetStr ?? edge.color ?? '#e2e8f0', size: edge.size ?? 1 });
+					this._graph!.addEdge(edge.source, edge.target, {
+						color: targetStr ?? edge.color ?? '#e2e8f0',
+						size: node ? this.getScaledEdge(node) : 1
+					});
 				}
 			} catch(e)
 			{
@@ -897,7 +973,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	}
 
 
-	private appendGraph(nodes: WillowNode[], lookup: Map<string, string[]>, children: WillowNode[], totalServices: number)
+	private appendGraph(nodes: WillowNode[], lookup: Map<string, string[]>, children: WillowNode[], totalServices: number, grouped: Map<string, string[]>)
 	{
 		const subRadius = 55;
 		[...nodes].forEach((serviceNode: WillowNode, i: number) =>
@@ -932,7 +1008,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 						label: childNodeData.name || childId,
 						x: childX,
 						y: childY,
-						size: (childNodeData.val ?? 8) / 10,
+						size: this.getScaledSize(childNodeData, (grouped.get(childNodeData.id) ?? []).length),
 						color: `rgba(${Math.round(targetColor.r)}, ${Math.round(targetColor.g)}, ${Math.round(targetColor.b)}, ${0.5 - 0.10 * (targetTier ?? 0)})`,
 						service: serviceNode.name
 					});

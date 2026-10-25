@@ -20,7 +20,7 @@ export interface WillowNode extends NodeObject
 	tier?: number;
 	id: string;
 	name: string;
-	val: number;
+	// val: number;
 	color?: string;
 	commitX: number;
 	offsetX: number;
@@ -553,7 +553,7 @@ export class WillowWidget extends Widget
 			nodes.push({
 				id: rootId,
 				name: isGhost ? '📁 Project Root (v0.9 - Previous)' : '🚀 Project Root (HEAD)',
-				val: 22,
+				// val: 22,
 				color: isGhost ? '#eab308' : '#3b82f6', // Yellow for v0.9, Blue for HEAD
 				fx: centerX, fy: 150, fz: 0,  //isGhost ? -60 : 0, // Ghost tree angled slightly behind (Z: -60)
 				commitX: centerX,
@@ -578,7 +578,7 @@ export class WillowWidget extends Widget
 				nodes.push({
 					id: h.id,
 					name: h.name,
-					val: 16,
+					// val: 16,
 					color: h.color,
 					fx: centerX + Math.cos(angle) * radius,
 					fy: 100,
@@ -611,7 +611,7 @@ export class WillowWidget extends Widget
 				nodes.push({
 					id: c.id,
 					name: c.name,
-					val: 11,
+					// val: 11,
 					color: isGhost ? '#ca8a04' : '#34d399',
 					fx: (parent.fx ?? 0) + c.dx,
 					fy: 40,
@@ -647,7 +647,7 @@ export class WillowWidget extends Widget
 					nodes.push({
 						id: astId,
 						name: isBranch ? (t % 2 === 0 ? `if (...)` : `return`) : `AST Token ${t}`,
-						val: isBranch ? 5 : 3.5,
+						// val: isBranch ? 5 : 3.5,
 						color: isGhost ? '#fde047' : (isBranch ? '#818cf8' : '#a78bfa'),
 						fx: (file.fx ?? 0) + (t - count / 2) * 12 + (Math.random() - 0.5) * 8,
 						fy: -20 - t * 18 - Math.random() * 10,
