@@ -234,4 +234,56 @@ export class NodeAnimator
 		// });
 	}
 
+	public static transitionToRatio(renderer: Sigma, orbitalGraph: Graph, forcedGraph: Graph, zoomLevel: number)
+	{
+		const graph = renderer.getGraph();
+		const targetPositions: Record<string, { x: number, y: number; }> = {};
+
+		orbitalGraph.forEachNode((nodeKey, orbitalAttrs) =>
+		{
+			if(!graph.hasNode(nodeKey)) return;
+
+			// 1. Get Orbital coordinates (ox, oy) as the baseline (tierRatio = 0)
+			const ox = orbitalAttrs.x ?? 0;
+			const oy = orbitalAttrs.y ?? 0;
+			const rawTier = orbitalAttrs.tier ?? 0;
+
+			// 2. Directional ratio based on tier:
+			// - Tier 0 (targetZoom 40): Forced at 40, returns to orbital as zoom drops to 30
+			// - Tier 1 (targetZoom 30): Orbital at 40, becomes forced as zoom drops to 30
+			let tierRatio = 0;
+			if(rawTier === 0)
+			{
+				tierRatio = Math.max(0, Math.min(1, (40 - zoomLevel) / 10));
+			}
+			else if(rawTier === 1)
+			{
+				tierRatio = Math.max(0, Math.min(1, (40 - zoomLevel) / 10));
+			}
+			else
+			{
+				// Fallback for any deeper tiers
+				const targetZoom = (4 - rawTier) * 10;
+				tierRatio = Math.max(0, Math.min(1, 1 - Math.abs(targetZoom - zoomLevel) / 10));
+			}
+
+			// 3. Get Forced coordinates (fx, fy) as the target destination (tierRatio = 1)
+			const forcedAttrs = forcedGraph.hasNode(nodeKey) ? forcedGraph.getNodeAttributes(nodeKey) : null;
+			const fx = forcedAttrs?.x ?? graph.getNodeAttribute(nodeKey, 'x') ?? ox;
+			const fy = forcedAttrs?.y ?? graph.getNodeAttribute(nodeKey, 'y') ?? oy;
+
+			// 4. Interpolate between orbital and forced positions
+			targetPositions[nodeKey] = {
+				x: ox + (fx - ox) * tierRatio,
+				y: oy + (fy - oy) * tierRatio
+			};
+		});
+
+		// Fire the animation once
+		NodeAnimator.cancelAnimation = NodeAnimator.animateNodes(graph, targetPositions, {
+			duration: 200,
+			easing: 'quadraticInOut'
+		});
+	}
+
 }

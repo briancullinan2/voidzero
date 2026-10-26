@@ -15,6 +15,7 @@ import { Message } from '@lumino/messaging';
 import forceLayout from "graphology-layout-force";
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import type { LuminoLayoutWindow } from '../bundle/lumino.d';
+import { NodeAnimator } from './widget-animate';
 
 const widgetSelf: WidgetExtensionsWindow & GlobalToolbarsWindow & GithubWindow & LuminoLayoutWindow & {
 	CodeWidget: typeof CodeWidget,
@@ -29,9 +30,11 @@ const widgetSelf: WidgetExtensionsWindow & GlobalToolbarsWindow & GithubWindow &
 
 export class CodeWidget extends widgetSelf.GenericSearchableWidget
 {
-	private _graph?: Graph;
-	private _fileGraph?: Graph;
-	private _combinedGraph?: Graph;
+	private _graph: Graph = new Graph;
+	private _fileGraph: Graph = new Graph;
+	private _combinedGraph: Graph = new Graph;
+	private _initialOrbitalGraph: Graph = new Graph;
+	private _initialForcedGraph: Graph = new Graph;
 	private _renderer: Sigma | null = null;
 	private _container?: HTMLDivElement;
 	private _isInitialized = false;
@@ -53,6 +56,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private edgeTarget: Map<string, number> = new Map();
 	protected zoomLevel: number = 4 * 10;
 	protected zoomTier: number = 0;
+	protected _initialOrbitalRatio: number | undefined;
+	protected _initialForcedRatio: number | undefined;
 
 	constructor()
 	{
@@ -87,9 +92,6 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		this._container = this.node.querySelector('#sigma-container') as HTMLDivElement;
 
 		this._container.addEventListener('wheel', this.wheelZoom.bind(this), { capture: true, passive: false });
-		this._graph = new Graph();
-		this._fileGraph = new Graph();
-		this._combinedGraph = new Graph();
 		this._loading = this.loadFiles();
 	}
 
@@ -105,7 +107,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		if(e.deltaY < 0)
 		{
 			this.zoomLevel--;
-		} else
+		} else if(this.zoomLevel < 40)
 		{
 			this.zoomLevel++;
 		}
@@ -113,6 +115,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		this.zoomTier = Math.round(4 - this.zoomLevel / 10);
 		this.updateStatus();
 		this._renderer.refresh();
+		NodeAnimator.transitionToRatio(this._renderer, this._initialOrbitalGraph, this._initialForcedGraph, this.zoomLevel);
 	}
 
 
@@ -335,6 +338,66 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	// 	}
 	// }
 
+	protected getGraphBBox(graph: Graph)
+	{
+		let minX = Infinity;
+		let maxX = -Infinity;
+		let minY = Infinity;
+		let maxY = -Infinity;
+
+		// Loop through every node in the graph instance to find spatial bounds
+		graph.forEachNode((node, attributes) =>
+		{
+			const x = attributes.x ?? 0;
+			if(x < minX) minX = x;
+			if(x > maxX) maxX = x;
+
+			const y = attributes.y ?? 0;
+			if(y < minY) minY = y;
+			if(y > maxY) maxY = y;
+		});
+
+		const graphWidth = maxX - minX;
+		const graphHeight = maxY - minY;
+		const widestGraphDimension = Math.max(graphWidth, graphHeight);
+
+		// Get the physical pixel size of your canvas/container element
+		if(!this._renderer)
+		{
+			return;
+		}
+		const container = this._renderer.getContainer();
+		const canvasSize = Math.max(container.offsetWidth, container.offsetHeight);
+
+		// Calculate the camera ratio where the graph's width/height is exactly 2x the canvas size
+		const ratioFor2xSize = (widestGraphDimension / canvasSize) / 2;
+		return ratioFor2xSize;
+	}
+
+
+
+	protected getRendererBBox()
+	{
+		if(!this._renderer)
+		{
+			return;
+		}
+		const bbox = this._renderer.getBBox(); // or sigmaInstance.getBBox()
+		const graphWidth = bbox.x[1] - bbox.x[0];
+		const graphHeight = bbox.y[1] - bbox.y[0];
+		const widestEdgeOrDimension = Math.max(graphWidth, graphHeight);
+
+		// 2. Get canvas/container dimensions
+		const container = this._renderer.getContainer();
+		const canvasSize = Math.max(container.offsetWidth, container.offsetHeight);
+
+		// 3. Determine the ratio where graph size is 2x the canvas size
+		// At ratio = 1, the graph fits the canvas.
+		// To make it 2x larger than the canvas, the ratio needs to be halved (zoomed in).
+		const ratioFor2xSize = (widestEdgeOrDimension / canvasSize) / 2;
+		return ratioFor2xSize;
+	}
+
 
 	private async initGraph()
 	{
@@ -522,6 +585,9 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		// Apply ForceAtlas2 safely with fallback
 		try
 		{
+			CodeWidget.mergeSubGraph(this._initialOrbitalGraph, this._graph);
+			this._initialOrbitalRatio = this.getGraphBBox(this._initialOrbitalGraph);
+
 			const sensibleSettings = forceAtlas2.inferSettings(this._graph);
 			forceAtlas2.assign(this._graph, {
 				iterations: 10,
@@ -531,6 +597,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 					strongGravityMode: true
 				}
 			});
+			CodeWidget.mergeSubGraph(this._initialForcedGraph, this._graph);
+			this._initialForcedRatio = this.getGraphBBox(this._initialForcedGraph);
 
 			// CodeWidget.mergeSubGraph(this._fileGraph, this._graph);
 
@@ -557,7 +625,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			// });
 
 			// CodeWidget.mergeSubGraph(this._combinedGraph, this._fileGraph);
-			CodeWidget.mergeSubGraph(this._combinedGraph, this._graph);
+			CodeWidget.mergeSubGraph(this._combinedGraph, this._initialOrbitalGraph);
 
 
 		} catch(e)
@@ -635,16 +703,33 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		{
 			if(!masterGraph.hasNode(nodeId))
 			{
-				masterGraph.addNode(nodeId, attributes);
+				masterGraph.addNode(nodeId, Object.assign({}, attributes));
+			}
+			else
+			{
+				// If the node already exists, copy/update its x and y values
+				if(attributes.x !== undefined)
+				{
+					masterGraph.setNodeAttribute(nodeId, 'x', attributes.x);
+				}
+				if(attributes.y !== undefined)
+				{
+					masterGraph.setNodeAttribute(nodeId, 'y', attributes.y);
+				}
+
+				// Optional: If you want to merge all incoming attributes for existing nodes:
+				// masterGraph.mergeNodeAttributes(nodeId, attributes);
 			}
 		});
+
 		subGraph.forEachEdge((edgeId: string, attributes, source, target) =>
 		{
 			if(!masterGraph.hasEdge(source, target))
 			{
-				masterGraph.addEdge(source, target, attributes);
+				masterGraph.addEdge(source, target, Object.assign({}, attributes));
 			}
 		});
+
 		return masterGraph;
 	}
 
