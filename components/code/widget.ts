@@ -55,6 +55,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private _mouseX?: number;
 	private allNodes?: WillowNode[];
 	private edgeMap: Map<string, WillowEdge> = new Map();
+	private edgeSource: Map<string, number> = new Map();
+	private edgeTarget: Map<string, number> = new Map();
 
 	constructor()
 	{
@@ -303,50 +305,42 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		const units = (this._graph?.nodes().length ?? 0) / SCALE_FACTOR;
 		return Math.max(1, units) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, units);
 	}
-	private static getZoomAlpha(ratio: number, tier: number, isEdge: boolean = false): number
+
+
+	private static getZoomAlpha(ratio: number, tier: number, isEdge: boolean): number
 	{
-		const r = Math.max(0.01, Math.min(10.0, ratio));
-		const peakOpacity = 0.4; // Maxes out safely between 0.1 and 0.5
-		const minOpacity = 0.01;
+		// Simple list of boundary thresholds for the tiers (descending from zoomed out to zoomed in)
+		const thresholds = [2.0, 1.0, 0.5, 0.25, 0.15, 0.05, 0.0];
 
-		// if(isEdge)
-		// {
-		// 	if(r >= 1.0) return 0.0;
-		// 	if(r <= 0.2) return 0.4;
-		// 	return ((1.0 - r) / 0.8) * 0.4;
-		// }
-
-		// Tier Profiles: Easily add or modify tiers here as your graph expands
-		const tierProfiles: Record<number, { start: number; peakMin: number; peakMax: number; end: number; }> = {
-			0: { start: 1.0, peakMin: 1.5, peakMax: 2.5, end: 15.0 }, // Dominant when zoomed out
-			1: { start: 0.5, peakMin: 0.7, peakMax: 0.8, end: 1.0 }, // Dominant at mid-zoom
-			2: { start: 0.25, peakMin: 0.3, peakMax: 0.4, end: 0.5 }, // Dominant when zoomed in close
-			3: { start: 0.05, peakMin: 0.1, peakMax: 0.2, end: 0.25 },
-			// To add Tier 3, 4, etc., just add them here:
-			// 3: { start: 0.01, peakMin: 0.03, peakMax: 0.08, end: 0.5 }
-		};
-
-		const profile = tierProfiles[tier] || tierProfiles[0];
-
-		// Continuous trapezoidal/triangular fade calculation
-		if(r <= profile.start || r >= profile.end)
+		if(tier < 0 || tier >= thresholds.length - 1)
 		{
-			return minOpacity;
+			return 0.05;
 		}
-		if(r >= profile.peakMin && r <= profile.peakMax)
+
+		const minOp = 0.05;
+		const maxOp = tier === 0 ? 0.5 : 0.4;
+
+		const high = thresholds[tier];     // The upper zoom boundary (zoomed out)
+		const low = thresholds[tier + 1];    // The lower zoom boundary (zoomed in)
+		const mid = (high + low) / 2;        // Peak opacity point right in the middle
+
+		// If ratio is outside this tier's [low, high] span, it stays at minOp
+		if(ratio < low || ratio > high)
 		{
-			return peakOpacity;
+			return minOp;
 		}
-		if(r < profile.peakMin)
+
+		// Smooth triangle fade between low, mid, and high
+		if(ratio <= mid)
 		{
-			const t = (r - profile.start) / (profile.peakMin - profile.start);
-			return minOpacity + t * (peakOpacity - minOpacity);
-		} else
+			return minOp + ((ratio - low) / (mid - low)) * (maxOp - minOp);
+		}
+		else
 		{
-			const t = (profile.end - r) / (profile.end - profile.peakMax);
-			return minOpacity + t * (peakOpacity - minOpacity);
+			return maxOp - ((ratio - mid) / (high - mid)) * (maxOp - minOp);
 		}
 	}
+
 
 	private async initGraph()
 	{
@@ -394,12 +388,14 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				const res = { ...data };
 				const ratio = this._renderer?.getCamera().ratio ?? 1.0;
 				const edgeSpec = this.edgeMap.get(edge);
-				const node = this.allNodes?.find(n => n.id === edgeSpec?.target);
+				const targetNode = this.edgeTarget.get(edgeSpec?.target ?? '') ?? 0;
+				const sourceNode = this.edgeSource.get(edgeSpec?.target ?? '') ?? 0;;
 
-				const alpha = CodeWidget.getZoomAlpha(ratio, node?.tier ?? 0, true);
+				const alpha = CodeWidget.getZoomAlpha(ratio, targetNode ?? 0, true);
+				const alpha2 = CodeWidget.getZoomAlpha(ratio, sourceNode ?? 0, true);
 				const rgb = d3HSL(data.color || '#cbd5e1').rgb();
 
-				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
+				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${Math.max(alpha, alpha2)})`;
 
 				if(res.color.includes('NaN')) { debugger; }
 				return res;
@@ -516,23 +512,23 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 			this.appendEdges(this.allNodes, [...edges1, ...edges2, ...edges3], this._fileGraph);
 
-			const sensibleSettings2 = forceAtlas2.inferSettings(this._fileGraph);
-			forceLayout.assign(this._fileGraph, {
-				maxIterations: 10,
-				// iterations: 10,
-				isNodeFixed: (node, attributes) =>
-				{
-					const attrs = this._fileGraph?.getNodeAttributes(node);
-					const tier = attrs?.tier ?? 0;
-					return tier <= 2;
-				},
-				settings: {
-					...sensibleSettings2,
-					// attraction: 0.005,
-					// repulsion: 0.1,
-					gravity: 0.1
-				}
-			});
+			// const sensibleSettings2 = forceAtlas2.inferSettings(this._fileGraph);
+			// forceLayout.assign(this._fileGraph, {
+			// 	maxIterations: 10,
+			// 	// iterations: 10,
+			// 	isNodeFixed: (node, attributes) =>
+			// 	{
+			// 		const attrs = this._fileGraph?.getNodeAttributes(node);
+			// 		const tier = attrs?.tier ?? 0;
+			// 		return tier <= 2;
+			// 	},
+			// 	settings: {
+			// 		...sensibleSettings2,
+			// 		// attraction: 0.005,
+			// 		// repulsion: 0.1,
+			// 		gravity: 0.1
+			// 	}
+			// });
 
 			CodeWidget.mergeSubGraph(this._combinedGraph, this._fileGraph);
 
@@ -575,6 +571,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 						size: node ? this.getScaledEdge(node) : 1
 					});
 					this.edgeMap.set(edgeId, edge);
+					this.edgeSource.set(edgeId, node?.tier ?? 0);
+					this.edgeTarget.set(edgeId, targetTier);
 				}
 			} catch(e)
 			{
@@ -646,6 +644,15 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			const segment = (360 / totalServices / totalPieces);
 			const parent = serviceNode.color ? d3HSL(serviceNode.color) : d3HSL((360 / totalServices / totalPieces) * i, 0.5, 0.5);
 			const offset = 360 / (totalServices * totalPieces * 2);
+			let attrs: any;
+			try
+			{
+				attrs = graph?.getNodeAttributes(serviceNode.id);
+			} catch(e)
+			{
+
+			}
+
 
 			childIds.forEach((childId, j) =>
 			{
@@ -654,8 +661,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 				// Spread children evenly in a ring around the parent's coordinates
 				const childAngle = (2 * Math.PI * j) / childIds.length;
-				const childX = (serviceNode.x ?? 0) + Math.cos(childAngle) * subRadius;
-				const childY = (serviceNode.y ?? 0) + Math.sin(childAngle) * subRadius;
+				const childX = (attrs?.x ?? serviceNode.x ?? 0) + Math.cos(childAngle) * subRadius;
+				const childY = (attrs?.y ?? serviceNode.y ?? 0) + Math.sin(childAngle) * subRadius;
 
 				if(!(graph ?? this._graph)!.hasNode(childId))
 				{
