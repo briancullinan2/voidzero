@@ -44,6 +44,7 @@
 		"fabric": "^7.4.0",
 		"glsl-shader-loader": "^0.1.6",
 		"graphology": "^0.26.0",
+		"graphology-layout-force": "^0.2.4",
 		"graphology-layout-forceatlas2": "^0.10.1",
 		"ip6addr": "^0.2.5",
 		"js-yaml": "^5.5.0",

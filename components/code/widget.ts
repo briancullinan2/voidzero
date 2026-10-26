@@ -12,6 +12,7 @@ import { GitHubFileEntry } from '../bundle/github-types';
 import { hsl as d3HSL, rgb as d3RGB } from 'd3';
 import { ProjectNodes } from './widget-nodes';
 import { Message } from '@lumino/messaging';
+import forceLayout from "graphology-layout-force";
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import type { LuminoLayoutWindow } from '../bundle/lumino.d';
 
@@ -35,6 +36,8 @@ const widgetSelf: WidgetExtensionsWindow & GlobalToolbarsWindow & GithubWindow &
 export class CodeWidget extends widgetSelf.GenericSearchableWidget
 {
 	private _graph?: Graph;
+	private _fileGraph?: Graph;
+	private _combinedGraph?: Graph;
 	private _renderer: Sigma | null = null;
 	private _container?: HTMLDivElement;
 	private _isInitialized = false;
@@ -97,6 +100,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			this.updateStatus();
 		}, { capture: true, passive: false });
 		this._graph = new Graph();
+		this._fileGraph = new Graph();
+		this._combinedGraph = new Graph();
 		this._loading = this.loadFiles();
 	}
 
@@ -298,70 +303,64 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		const units = (this._graph?.nodes().length ?? 0) / SCALE_FACTOR;
 		return Math.max(1, units) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, units);
 	}
-
 	private static getZoomAlpha(ratio: number, tier: number, isEdge: boolean = false): number
 	{
-		// Clamp ratio to a stable viewing window to prevent runaway math
-		const r = Math.max(0.1, Math.min(10.0, ratio));
+		const r = Math.max(0.01, Math.min(10.0, ratio));
+		const peakOpacity = 0.4; // Maxes out safely between 0.1 and 0.5
+		const minOpacity = 0.01;
 
-		// Edge continuum: smoothly fades up to 0.4 max as you zoom in
 		// if(isEdge)
 		// {
 		// 	if(r >= 1.0) return 0.0;
 		// 	if(r <= 0.2) return 0.4;
-		// 	const t = (1.0 - r) / 0.8;
-		// 	return t * 0.4;
+		// 	return ((1.0 - r) / 0.8) * 0.4;
 		// }
 
-		// Node tier continuum (smooth overlapping peaks maxing out at 0.4 opacity)
-		const peakOpacity = 0.4; // Stays strictly between 0.1 and 0.5
-		const minOpacity = 0.01;
+		// Tier Profiles: Easily add or modify tiers here as your graph expands
+		const tierProfiles: Record<number, { start: number; peakMin: number; peakMax: number; end: number; }> = {
+			0: { start: 1.0, peakMin: 1.5, peakMax: 2.5, end: 15.0 }, // Dominant when zoomed out
+			1: { start: 0.5, peakMin: 0.7, peakMax: 0.8, end: 1.0 }, // Dominant at mid-zoom
+			2: { start: 0.25, peakMin: 0.3, peakMax: 0.4, end: 0.5 }, // Dominant when zoomed in close
+			3: { start: 0.05, peakMin: 0.1, peakMax: 0.2, end: 0.25 },
+			// To add Tier 3, 4, etc., just add them here:
+			// 3: { start: 0.01, peakMin: 0.03, peakMax: 0.08, end: 0.5 }
+		};
 
-		if(tier === 0)
+		const profile = tierProfiles[tier] || tierProfiles[0];
+
+		// Continuous trapezoidal/triangular fade calculation
+		if(r <= profile.start || r >= profile.end)
 		{
-			// Dominant when zoomed out (ratio >= 2.5), tapering down smoothly as you zoom in
-			if(r <= 0.5) return minOpacity;
-			if(r >= 2.5) return peakOpacity;
-			const t = (r - 0.5) / 2.0;
+			return minOpacity;
+		}
+		if(r >= profile.peakMin && r <= profile.peakMax)
+		{
+			return peakOpacity;
+		}
+		if(r < profile.peakMin)
+		{
+			const t = (r - profile.start) / (profile.peakMin - profile.start);
 			return minOpacity + t * (peakOpacity - minOpacity);
-		}
-		else if(tier === 1)
+		} else
 		{
-			// Dominant at mid-zoom (peaking around ratio 1.0), tapering on both sides
-			if(r <= 0.3 || r >= 2.0) return minOpacity;
-			if(r <= 1.0)
-			{
-				const t = (r - 0.3) / 0.7;
-				return minOpacity + t * (peakOpacity - minOpacity);
-			} else
-			{
-				const t = (2.0 - r) / 1.0;
-				return minOpacity + t * (peakOpacity - minOpacity);
-			}
-		}
-		else // tier >= 2
-		{
-			// Dominant when zoomed in close (ratio <= 0.3), tapering down as you zoom out
-			if(r <= 0.3) return peakOpacity;
-			if(r >= 1.5) return minOpacity;
-			const t = (1.5 - r) / 1.2;
+			const t = (profile.end - r) / (profile.end - profile.peakMax);
 			return minOpacity + t * (peakOpacity - minOpacity);
 		}
 	}
 
 	private async initGraph()
 	{
-		if(!this._graph || !this._container)
+		if(!this._graph || !this._combinedGraph || !this._fileGraph || !this._container)
 		{
 			this.initDom();
 		}
-		if(!this._graph || !this._container)
+		if(!this._graph || !this._combinedGraph || !this._fileGraph || !this._container)
 		{
 			return;
 		}
 		await this._loading;
 		// Initialize Sigma renderer
-		this._renderer = new Sigma(this._graph, this._container, {
+		this._renderer = new Sigma(this._combinedGraph, this._container, {
 			settings: {
 				//defaultNodeColor: '#999',
 				labelDensity: 0.07,
@@ -379,7 +378,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			{
 				const res = { ...data };
 				const ratio = this._renderer?.getCamera().ratio ?? 1.0;
-				const attrs = this._graph?.getNodeAttributes(node);
+				const attrs = this._combinedGraph?.getNodeAttributes(node);
 				const tier = attrs?.tier ?? (data as any).tier ?? 0;
 
 				const alpha = CodeWidget.getZoomAlpha(ratio, tier, false);
@@ -477,37 +476,10 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 		this.appendGraph(servicesAndNodes, childrenByParent2, nodes2, services.length, childrenByParentAll);
 
-		// this.appendGraph(servicesAndNodesAndMore, childrenByParentAll, nodes3, services.length + nodes1.length, childrenByParentAll);
-
 		this.allNodes = [...services, ...nodes1, ...nodes2, ...nodes3];
-		[...edges1, ...edges2, ...edges3].forEach(edge =>
-		{
-			try
-			{
-				if(!this._graph!.hasEdge(edge.source, edge.target) &&
-					this._graph!.hasNode(edge.source) &&
-					this._graph!.hasNode(edge.target))
-				{
-					const node = this.allNodes?.find(n => n.id === edge.source);
-					const targetTier = this._graph?.getNodeAttribute(edge.target, 'tier') ?? 0;
-					const targetColor = this._graph?.getNodeAttribute(edge.target, 'color') ?? '#FFFFFF';
-					const translucent = d3RGB(targetColor);
-					const targetStr = `rgba(${translucent.r}, ${translucent.g}, ${translucent.b}, ${0.5 - (0.10 * (targetTier ?? 0))})`;
-					if(targetStr.includes('NaN'))
-					{
-						debugger;
-					}
-					const edgeId = this._graph!.addEdge(edge.source, edge.target, {
-						color: targetStr ?? edge.color ?? '#e2e8f0',
-						size: node ? this.getScaledEdge(node) : 1
-					});
-					this.edgeMap.set(edgeId, edge);
-				}
-			} catch(e)
-			{
-				// Ignore duplicate edges
-			}
-		});
+
+		this.appendEdges(this.allNodes, [...edges1, ...edges2], this._graph);
+
 
 
 
@@ -530,13 +502,41 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		{
 			const sensibleSettings = forceAtlas2.inferSettings(this._graph);
 			forceAtlas2.assign(this._graph, {
-				iterations: 40,
+				iterations: 10,
 				settings: {
 					...sensibleSettings,
 					gravity: 1.0,
 					strongGravityMode: true
 				}
 			});
+
+			CodeWidget.mergeSubGraph(this._fileGraph, this._graph);
+
+			this.appendGraph(servicesAndNodesAndMore, childrenByParentAll, nodes3, services.length + nodes1.length, childrenByParentAll, this._fileGraph);
+
+			this.appendEdges(this.allNodes, [...edges1, ...edges2, ...edges3], this._fileGraph);
+
+			const sensibleSettings2 = forceAtlas2.inferSettings(this._fileGraph);
+			forceLayout.assign(this._fileGraph, {
+				maxIterations: 10,
+				// iterations: 10,
+				isNodeFixed: (node, attributes) =>
+				{
+					const attrs = this._fileGraph?.getNodeAttributes(node);
+					const tier = attrs?.tier ?? 0;
+					return tier <= 2;
+				},
+				settings: {
+					...sensibleSettings2,
+					// attraction: 0.005,
+					// repulsion: 0.1,
+					gravity: 0.1
+				}
+			});
+
+			CodeWidget.mergeSubGraph(this._combinedGraph, this._fileGraph);
+
+
 		} catch(e)
 		{
 			console.warn('ForceAtlas2 layout skipped.', e);
@@ -549,6 +549,40 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		camera.setState({ x: 0, y: 0, ratio: 1.5, angle: 0 });
 		this.startAnimators();
 	}
+
+
+	private appendEdges(allNodes: WillowNode[], edges: WillowEdge[], graph: Graph)
+	{
+		edges.forEach(edge =>
+		{
+			try
+			{
+				if(!graph.hasEdge(edge.source, edge.target) &&
+					graph.hasNode(edge.source) &&
+					graph.hasNode(edge.target))
+				{
+					const node = allNodes?.find(n => n.id === edge.source);
+					const targetTier = graph.getNodeAttribute(edge.target, 'tier') ?? 0;
+					const targetColor = graph.getNodeAttribute(edge.target, 'color') ?? '#FFFFFF';
+					const translucent = d3RGB(targetColor);
+					const targetStr = `rgba(${translucent.r}, ${translucent.g}, ${translucent.b}, ${0.5 - (0.10 * (targetTier ?? 0))})`;
+					if(targetStr.includes('NaN'))
+					{
+						debugger;
+					}
+					const edgeId = graph.addEdge(edge.source, edge.target, {
+						color: targetStr ?? edge.color ?? '#e2e8f0',
+						size: node ? this.getScaledEdge(node) : 1
+					});
+					this.edgeMap.set(edgeId, edge);
+				}
+			} catch(e)
+			{
+				// Ignore duplicate edges
+			}
+		});
+	}
+
 
 
 	private updateStatus()
@@ -601,7 +635,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	}
 
 
-	private appendGraph(nodes: WillowNode[], lookup: Map<string, string[]>, children: WillowNode[], totalServices: number, grouped: Map<string, string[]>)
+	private appendGraph(nodes: WillowNode[], lookup: Map<string, string[]>, children: WillowNode[], totalServices: number, grouped: Map<string, string[]>, graph?: Graph)
 	{
 		const subRadius = 55;
 		[...nodes].forEach((serviceNode: WillowNode, i: number) =>
@@ -623,7 +657,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				const childX = (serviceNode.x ?? 0) + Math.cos(childAngle) * subRadius;
 				const childY = (serviceNode.y ?? 0) + Math.sin(childAngle) * subRadius;
 
-				if(!this._graph!.hasNode(childId))
+				if(!(graph ?? this._graph)!.hasNode(childId))
 				{
 					const targetColor = serviceNode.color ? d3RGB(serviceNode.color) : d3HSL(
 						(parent.h - offset + ((j / totalPieces) * segment)) % 360,
@@ -636,7 +670,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 					{
 						debugger;
 					}
-					this._graph!.addNode(childId, {
+					(graph ?? this._graph)!.addNode(childId, {
 						tier: childNodeData.tier,
 						label: childNodeData.name || childId,
 						x: childX,
