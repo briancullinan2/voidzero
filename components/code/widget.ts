@@ -11,9 +11,10 @@ import { LanguageListWidget, LanguagesWidget } from './widget-languages';
 import type { GlobalToolbarsWindow } from '../bundle/menu.d';
 import type { GithubWindow } from '../bundle/github.d';
 import { GitHubFileEntry } from '../bundle/github-types';
-import { PROJECT_LAYOUT_TIERS, TierRule } from './widget-tiers';
-
 import { hsl as d3HSL, rgb as d3RGB } from 'd3';
+import { ProjectNodes } from './widget-nodes';
+import { NodeAnimator } from './widget-animate';
+
 
 const SCALE_FACTOR = 100;
 
@@ -42,25 +43,23 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private files?: Record<string, GitHubFileEntry> | undefined;
 	private tier0Services: Record<string, WillowNode[]> = {};
 	private _loading: Promise<never[] | undefined>;
-	private _loadTier0: Promise<WillowNode[]>;
+	private _loadTier0!: Promise<WillowNode[]>;
 	private tier1Services: Record<string, WillowNode[]> = {};
 	private tier1Edges: Record<string, WillowEdge[]> = {};
 	private tier2Services: Record<string, WillowNode[]> = {};
 	private tier2Edges: Record<string, WillowEdge[]> = {};
 	private tier3Services: Record<string, WillowNode[]> = {};
 	private tier3Edges: Record<string, WillowEdge[]> = {};
-	private _loadTier1: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
-	private _loadTier2: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
-	private _loadTier3: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
+	private _loadTier1!: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
+	private _loadTier2!: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
+	private _loadTier3!: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
+	private targeter?: ReturnType<typeof setInterval>;
+	private animator?: ReturnType<typeof setInterval>;
 
 	constructor()
 	{
 		super();
 		this._loading = this.loadFiles();
-		this._loadTier0 = this.getTier0Services();
-		this._loadTier1 = this.getTier1Services();
-		this._loadTier2 = this.getTier2Services();
-		this._loadTier3 = this.getTier3Files();
 		this.initDom();
 	}
 
@@ -168,558 +167,13 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			this.files = widgetSelf.filesRepo[this.selector] = await widgetSelf.loadGitHubTree?.(owner, repo, branch);
 		}
 
+
+		this._loadTier0 = ProjectNodes.getTier0Services(Object.values(this.files ?? {}));
+		this._loadTier1 = ProjectNodes.getTier1Services(Object.values(this.files ?? {}));
+		this._loadTier2 = ProjectNodes.getTier2Services(Object.values(this.files ?? {}));
+		this._loadTier3 = ProjectNodes.getTier3Files(Object.values(this.files ?? {}));
+
 	}
-
-
-	protected async getTier0Services(commitName?: string, centerX?: number): Promise<WillowNode[]>
-	{
-		if(!this.files)
-		{
-			await this._loading;
-		}
-
-
-		const services: ({ id: string, name: string, color?: string; })[] = [];
-		const alreadyTiered: TierRule[] = [];
-		const alreadyExted: string[] = [];
-		for(const n of Object.values(this.files ?? {}))
-		{
-			if(n.name?.startsWith('.'))
-			{
-				continue;
-			}
-			const leaf = (n.name ?? n.path)?.split(/[\\\/]/gi).pop();
-			const ext = leaf?.includes('.') ? leaf?.split('.').pop() : undefined;
-
-
-			if(ext && !alreadyExted.includes('Extension'))
-			{
-				services.push({
-					id: `${commitName ?? 'HEAD'}_ext`,
-					name: 'Extension',
-				});
-				alreadyExted.push('Extension');
-			}
-
-			const pathParts = n.path?.split(/[\\\/]/gi);
-			if(pathParts.length > 2 && !alreadyExted.includes(pathParts[0]))
-			{
-				services.push({
-					id: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-					name: 'Folder: ' + pathParts[0],
-				});
-				alreadyExted.push(pathParts[0]);
-			}
-
-
-			for(const t of PROJECT_LAYOUT_TIERS)
-			{
-				if(alreadyTiered.includes(t))
-				{
-					continue;
-				}
-				for(const r of t.patterns)
-				{
-					if(typeof r === 'string' && !(n.path ?? n.name).includes(r))
-					{
-						continue;
-					}
-					else if(r instanceof RegExp && !(n.path ?? n.name).match(r))
-					{
-						continue;
-					}
-					services.push({
-						id: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-						name: t.name,
-					});
-					alreadyTiered.push(t);
-				}
-				break;
-			}
-		}
-
-		this.tier0Services[commitName ?? 'HEAD'] = services.map((h, i) =>
-		{
-			const angle = (2 * Math.PI * i) / services.length;
-			const radius = 75;
-			return ({
-				tier: 0,
-				id: h.id,
-				name: h.name,
-				val: 22,
-				color: h.color ?? d3HSL(360 / services.length * i, 0.5, 0.5).formatHex(),
-				fx: (centerX ?? 0) + Math.cos(angle) * radius,
-				fy: 100,
-				fz: /* (isGhost ? -60 : 0) +*/ Math.sin(angle) * radius * 0.45,
-				commitX: centerX ?? 0,
-				offsetX: Math.cos(angle) * radius,
-				commitName: commitName ?? 'HEAD'
-			});
-			// links.push({ source: rootId, target: h.id });
-		});
-		return this.tier0Services[commitName ?? 'HEAD'];
-	}
-
-
-	protected async getTier1Services(commitName?: string, centerX?: number): Promise<{ nodes: WillowNode[], edges: WillowEdge[]; }>
-	{
-		if(!this.files)
-		{
-			await this._loading;
-		}
-
-		// TODO: uncomment and edge into infinity
-
-		const services: ({ id: string, name: string, color?: string; })[] = [];
-		const edges: ({ source: string, target: string; })[] = [];
-		const alreadyEdged: string[] = [];
-		const alreadyExted: string[] = [];
-		for(const n of Object.values(this.files ?? {}))
-		{
-			if(n.name?.startsWith('.'))
-			{
-				continue;
-			}
-			const leaf = (n.name ?? n.path)?.split(/[\\\/]/gi).pop();
-			const ext = leaf?.includes('.') ? leaf?.split('.').pop() : undefined;
-
-			const extSafe = ext?.toLowerCase().replace(/[^a-z0-9]/gi, '_');
-			if(ext && extSafe && !alreadyExted.includes(extSafe))
-			{
-				services.push({
-					id: `${commitName ?? 'HEAD'}_ext___${extSafe}`,
-					name: 'Ext: .' + ext,
-				});
-				alreadyExted.push(extSafe);
-				edges.push({
-					source: `${commitName ?? 'HEAD'}_ext___${extSafe}`,
-					target: `${commitName ?? 'HEAD'}_ext`
-				});
-				alreadyEdged.push(`${commitName}_ext___${extSafe}->${commitName ?? 'HEAD'}_ext`);
-			}
-
-
-			const pathParts = n.path?.split(/[\\\/]/gi);
-			if(pathParts.length > 2) // && !alreadyExted.includes(pathParts[0]))
-			{
-				if(ext && extSafe)
-				{
-					const edge: WillowEdge = {
-						source: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-						target: `${commitName ?? 'HEAD'}_ext___${extSafe}`
-					};
-					if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
-					{
-						edges.push(edge);
-						alreadyEdged.push(`${edge.source}->${edge.target}`);
-					}
-				}
-				// alreadyExted.push(pathParts[0]);
-			}
-			if(pathParts.length > 3)
-			{
-				if(!alreadyExted.includes(pathParts[1]))
-				{
-					services.push({
-						id: `${commitName ?? 'HEAD'}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-						name: 'Folder: ' + pathParts[1],
-					});
-					alreadyExted.push(pathParts[1]);
-				}
-				const edge: WillowEdge = {
-					source: `${commitName ?? 'HEAD'}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-					target: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
-				};
-				if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
-				{
-					edges.push(edge);
-					alreadyEdged.push(`${edge.source}->${edge.target}`);
-				}
-			}
-			for(const t of PROJECT_LAYOUT_TIERS)
-			{
-				for(const r of t.patterns)
-				{
-					if(typeof r === 'string' && !(n.path ?? n.name).includes(r))
-					{
-						continue;
-					}
-					else if(r instanceof RegExp && !(n.path ?? n.name).match(r))
-					{
-						continue;
-					}
-					if(pathParts.length > 3)
-					{
-						const edge: WillowEdge = {
-							source: `${commitName ?? 'HEAD'}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-							target: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
-						};
-						if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
-						{
-							edges.push(edge);
-							alreadyEdged.push(`${edge.source}->${edge.target}`);
-						}
-					} else if(pathParts.length > 2)
-					{
-
-						const edge: WillowEdge = {
-							source: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-							target: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
-						};
-						if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
-						{
-							edges.push(edge);
-							alreadyEdged.push(`${edge.source}->${edge.target}`);
-						}
-					}
-					if(ext && extSafe)
-					{
-						const edge: WillowEdge = {
-							source: `${commitName ?? 'HEAD'}_ext___${extSafe}`,
-							target: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
-						};
-						if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
-						{
-							edges.push(edge);
-							alreadyEdged.push(`${edge.source}->${edge.target}`);
-						}
-					}
-					break;
-				}
-			}
-		}
-
-		this.tier1Edges[commitName ?? 'HEAD'] = edges.map((h, i) =>
-		{
-			return ({
-				source: h.source,
-				target: h.target,
-				// color: h.color
-				color: '#cbd5e1',
-				// size: 1.2
-			});
-		});
-		this.tier1Services[commitName ?? 'HEAD'] = services.map((h, i) =>
-		{
-			const angle = (2 * Math.PI * i) / services.length;
-			const radius = 75;
-			return ({
-				tier: 1,
-				id: h.id,
-				name: h.name,
-				val: 16,
-				// color: h.color ?? d3HSL(
-				// 	(360 / services.length) * i - (360 / (services.length * 2)),
-				// 	0.25 + (0.5) * (((i * 2) % services.length) / services.length),
-				// 	0.25 + (0.5) * (((i * 3) % services.length) / services.length)).formatHex(),
-				fx: (centerX ?? 0) + Math.cos(angle) * radius,
-				fy: 100,
-				fz: /* (isGhost ? -60 : 0) +*/ Math.sin(angle) * radius * 0.45,
-				commitX: centerX ?? 0,
-				offsetX: Math.cos(angle) * radius,
-				commitName: commitName ?? 'HEAD'
-			} as WillowNode);
-			// links.push({ source: rootId, target: h.id });
-		});
-		return {
-			nodes: this.tier1Services[commitName ?? 'HEAD'],
-			edges: this.tier1Edges[commitName ?? 'HEAD']
-		};
-	}
-
-
-	protected async getTier2Services(commitName?: string, centerX?: number): Promise<{ nodes: WillowNode[], edges: WillowEdge[]; }>
-	{
-		if(!this.files)
-		{
-			await this._loading;
-		}
-
-		// TODO: uncomment and edge into infinity
-
-		const services: ({ id: string, name: string, color?: string; })[] = [];
-		const edges: ({ source: string, target: string; })[] = [];
-		const alreadyEdged: string[] = [];
-		const alreadyFoldered: string[] = [];
-		for(const n of Object.values(this.files ?? {}))
-		{
-			if(n.name?.startsWith('.'))
-			{
-				continue;
-			}
-			// const leaf = (n.name ?? n.path)?.split(/[\\\/]/gi).pop();
-			// const ext = leaf?.includes('.') ? leaf?.split('.').pop() : undefined;
-
-			const pathParts = n.path?.split(/[\\\/]/gi);
-
-			if(pathParts.length > 3)
-			{
-				if(!alreadyFoldered.includes(pathParts[1]))
-				{
-					alreadyFoldered.push(pathParts[1]);
-				}
-			}
-			else if(pathParts.length > 2)
-			{
-				if(!alreadyFoldered.includes(pathParts[0]))
-				{
-					alreadyFoldered.push(pathParts[0]);
-				}
-			}
-
-		}
-
-		for(const n of Object.values(this.files ?? {}))
-		{
-			if(n.name?.startsWith('.'))
-			{
-				continue;
-			}
-
-			const pathParts = n.path?.split(/[\\\/]/gi);
-
-			if(pathParts.length > 3)
-			{
-				const remaining = pathParts.slice(2, -1).join('/');
-				if(!alreadyFoldered.includes(remaining))
-				{
-					services.push({
-						id: `${commitName ?? 'HEAD'}_folder___${remaining.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-						name: 'Folder: ' + remaining,
-					});
-					alreadyFoldered.push(remaining);
-				}
-
-				const edge: WillowEdge = {
-					source: `${commitName ?? 'HEAD'}_folder___${remaining.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-					target: `${commitName ?? 'HEAD'}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
-				};
-				if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
-				{
-					edges.push(edge);
-					alreadyEdged.push(`${edge.source}->${edge.target}`);
-				}
-			}
-			else if(pathParts.length > 2)
-			{
-				if(!alreadyFoldered.includes(pathParts[1]))
-				{
-					services.push({
-						id: `${commitName ?? 'HEAD'}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-						name: 'Folder: ' + pathParts[1],
-					});
-					alreadyFoldered.push(pathParts[1]);
-				}
-
-				const edge: WillowEdge = {
-					source: `${commitName ?? 'HEAD'}_folder___${pathParts[1].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-					target: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
-				};
-				if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
-				{
-					edges.push(edge);
-					alreadyEdged.push(`${edge.source}->${edge.target}`);
-				}
-			}
-			else if(pathParts.length > 1)
-			{
-				if(!alreadyFoldered.includes(pathParts[0]))
-				{
-					services.push({
-						id: `${commitName ?? 'HEAD'}_folder___${pathParts[0].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-						name: 'Folder: ' + pathParts[0],
-					});
-					alreadyFoldered.push(pathParts[0]);
-				}
-
-			}
-		}
-
-		this.tier2Edges[commitName ?? 'HEAD'] = edges.map((h, i) =>
-		{
-			return ({
-				source: h.source,
-				target: h.target,
-				// color: h.color
-				color: '#cbd5e1',
-				// size: 1
-			});
-		});
-		this.tier2Services[commitName ?? 'HEAD'] = services.map((h, i) =>
-		{
-			const angle = (2 * Math.PI * i) / services.length;
-			const radius = 75;
-			return ({
-				tier: 2,
-				id: h.id,
-				name: h.name,
-				// val: 11,
-				// color: h.color ?? d3HSL(
-				// 	(360 / services.length) * i - (360 / (services.length * 2)),
-				// 	0.25 + (0.5) * (((i * 2) % services.length) / services.length),
-				// 	0.25 + (0.5) * (((i * 3) % services.length) / services.length)).formatHex(),
-				fx: (centerX ?? 0) + Math.cos(angle) * radius,
-				fy: 100,
-				fz: /* (isGhost ? -60 : 0) +*/ Math.sin(angle) * radius * 0.45,
-				commitX: centerX ?? 0,
-				offsetX: Math.cos(angle) * radius,
-				commitName: commitName ?? 'HEAD'
-			});
-			// links.push({ source: rootId, target: h.id });
-		});
-		return {
-			nodes: this.tier2Services[commitName ?? 'HEAD'],
-			edges: this.tier2Edges[commitName ?? 'HEAD']
-		};
-	}
-
-
-
-
-	protected async getTier3Files(commitName?: string, centerX?: number): Promise<{ nodes: WillowNode[], edges: WillowEdge[]; }>
-	{
-		if(!this.files)
-		{
-			await this._loading;
-		}
-
-		// TODO: uncomment and edge into infinity
-
-		const services: ({ id: string, name: string, color?: string; })[] = [];
-		const edges: ({ source: string, target: string; })[] = [];
-		const alreadyEdged: string[] = [];
-		const alreadyFiled: string[] = [];
-		for(const n of Object.values(this.files ?? {}))
-		{
-			if(n.name?.startsWith('.'))
-			{
-				continue;
-			}
-
-			const leaf = (n.name ?? n.path)?.split(/[\\\/]/gi).pop();
-			const ext = leaf?.includes('.') ? leaf?.split('.').pop() : undefined;
-			const extSafe = ext?.toLowerCase().replace(/[^a-z0-9]/gi, '_');
-
-
-			if(!n.path || alreadyFiled.includes(n.path))
-			{
-				continue;
-			}
-
-
-			services.push({
-				id: `${commitName ?? 'HEAD'}_file___${n.path.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-				name: n.name ?? n.path.split(/[\\\/]/gi).pop() ?? '',
-			});
-			alreadyFiled.push(n.path);
-
-			const pathParts = n.path?.split(/[\\\/]/gi);
-
-			// TODO: link parent folder
-			if(pathParts.length > 3)
-			{
-				const remaining = pathParts.slice(2, -1).join('/');
-				const edge: WillowEdge = {
-					source: `${commitName ?? 'HEAD'}_file___${n.path.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-					target: `${commitName ?? 'HEAD'}_folder___${remaining.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
-				};
-				if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
-				{
-					edges.push(edge);
-					alreadyEdged.push(`${edge.source}->${edge.target}`);
-				}
-			} else if(pathParts.length > 1)
-			{
-				const edge: WillowEdge = {
-					source: `${commitName ?? 'HEAD'}_file___${n.path.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-					target: `${commitName ?? 'HEAD'}_folder___${pathParts[pathParts.length - 2].toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
-				};
-				if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
-				{
-					edges.push(edge);
-					alreadyEdged.push(`${edge.source}->${edge.target}`);
-				}
-			}
-
-			if(extSafe)
-			{
-				const edge: WillowEdge = {
-					source: `${commitName ?? 'HEAD'}_file___${n.path.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-					target: `${commitName ?? 'HEAD'}_ext___${extSafe}`
-				};
-				if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
-				{
-					edges.push(edge);
-					alreadyEdged.push(`${edge.source}->${edge.target}`);
-				}
-			}
-
-			for(const t of PROJECT_LAYOUT_TIERS)
-			{
-				for(const r of t.patterns)
-				{
-					if(typeof r === 'string' && !(n.path ?? n.name).includes(r))
-					{
-						continue;
-					}
-					else if(r instanceof RegExp && !(n.path ?? n.name).match(r))
-					{
-						continue;
-					}
-
-					const edge: WillowEdge = {
-						source: `${commitName ?? 'HEAD'}_file___${n.path.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
-						target: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`
-					};
-					if(!alreadyEdged.includes(`${edge.source}->${edge.target}`))
-					{
-						edges.push(edge);
-						alreadyEdged.push(`${edge.source}->${edge.target}`);
-					}
-					break;
-				}
-			}
-		}
-
-
-		this.tier3Edges[commitName ?? 'HEAD'] = edges.map((h, i) =>
-		{
-			return ({
-				source: h.source,
-				target: h.target,
-				// color: h.color
-				color: '#cbd5e1',
-				// size: 0.8
-			});
-		});
-		this.tier3Services[commitName ?? 'HEAD'] = services.map((h, i) =>
-		{
-			const angle = (2 * Math.PI * i) / services.length;
-			const radius = 75;
-			return ({
-				tier: 3,
-				id: h.id,
-				name: h.name,
-				// val: 8,
-				// color: h.color ?? d3HSL(
-				// 	(360 / services.length) * i - (360 / (services.length * 2)),
-				// 	0.25 + (0.5) * (((i * 2) % services.length) / services.length),
-				// 	0.25 + (0.5) * (((i * 3) % services.length) / services.length)).formatHex(),
-				fx: (centerX ?? 0) + Math.cos(angle) * radius,
-				fy: 100,
-				fz: /* (isGhost ? -60 : 0) +*/ Math.sin(angle) * radius * 0.45,
-				commitX: centerX ?? 0,
-				offsetX: Math.cos(angle) * radius,
-				commitName: commitName ?? 'HEAD'
-			});
-			// links.push({ source: rootId, target: h.id });
-		});
-		return {
-			nodes: this.tier3Services[commitName ?? 'HEAD'],
-			edges: this.tier3Edges[commitName ?? 'HEAD']
-		};
-	}
-
 
 
 	private appendServices(services: WillowNode[], grouped: Map<string, string[]>)
@@ -789,14 +243,14 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 	private getScaledSize(node: WillowNode, children: number)
 	{
-		const units = (this._graph?.nodes.length ?? 0) / SCALE_FACTOR;
+		const units = (this._graph?.nodes().length ?? 0) / SCALE_FACTOR;
 		return (Math.max(1, units) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, units))
 			* (SCALE_FACTOR / 10) + Math.max(SCALE_FACTOR / 10, Math.min(0, children / SCALE_FACTOR));
 	}
 
 	private getScaledEdge(node: WillowNode)
 	{
-		const units = (this._graph?.nodes.length ?? 0) / SCALE_FACTOR;
+		const units = (this._graph?.nodes().length ?? 0) / SCALE_FACTOR;
 		return Math.max(1, units) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, units);
 	}
 
@@ -811,6 +265,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		{
 			return;
 		}
+		await this._loading;
 		// Initialize Sigma renderer
 		this._renderer = new Sigma(this._graph, this._container, {
 			settings: {
@@ -831,7 +286,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				{
 					const alpha = Math.max(0, Math.min(0.5, (ratio - 0.1) / 0.4));
 					const rgb = d3HSL(data.color || '#333').rgb();
-					res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
+					res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha * 0.4})`;
 				}
 
 				return res;
@@ -936,7 +391,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 					const targetTier = this._graph?.getNodeAttribute(edge.target, 'tier') ?? 0;
 					const targetColor = this._graph?.getNodeAttribute(edge.target, 'color') ?? '#FFFFFF';
 					const translucent = d3RGB(targetColor);
-					const targetStr = `rgba(${translucent.r}, ${translucent.g}, ${translucent.b}, ${0.5 - 0.10 * (targetTier ?? 0)})`;
+					const targetStr = `rgba(${translucent.r}, ${translucent.g}, ${translucent.b}, ${0.5 - (0.10 * (targetTier ?? 0))})`;
 					this._graph!.addEdge(edge.source, edge.target, {
 						color: targetStr ?? edge.color ?? '#e2e8f0',
 						size: node ? this.getScaledEdge(node) : 1
@@ -949,27 +404,59 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		});
 
 		// Apply ForceAtlas2 safely with fallback
-		try
-		{
-			const sensibleSettings = forceAtlas2.inferSettings(this._graph);
-			forceAtlas2.assign(this._graph, {
-				iterations: 40,
-				settings: {
-					...sensibleSettings,
-					gravity: 1.0,
-					strongGravityMode: true
-				}
-			});
-		} catch(e)
-		{
-			console.warn('ForceAtlas2 layout skipped.', e);
-		}
+		// try
+		// {
+		// 	const sensibleSettings = forceAtlas2.inferSettings(this._graph);
+		// 	forceAtlas2.assign(this._graph, {
+		// 		iterations: 40,
+		// 		settings: {
+		// 			...sensibleSettings,
+		// 			gravity: 1.0,
+		// 			strongGravityMode: true
+		// 		}
+		// 	});
+		// } catch(e)
+		// {
+		// 	console.warn('ForceAtlas2 layout skipped.', e);
+		// }
 
 		this._renderer.refresh();
 
 		// Fix: Zoom out the camera so the entire graph is visible and not giant
 		const camera = this._renderer.getCamera();
 		camera.setState({ x: 0, y: 0, ratio: 1.5, angle: 0 });
+		this.startAnimators();
+	}
+
+
+	static mergeSubGraph(masterGraph: Graph, subGraph: Graph)
+	{
+		subGraph.forEachNode((nodeId: string, attributes) =>
+		{
+			if(!masterGraph.hasNode(nodeId))
+			{
+				masterGraph.addNode(nodeId, attributes);
+			}
+		});
+		subGraph.forEachEdge((edgeId: string, attributes, source, target) =>
+		{
+			if(!masterGraph.hasEdge(source, target))
+			{
+				masterGraph.addEdge(source, target, attributes);
+			}
+		});
+		return masterGraph;
+	}
+
+
+	private startAnimators(renderer = this._renderer, graph = this._graph)
+	{
+		if(!renderer || !graph)
+		{
+			return;
+		}
+		if(!this.targeter) this.targeter = setInterval(() => NodeAnimator.reTarget(renderer, graph), 200);
+		if(!this.animator) this.animator = setInterval(() => NodeAnimator.reGraph(renderer, graph, true, false, false), 100);
 	}
 
 
@@ -979,7 +466,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		[...nodes].forEach((serviceNode: WillowNode, i: number) =>
 		{
 			const childIds = lookup.get(serviceNode.id) || [];
-			const root = Math.round(Math.sqrt(childIds.length) - 0.8);
+			const root = Math.max(1, Math.round(Math.sqrt(childIds.length) - 0.8));
 			const totalPieces = childIds.length - root * root;
 			const segment = (360 / totalServices / totalPieces);
 			const parent = serviceNode.color ? d3HSL(serviceNode.color) : d3HSL((360 / totalServices / totalPieces) * i, 0.5, 0.5);
@@ -1017,8 +504,6 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		});
 
 	}
-
-
 
 
 	public highlightNodeByName(name: string)
