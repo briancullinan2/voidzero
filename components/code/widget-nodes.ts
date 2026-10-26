@@ -11,15 +11,17 @@ export class ProjectNodes
 	{
 
 		const services: ({ id: string, name: string, color?: string; })[] = [];
-		const alreadyTiered: TierRule[] = [];
+		const alreadyTiered: string[] = [];
 		const alreadyExted: string[] = [];
 		for(const n of files)
 		{
-			if(n.name?.startsWith('.'))
+			const leaf = (n.name ?? n.path)?.split(/[\\\/]/gi).pop();
+			const pathParts = n.path?.split(/[\\\/]/gi);
+
+			if(pathParts.some(p => p.startsWith('.')))
 			{
 				continue;
 			}
-			const leaf = (n.name ?? n.path)?.split(/[\\\/]/gi).pop();
 			const ext = leaf?.includes('.') ? leaf?.split('.').pop() : undefined;
 
 
@@ -32,7 +34,6 @@ export class ProjectNodes
 				alreadyExted.push('Extension');
 			}
 
-			const pathParts = n.path?.split(/[\\\/]/gi);
 			if(pathParts.length > 2 && !alreadyExted.includes(pathParts[0]))
 			{
 				services.push({
@@ -45,7 +46,7 @@ export class ProjectNodes
 
 			for(const t of PROJECT_LAYOUT_TIERS)
 			{
-				if(alreadyTiered.includes(t))
+				if(alreadyTiered.includes(t.name))
 				{
 					continue;
 				}
@@ -63,9 +64,9 @@ export class ProjectNodes
 						id: `${commitName ?? 'HEAD'}_${t.name.toLowerCase().replace(/[^a-z0-9]/gi, '_')}`,
 						name: t.name,
 					});
-					alreadyTiered.push(t);
+					alreadyTiered.push(t.name);
+					break;
 				}
-				break;
 			}
 		}
 

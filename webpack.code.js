@@ -50,6 +50,10 @@ module.exports = {
 		noParse: [/[\\/]node_modules[\\/]@babel[\\/]standalone[\\/]/, /\.min\./],
 		rules: [
 			{
+				test: /\.(glsl|vs|fs)$/,
+				use: 'glsl-shader-loader',
+			},
+			{
 				test: /rosetta\/binary/,
 				type: 'javascript/auto', // Resets the module type configuration
 				parser: {

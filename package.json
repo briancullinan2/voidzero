@@ -42,6 +42,7 @@
 		"d3": "^7.9.0",
 		"express": "^5.2.1",
 		"fabric": "^7.4.0",
+		"glsl-shader-loader": "^0.1.6",
 		"graphology": "^0.26.0",
 		"graphology-layout-forceatlas2": "^0.10.1",
 		"ip6addr": "^0.2.5",

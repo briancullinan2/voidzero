@@ -1,9 +1,7 @@
 import { Widget } from '@lumino/widgets';
 import Graph from 'graphology';
 import Sigma from 'sigma';
-import forceAtlas2 from 'graphology-layout-forceatlas2';
 import { WillowEdge, WillowNode, WillowWidget } from './widget-willow';
-import * as THREE from 'three';
 import { SemanticWidget } from './widget-semantic';
 import { SearchCodeWidget } from './widget-search';
 import type { WidgetExtensionsWindow } from '../bundle/widget-extensions';
@@ -13,14 +11,17 @@ import type { GithubWindow } from '../bundle/github.d';
 import { GitHubFileEntry } from '../bundle/github-types';
 import { hsl as d3HSL, rgb as d3RGB } from 'd3';
 import { ProjectNodes } from './widget-nodes';
-import { NodeAnimator } from './widget-animate';
+import { Message } from '@lumino/messaging';
+import forceAtlas2 from 'graphology-layout-forceatlas2';
+import type { LuminoLayoutWindow } from '../bundle/lumino.d';
 
 
 const SCALE_FACTOR = 100;
+const SCALE_NODES = 30;
+const EDGE_SCALE = 2;
 
 
-const widgetSelf: WidgetExtensionsWindow & GlobalToolbarsWindow & GithubWindow & {
-	THREE: typeof THREE;
+const widgetSelf: WidgetExtensionsWindow & GlobalToolbarsWindow & GithubWindow & LuminoLayoutWindow & {
 	CodeWidget: typeof CodeWidget,
 	WillowWidget: typeof WillowWidget,
 	SemanticWidget: typeof SemanticWidget,
@@ -30,7 +31,6 @@ const widgetSelf: WidgetExtensionsWindow & GlobalToolbarsWindow & GithubWindow &
 
 } = self as unknown as any;
 
-widgetSelf.THREE = THREE;
 
 export class CodeWidget extends widgetSelf.GenericSearchableWidget
 {
@@ -41,25 +41,21 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private _willow?: WillowWidget;
 	private selector?: string;
 	private files?: Record<string, GitHubFileEntry> | undefined;
-	private tier0Services: Record<string, WillowNode[]> = {};
-	private _loading: Promise<never[] | undefined>;
+	private _loading!: Promise<never[] | undefined>;
 	private _loadTier0!: Promise<WillowNode[]>;
-	private tier1Services: Record<string, WillowNode[]> = {};
-	private tier1Edges: Record<string, WillowEdge[]> = {};
-	private tier2Services: Record<string, WillowNode[]> = {};
-	private tier2Edges: Record<string, WillowEdge[]> = {};
-	private tier3Services: Record<string, WillowNode[]> = {};
-	private tier3Edges: Record<string, WillowEdge[]> = {};
 	private _loadTier1!: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
 	private _loadTier2!: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
 	private _loadTier3!: Promise<{ nodes: WillowNode[]; edges: WillowEdge[]; }>;
-	private targeter?: ReturnType<typeof setInterval>;
-	private animator?: ReturnType<typeof setInterval>;
+	private hoverNode?: WillowNode;
+	private hoverNodeId?: string;
+	private _mouseY?: number;
+	private _mouseX?: number;
+	private allNodes?: WillowNode[];
+	private edgeMap: Map<string, WillowEdge> = new Map();
 
 	constructor()
 	{
 		super();
-		this._loading = this.loadFiles();
 		this.initDom();
 	}
 
@@ -80,22 +76,45 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
                 <div class="legend-item" style="font-weight:600; margin-bottom:8px;">Services & Modules</div>
             </div>`;
 
+		this.node.addEventListener('mousemove', (e: MouseEvent) =>
+		{
+			this._mouseX = e.clientX;
+			this._mouseY = e.clientY;
+			this.updateStatus();
+		});
+
 		this._container = this.node.querySelector('#sigma-container') as HTMLDivElement;
+
+		this._container.addEventListener('wheel', (e: WheelEvent) =>
+		{
+			e.preventDefault();
+			e.stopImmediatePropagation();
+
+			if(!this._renderer) return;
+			const camera = this._renderer.getCamera();
+			const zoomFactor = e.deltaY < 0 ? 1.25 : 0.75;
+			camera.zoomIn({ factor: zoomFactor, duration: 100 });
+			this.updateStatus();
+		}, { capture: true, passive: false });
 		this._graph = new Graph();
+		this._loading = this.loadFiles();
 	}
 
 
-	protected onAfterAttach(msg: any): void
+	protected override onAfterAttach(msg: any): void
 	{
 		super.onAfterAttach(msg);
 		this.renderLayout();
+		requestAnimationFrame(() =>
+		{
+			this.tryInit();
+		});
 	}
 
 	public renderLayout()
 	{
 		if(this.viewMode === this.VIEW_1)
 		{
-			this.tryInit();
 			if(this._willow)
 			{
 				this._willow.node.style.display = 'none';
@@ -118,7 +137,17 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	}
 
 
-	protected onResize(msg: any): void
+	protected override onAfterShow(msg: Message): void
+	{
+		super.onAfterShow(msg);
+		requestAnimationFrame(() =>
+		{
+			this.tryInit();
+		});
+	}
+
+
+	protected override onResize(msg: any): void
 	{
 		super.onResize(msg);
 		if(this._renderer)
@@ -147,31 +176,37 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 	protected async loadFiles()
 	{
-		const owner = widgetSelf.RepositoryToolbar?.owner?.value;
-		const repo = widgetSelf.RepositoryToolbar?.repository?.value;
-		this.selector = owner + '/' + repo;
-		// TODO: local filesystem with lg2
-		if(!owner || !repo)
+		try
 		{
-			return [];
-		}
-		const branch = await widgetSelf.getDefaultBranch?.(owner, repo);
-		// TODO: detached local?
-		if(!branch)
-		{
-			return [];
-		}
-		this.files = widgetSelf.filesRepo?.[this.selector];
-		if(widgetSelf.filesRepo && !widgetSelf.filesRepo[this.selector])
-		{
-			this.files = widgetSelf.filesRepo[this.selector] = await widgetSelf.loadGitHubTree?.(owner, repo, branch);
-		}
+			const owner = widgetSelf.RepositoryToolbar?.owner?.value;
+			const repo = widgetSelf.RepositoryToolbar?.repository?.value;
+			this.selector = owner + '/' + repo;
+			// TODO: local filesystem with lg2
+			if(!owner || !repo)
+			{
+				return [];
+			}
+			const branch = await widgetSelf.getDefaultBranch?.(owner, repo);
+			// TODO: detached local?
+			if(!branch)
+			{
+				return [];
+			}
+			this.files = widgetSelf.filesRepo?.[this.selector];
+			if(widgetSelf.filesRepo && !widgetSelf.filesRepo[this.selector])
+			{
+				this.files = widgetSelf.filesRepo[this.selector] = await widgetSelf.loadGitHubTree?.(owner, repo, branch);
+			}
 
 
-		this._loadTier0 = ProjectNodes.getTier0Services(Object.values(this.files ?? {}));
-		this._loadTier1 = ProjectNodes.getTier1Services(Object.values(this.files ?? {}));
-		this._loadTier2 = ProjectNodes.getTier2Services(Object.values(this.files ?? {}));
-		this._loadTier3 = ProjectNodes.getTier3Files(Object.values(this.files ?? {}));
+			this._loadTier0 = ProjectNodes.getTier0Services(Object.values(this.files ?? {}));
+			this._loadTier1 = ProjectNodes.getTier1Services(Object.values(this.files ?? {}));
+			this._loadTier2 = ProjectNodes.getTier2Services(Object.values(this.files ?? {}));
+			this._loadTier3 = ProjectNodes.getTier3Files(Object.values(this.files ?? {}));
+		} catch(e)
+		{
+			console.error(e);
+		}
 
 	}
 
@@ -206,18 +241,23 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			node.x = Math.cos(angle) * radius;
 			node.y = Math.sin(angle) * radius;
 			const targetColor = d3RGB(node.color ?? '#FFFFFF');
+			const color = `rgba(${Math.round(targetColor.r)}, ${Math.round(targetColor.g)}, ${Math.round(targetColor.b)}, 0.5)`;
+			if(color.includes('NaN'))
+			{
+				debugger;
+			}
 			this._graph?.addNode(node.id, {
 				tier: node.tier,
 				label: node.name,
 				x: node.x,
 				y: node.y,
 				size: this.getScaledSize(node, (grouped.get(node.id) ?? []).length),
-				color: `rgba(${Math.round(targetColor.r)}, ${Math.round(targetColor.g)}, ${Math.round(targetColor.b)}, 0.5)`,
+				color: color,
 				service: node.name
 			});
 		});
 
-		// Create inter-connecting edges
+
 		for(let i = 0; i < services.length; i++)
 		{
 			const source = services[i].id;
@@ -226,14 +266,19 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			{
 				if(!this._graph.hasEdge(source, target) && source !== target)
 				{
-					this._graph.addEdge(source, target, {
+					const edgeId = this._graph.addEdge(source, target, {
+						color: '#cbd5e1',
+						size: this.getScaledEdge(services[i])
+					});
+					this.edgeMap.set(edgeId, {
+						source, target,
 						color: '#cbd5e1',
 						size: this.getScaledEdge(services[i])
 					});
 				}
 			} catch(e)
 			{
-				// Ignore duplicate edges
+
 			}
 		}
 
@@ -245,7 +290,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	{
 		const units = (this._graph?.nodes().length ?? 0) / SCALE_FACTOR;
 		return (Math.max(1, units) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, units))
-			* (SCALE_FACTOR / 10) + Math.max(SCALE_FACTOR / 10, Math.min(0, children / SCALE_FACTOR));
+			* (SCALE_FACTOR / SCALE_NODES) + Math.max(SCALE_FACTOR / SCALE_NODES, Math.min(0, children / SCALE_FACTOR));
 	}
 
 	private getScaledEdge(node: WillowNode)
@@ -254,6 +299,55 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		return Math.max(1, units) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, units);
 	}
 
+	private static getZoomAlpha(ratio: number, tier: number, isEdge: boolean = false): number
+	{
+		// Clamp ratio to a stable viewing window to prevent runaway math
+		const r = Math.max(0.1, Math.min(10.0, ratio));
+
+		// Edge continuum: smoothly fades up to 0.4 max as you zoom in
+		// if(isEdge)
+		// {
+		// 	if(r >= 1.0) return 0.0;
+		// 	if(r <= 0.2) return 0.4;
+		// 	const t = (1.0 - r) / 0.8;
+		// 	return t * 0.4;
+		// }
+
+		// Node tier continuum (smooth overlapping peaks maxing out at 0.4 opacity)
+		const peakOpacity = 0.4; // Stays strictly between 0.1 and 0.5
+		const minOpacity = 0.01;
+
+		if(tier === 0)
+		{
+			// Dominant when zoomed out (ratio >= 2.5), tapering down smoothly as you zoom in
+			if(r <= 0.5) return minOpacity;
+			if(r >= 2.5) return peakOpacity;
+			const t = (r - 0.5) / 2.0;
+			return minOpacity + t * (peakOpacity - minOpacity);
+		}
+		else if(tier === 1)
+		{
+			// Dominant at mid-zoom (peaking around ratio 1.0), tapering on both sides
+			if(r <= 0.3 || r >= 2.0) return minOpacity;
+			if(r <= 1.0)
+			{
+				const t = (r - 0.3) / 0.7;
+				return minOpacity + t * (peakOpacity - minOpacity);
+			} else
+			{
+				const t = (2.0 - r) / 1.0;
+				return minOpacity + t * (peakOpacity - minOpacity);
+			}
+		}
+		else // tier >= 2
+		{
+			// Dominant when zoomed in close (ratio <= 0.3), tapering down as you zoom out
+			if(r <= 0.3) return peakOpacity;
+			if(r >= 1.5) return minOpacity;
+			const t = (1.5 - r) / 1.2;
+			return minOpacity + t * (peakOpacity - minOpacity);
+		}
+	}
 
 	private async initGraph()
 	{
@@ -276,36 +370,43 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				renderEdgeLabels: false,
 				minCameraRatio: 0.001,
 				maxCameraRatio: 10.0,
+				enableEdgeEvents: false,
+				autoRescale: true,
+				labelRenderedSizeThreshold: 3,
 			},
+
 			nodeReducer: (node, data) =>
 			{
 				const res = { ...data };
-				const ratio = this._renderer?.getCamera().ratio; // Get current zoom level
+				const ratio = this._renderer?.getCamera().ratio ?? 1.0;
+				const attrs = this._graph?.getNodeAttributes(node);
+				const tier = attrs?.tier ?? (data as any).tier ?? 0;
 
-				if(ratio && (data as any).tier === 0)
-				{
-					const alpha = Math.max(0, Math.min(0.5, (ratio - 0.1) / 0.4));
-					const rgb = d3HSL(data.color || '#333').rgb();
-					res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha * 0.4})`;
-				}
+				const alpha = CodeWidget.getZoomAlpha(ratio, tier, false);
+				const rgb = d3HSL(data.color || '#333').rgb();
 
+				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
+
+				if(res.color.includes('NaN')) { debugger; }
 				return res;
 			},
 			edgeReducer: (edge, data) =>
 			{
 				const res = { ...data };
-				const ratio = this._renderer?.getCamera().ratio;
+				const ratio = this._renderer?.getCamera().ratio ?? 1.0;
+				const edgeSpec = this.edgeMap.get(edge);
+				const node = this.allNodes?.find(n => n.id === edgeSpec?.target);
 
-				if(ratio && ratio < 0.5)
-				{
-					const alpha = Math.max(0, Math.min(0.5, (ratio - 0.1) / 0.4));
-					const rgb = d3HSL(data.color || '#cbd5e1').rgb();
-					res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha * 0.4})`;
-				}
+				const alpha = CodeWidget.getZoomAlpha(ratio, node?.tier ?? 0, true);
+				const rgb = d3HSL(data.color || '#cbd5e1').rgb();
 
+				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
+
+				if(res.color.includes('NaN')) { debugger; }
 				return res;
 			}
 		});
+
 
 		const services = await this._loadTier0 ?? [
 			{ id: 'Core.js', name: 'Core', color: '#7f8c8d' },
@@ -376,9 +477,9 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 		this.appendGraph(servicesAndNodes, childrenByParent2, nodes2, services.length, childrenByParentAll);
 
-		this.appendGraph(servicesAndNodesAndMore, childrenByParentAll, nodes3, services.length + nodes1.length, childrenByParentAll);
+		// this.appendGraph(servicesAndNodesAndMore, childrenByParentAll, nodes3, services.length + nodes1.length, childrenByParentAll);
 
-		const allNodes = [...services, ...nodes1, ...nodes2, ...nodes3];
+		this.allNodes = [...services, ...nodes1, ...nodes2, ...nodes3];
 		[...edges1, ...edges2, ...edges3].forEach(edge =>
 		{
 			try
@@ -387,15 +488,20 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 					this._graph!.hasNode(edge.source) &&
 					this._graph!.hasNode(edge.target))
 				{
-					const node = allNodes.find(n => n.id === edge.source);
+					const node = this.allNodes?.find(n => n.id === edge.source);
 					const targetTier = this._graph?.getNodeAttribute(edge.target, 'tier') ?? 0;
 					const targetColor = this._graph?.getNodeAttribute(edge.target, 'color') ?? '#FFFFFF';
 					const translucent = d3RGB(targetColor);
 					const targetStr = `rgba(${translucent.r}, ${translucent.g}, ${translucent.b}, ${0.5 - (0.10 * (targetTier ?? 0))})`;
-					this._graph!.addEdge(edge.source, edge.target, {
+					if(targetStr.includes('NaN'))
+					{
+						debugger;
+					}
+					const edgeId = this._graph!.addEdge(edge.source, edge.target, {
 						color: targetStr ?? edge.color ?? '#e2e8f0',
 						size: node ? this.getScaledEdge(node) : 1
 					});
+					this.edgeMap.set(edgeId, edge);
 				}
 			} catch(e)
 			{
@@ -403,22 +509,38 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			}
 		});
 
+
+
+		this._renderer.on("enterNode", ({ node }) =>
+		{
+			this.hoverNodeId = node;
+			this.hoverNode = this.allNodes?.find(n => n.id === node);
+		});
+
+		this._renderer.on("leaveNode", () =>
+		{
+			this.hoverNode = undefined;
+			this.hoverNodeId = undefined;
+		});
+
+
+
 		// Apply ForceAtlas2 safely with fallback
-		// try
-		// {
-		// 	const sensibleSettings = forceAtlas2.inferSettings(this._graph);
-		// 	forceAtlas2.assign(this._graph, {
-		// 		iterations: 40,
-		// 		settings: {
-		// 			...sensibleSettings,
-		// 			gravity: 1.0,
-		// 			strongGravityMode: true
-		// 		}
-		// 	});
-		// } catch(e)
-		// {
-		// 	console.warn('ForceAtlas2 layout skipped.', e);
-		// }
+		try
+		{
+			const sensibleSettings = forceAtlas2.inferSettings(this._graph);
+			forceAtlas2.assign(this._graph, {
+				iterations: 40,
+				settings: {
+					...sensibleSettings,
+					gravity: 1.0,
+					strongGravityMode: true
+				}
+			});
+		} catch(e)
+		{
+			console.warn('ForceAtlas2 layout skipped.', e);
+		}
 
 		this._renderer.refresh();
 
@@ -426,6 +548,25 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		const camera = this._renderer.getCamera();
 		camera.setState({ x: 0, y: 0, ratio: 1.5, angle: 0 });
 		this.startAnimators();
+	}
+
+
+	private updateStatus()
+	{
+		if(!this._renderer) return;
+
+		const camera = this._renderer.getCamera();
+		const state = camera.getState();
+
+		widgetSelf.statusBar?.updateStatusItem('env-state',
+			`Mouse: ${this._mouseX ?? 0}x${this._mouseY ?? 0}, `
+			+ `Camera: X: ${Math.round(state.x)}, Y: ${Math.round(state.y)}, `
+			+ `Zoom (Ratio): ${state.ratio.toFixed(2)}, `
+			+ `Rotation: ${(state.angle * (180 / Math.PI)).toFixed(1)}°, `
+			+ `Node: ${this.hoverNode?.name ?? 'None'}, `
+			+ `Graph: ${this._graph?.order ?? 0} nodes, ${this._graph?.size ?? 0} edges, `
+			+ `Repository: ${widgetSelf.RepositoryToolbar?.owner?.value ?? ''}/${widgetSelf.RepositoryToolbar?.repository?.value ?? ''}`
+		);
 	}
 
 
@@ -455,8 +596,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		{
 			return;
 		}
-		if(!this.targeter) this.targeter = setInterval(() => NodeAnimator.reTarget(renderer, graph), 200);
-		if(!this.animator) this.animator = setInterval(() => NodeAnimator.reGraph(renderer, graph, true, false, false), 100);
+		// if(!this.targeter) this.targeter = setInterval(() => NodeAnimator.reTarget(renderer, graph), 200);
+		// if(!this.animator) this.animator = setInterval(() => NodeAnimator.reGraph(renderer, graph, true, false, false), 100);
 	}
 
 
@@ -490,13 +631,18 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 						Math.min(0.8, Math.max(0.2, 0.25 + ((j % root) / root * 0.5)))
 					).rgb();
 					const targetTier = childNodeData.tier;
+					const color = `rgba(${Math.round(targetColor.r)}, ${Math.round(targetColor.g)}, ${Math.round(targetColor.b)}, ${0.5 - 0.10 * (targetTier ?? 0)})`;
+					if(color.includes('NaN'))
+					{
+						debugger;
+					}
 					this._graph!.addNode(childId, {
 						tier: childNodeData.tier,
 						label: childNodeData.name || childId,
 						x: childX,
 						y: childY,
 						size: this.getScaledSize(childNodeData, (grouped.get(childNodeData.id) ?? []).length),
-						color: `rgba(${Math.round(targetColor.r)}, ${Math.round(targetColor.g)}, ${Math.round(targetColor.b)}, ${0.5 - 0.10 * (targetTier ?? 0)})`,
+						color: color,
 						service: serviceNode.name
 					});
 				}
