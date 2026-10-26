@@ -10,17 +10,11 @@ import type { GlobalToolbarsWindow } from '../bundle/menu.d';
 import type { GithubWindow } from '../bundle/github.d';
 import { GitHubFileEntry } from '../bundle/github-types';
 import { hsl as d3HSL, rgb as d3RGB } from 'd3';
-import { ProjectNodes } from './widget-nodes';
+import { ProjectNodes, SCALE_FACTOR } from './widget-nodes';
 import { Message } from '@lumino/messaging';
 import forceLayout from "graphology-layout-force";
 import forceAtlas2 from 'graphology-layout-forceatlas2';
 import type { LuminoLayoutWindow } from '../bundle/lumino.d';
-
-
-const SCALE_FACTOR = 100;
-const SCALE_NODES = 30;
-const EDGE_SCALE = 2;
-
 
 const widgetSelf: WidgetExtensionsWindow & GlobalToolbarsWindow & GithubWindow & LuminoLayoutWindow & {
 	CodeWidget: typeof CodeWidget,
@@ -57,6 +51,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private edgeMap: Map<string, WillowEdge> = new Map();
 	private edgeSource: Map<string, number> = new Map();
 	private edgeTarget: Map<string, number> = new Map();
+	protected zoomLevel: number = 4 * 10;
+	protected zoomTier: number = 0;
 
 	constructor()
 	{
@@ -90,22 +86,35 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 		this._container = this.node.querySelector('#sigma-container') as HTMLDivElement;
 
-		this._container.addEventListener('wheel', (e: WheelEvent) =>
-		{
-			e.preventDefault();
-			e.stopImmediatePropagation();
-
-			if(!this._renderer) return;
-			const camera = this._renderer.getCamera();
-			const zoomFactor = e.deltaY < 0 ? 1.25 : 0.75;
-			camera.zoomIn({ factor: zoomFactor, duration: 100 });
-			this.updateStatus();
-		}, { capture: true, passive: false });
+		this._container.addEventListener('wheel', this.wheelZoom.bind(this), { capture: true, passive: false });
 		this._graph = new Graph();
 		this._fileGraph = new Graph();
 		this._combinedGraph = new Graph();
 		this._loading = this.loadFiles();
 	}
+
+
+	protected wheelZoom(e: WheelEvent)
+	{
+		e.preventDefault();
+		e.stopImmediatePropagation();
+
+		if(!this._renderer) return;
+		const camera = this._renderer.getCamera();
+		const zoomFactor = e.deltaY < 0 ? 1.25 : 0.75;
+		if(e.deltaY < 0)
+		{
+			this.zoomLevel--;
+		} else
+		{
+			this.zoomLevel++;
+		}
+		//camera.zoomIn({ factor: zoomFactor, duration: 100 });
+		this.zoomTier = Math.round(4 - this.zoomLevel / 10);
+		this.updateStatus();
+		this._renderer.refresh();
+	}
+
 
 
 	protected override onAfterAttach(msg: any): void
@@ -218,7 +227,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	}
 
 
-	private appendServices(services: WillowNode[], grouped: Map<string, string[]>)
+	private appendServices(services: WillowNode[], grouped: Map<string, string[]>, factor: number)
 	{
 		if(!this._graph)
 		{
@@ -258,7 +267,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				label: node.name,
 				x: node.x,
 				y: node.y,
-				size: this.getScaledSize(node, (grouped.get(node.id) ?? []).length),
+				size: ProjectNodes.getScaledSize(node, (grouped.get(node.id) ?? []).length, factor),
 				color: color,
 				service: node.name
 			});
@@ -275,12 +284,12 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				{
 					const edgeId = this._graph.addEdge(source, target, {
 						color: '#cbd5e1',
-						size: this.getScaledEdge(services[i])
+						size: ProjectNodes.getScaledEdge(services[i], factor)
 					});
 					this.edgeMap.set(edgeId, {
 						source, target,
 						color: '#cbd5e1',
-						size: this.getScaledEdge(services[i])
+						size: ProjectNodes.getScaledEdge(services[i], factor)
 					});
 				}
 			} catch(e)
@@ -292,54 +301,39 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		return services;
 	}
 
+	// private static getZoomAlpha(ratio: number, tier: number, isEdge: boolean): number
+	// {
+	// 	// Simple list of boundary thresholds for the tiers (descending from zoomed out to zoomed in)
+	// 	const thresholds = [2.0, 1.0, 0.5, 0.25, 0.15, 0.05, 0.0];
 
-	private getScaledSize(node: WillowNode, children: number)
-	{
-		const units = (this._graph?.nodes().length ?? 0) / SCALE_FACTOR;
-		return (Math.max(1, units) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, units))
-			* (SCALE_FACTOR / SCALE_NODES) + Math.max(SCALE_FACTOR / SCALE_NODES, Math.min(0, children / SCALE_FACTOR));
-	}
+	// 	if(tier < 0 || tier >= thresholds.length - 1)
+	// 	{
+	// 		return 0.05;
+	// 	}
 
-	private getScaledEdge(node: WillowNode)
-	{
-		const units = (this._graph?.nodes().length ?? 0) / SCALE_FACTOR;
-		return Math.max(1, units) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, units);
-	}
+	// 	const minOp = 0.05;
+	// 	const maxOp = tier === 0 ? 0.5 : 0.4;
 
+	// 	const high = thresholds[tier];     // The upper zoom boundary (zoomed out)
+	// 	const low = thresholds[tier + 1];    // The lower zoom boundary (zoomed in)
+	// 	const mid = (high + low) / 2;        // Peak opacity point right in the middle
 
-	private static getZoomAlpha(ratio: number, tier: number, isEdge: boolean): number
-	{
-		// Simple list of boundary thresholds for the tiers (descending from zoomed out to zoomed in)
-		const thresholds = [2.0, 1.0, 0.5, 0.25, 0.15, 0.05, 0.0];
+	// 	// If ratio is outside this tier's [low, high] span, it stays at minOp
+	// 	if(ratio < low || ratio > high)
+	// 	{
+	// 		return minOp;
+	// 	}
 
-		if(tier < 0 || tier >= thresholds.length - 1)
-		{
-			return 0.05;
-		}
-
-		const minOp = 0.05;
-		const maxOp = tier === 0 ? 0.5 : 0.4;
-
-		const high = thresholds[tier];     // The upper zoom boundary (zoomed out)
-		const low = thresholds[tier + 1];    // The lower zoom boundary (zoomed in)
-		const mid = (high + low) / 2;        // Peak opacity point right in the middle
-
-		// If ratio is outside this tier's [low, high] span, it stays at minOp
-		if(ratio < low || ratio > high)
-		{
-			return minOp;
-		}
-
-		// Smooth triangle fade between low, mid, and high
-		if(ratio <= mid)
-		{
-			return minOp + ((ratio - low) / (mid - low)) * (maxOp - minOp);
-		}
-		else
-		{
-			return maxOp - ((ratio - mid) / (high - mid)) * (maxOp - minOp);
-		}
-	}
+	// 	// Smooth triangle fade between low, mid, and high
+	// 	if(ratio <= mid)
+	// 	{
+	// 		return minOp + ((ratio - low) / (mid - low)) * (maxOp - minOp);
+	// 	}
+	// 	else
+	// 	{
+	// 		return maxOp - ((ratio - mid) / (high - mid)) * (maxOp - minOp);
+	// 	}
+	// }
 
 
 	private async initGraph()
@@ -367,15 +361,19 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				autoRescale: true,
 				labelRenderedSizeThreshold: 3,
 			},
-
 			nodeReducer: (node, data) =>
 			{
 				const res = { ...data };
 				const ratio = this._renderer?.getCamera().ratio ?? 1.0;
 				const attrs = this._combinedGraph?.getNodeAttributes(node);
-				const tier = attrs?.tier ?? (data as any).tier ?? 0;
+				const rawTier = attrs?.tier ?? (data as any).tier ?? 0;
 
-				const alpha = CodeWidget.getZoomAlpha(ratio, tier, false);
+				// Tier 0 -> peak zoom 40, Tier 1 -> peak zoom 30
+				const targetZoom = (4 - rawTier) * 10;
+				const tierRatio = Math.abs(Math.min(10, Math.max(-10, targetZoom - this.zoomLevel)) / 10);
+
+				// Peak alpha is 0.4 when distance (tierRatio) is 0, fading out to 0 at distance 1
+				const alpha = Math.max(0, 1 - tierRatio) * 0.4;
 				const rgb = d3HSL(data.color || '#333').rgb();
 
 				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
@@ -386,16 +384,44 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			edgeReducer: (edge, data) =>
 			{
 				const res = { ...data };
-				const ratio = this._renderer?.getCamera().ratio ?? 1.0;
+				const graph = this._combinedGraph;
 				const edgeSpec = this.edgeMap.get(edge);
-				const targetNode = this.edgeTarget.get(edgeSpec?.target ?? '') ?? 0;
-				const sourceNode = this.edgeSource.get(edgeSpec?.target ?? '') ?? 0;;
 
-				const alpha = CodeWidget.getZoomAlpha(ratio, targetNode ?? 0, true);
-				const alpha2 = CodeWidget.getZoomAlpha(ratio, sourceNode ?? 0, true);
+				// Robustly retrieve source and target node keys from Graphology or edge spec
+				const source = graph?.source?.(edge) ?? edgeSpec?.source;// ?? data.source;
+				const target = graph?.target?.(edge) ?? edgeSpec?.target;// ?? data.target;
+
+				// Get attributes for source and target nodes
+				const sourceAttrs = source ? graph?.getNodeAttributes(source) : null;
+				const targetAttrs = target ? graph?.getNodeAttributes(target) : null;
+
+				const sourceRawTier = sourceAttrs?.tier ?? (graph?.getNodeAttribute?.(source, 'tier')) ?? 0;
+				const targetRawTier = targetAttrs?.tier ?? (graph?.getNodeAttribute?.(target, 'tier')) ?? 0;
+
+				const sourceZoom = (4 - sourceRawTier) * 10;
+				const targetZoom = (4 - targetRawTier) * 10;
+
+				// Define the inclusive tier range bounds (e.g., 30 to 40)
+				const minZoom = Math.min(sourceZoom, targetZoom);
+				const maxZoom = Math.max(sourceZoom, targetZoom);
+
+				// Calculate distance only when zoomLevel is outside the [minZoom, maxZoom] range
+				let distance = 0;
+				if(this.zoomLevel < minZoom)
+				{
+					distance = minZoom - this.zoomLevel;
+				} else if(this.zoomLevel > maxZoom)
+				{
+					distance = this.zoomLevel - maxZoom;
+				}
+
+				// Fade out over a 10-unit span outside of the bounds
+				const tierRatio = Math.min(10, Math.max(0, distance)) / 10;
+				const alpha = Math.max(0, 1 - tierRatio) * 0.4;
+
 				const rgb = d3HSL(data.color || '#cbd5e1').rgb();
 
-				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${Math.max(alpha, alpha2)})`;
+				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
 
 				if(res.color.includes('NaN')) { debugger; }
 				return res;
@@ -466,13 +492,13 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		});
 
 
-		this.appendServices(services, childrenByParentAll);
-
-		this.appendGraph(services, childrenByParent, nodes1, services.length, childrenByParentAll);
-
-		this.appendGraph(servicesAndNodes, childrenByParent2, nodes2, services.length, childrenByParentAll);
-
 		this.allNodes = [...services, ...nodes1, ...nodes2, ...nodes3];
+
+		this.appendServices(services, childrenByParentAll, servicesAndNodes.length / SCALE_FACTOR);
+
+		ProjectNodes.appendGraph(services, childrenByParent, nodes1, services.length, childrenByParentAll, this._graph, servicesAndNodes.length / SCALE_FACTOR);
+
+		//ProjectNodes.appendGraph(servicesAndNodes, childrenByParent2, nodes2, services.length, childrenByParentAll, this._graph, this.allNodes.length / SCALE_FACTOR);
 
 		this.appendEdges(this.allNodes, [...edges1, ...edges2], this._graph);
 
@@ -506,11 +532,11 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				}
 			});
 
-			CodeWidget.mergeSubGraph(this._fileGraph, this._graph);
+			// CodeWidget.mergeSubGraph(this._fileGraph, this._graph);
 
-			this.appendGraph(servicesAndNodesAndMore, childrenByParentAll, nodes3, services.length + nodes1.length, childrenByParentAll, this._fileGraph);
+			// ProjectNodes.appendGraph(servicesAndNodesAndMore, childrenByParentAll, nodes3, services.length + nodes1.length, childrenByParentAll, this._fileGraph, this.allNodes.length / SCALE_FACTOR);
 
-			this.appendEdges(this.allNodes, [...edges1, ...edges2, ...edges3], this._fileGraph);
+			// this.appendEdges(this.allNodes, [...edges1, ...edges2, ...edges3], this._fileGraph);
 
 			// const sensibleSettings2 = forceAtlas2.inferSettings(this._fileGraph);
 			// forceLayout.assign(this._fileGraph, {
@@ -530,7 +556,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			// 	}
 			// });
 
-			CodeWidget.mergeSubGraph(this._combinedGraph, this._fileGraph);
+			// CodeWidget.mergeSubGraph(this._combinedGraph, this._fileGraph);
+			CodeWidget.mergeSubGraph(this._combinedGraph, this._graph);
 
 
 		} catch(e)
@@ -568,7 +595,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 					}
 					const edgeId = graph.addEdge(edge.source, edge.target, {
 						color: targetStr ?? edge.color ?? '#e2e8f0',
-						size: node ? this.getScaledEdge(node) : 1
+						size: node ? ProjectNodes.getScaledEdge(node, (graph.nodes().length ?? 0) / SCALE_FACTOR) : 1
 					});
 					this.edgeMap.set(edgeId, edge);
 					this.edgeSource.set(edgeId, node?.tier ?? 0);
@@ -593,7 +620,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		widgetSelf.statusBar?.updateStatusItem('env-state',
 			`Mouse: ${this._mouseX ?? 0}x${this._mouseY ?? 0}, `
 			+ `Camera: X: ${Math.round(state.x)}, Y: ${Math.round(state.y)}, `
-			+ `Zoom (Ratio): ${state.ratio.toFixed(2)}, `
+			+ `Zoom (Ratio): ${state.ratio.toFixed(2)}, Tier: ${this.zoomTier}, Level: ${this.zoomLevel}, `
 			+ `Rotation: ${(state.angle * (180 / Math.PI)).toFixed(1)}°, `
 			+ `Node: ${this.hoverNode?.name ?? 'None'}, `
 			+ `Graph: ${this._graph?.order ?? 0} nodes, ${this._graph?.size ?? 0} edges, `
@@ -633,64 +660,6 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	}
 
 
-	private appendGraph(nodes: WillowNode[], lookup: Map<string, string[]>, children: WillowNode[], totalServices: number, grouped: Map<string, string[]>, graph?: Graph)
-	{
-		const subRadius = 55;
-		[...nodes].forEach((serviceNode: WillowNode, i: number) =>
-		{
-			const childIds = lookup.get(serviceNode.id) || [];
-			const root = Math.max(1, Math.round(Math.sqrt(childIds.length) - 0.8));
-			const totalPieces = childIds.length - root * root;
-			const segment = (360 / totalServices / totalPieces);
-			const parent = serviceNode.color ? d3HSL(serviceNode.color) : d3HSL((360 / totalServices / totalPieces) * i, 0.5, 0.5);
-			const offset = 360 / (totalServices * totalPieces * 2);
-			let attrs: any;
-			try
-			{
-				attrs = graph?.getNodeAttributes(serviceNode.id);
-			} catch(e)
-			{
-
-			}
-
-
-			childIds.forEach((childId, j) =>
-			{
-				const childNodeData = children.find(n => n.id === childId);
-				if(!childNodeData) return;
-
-				// Spread children evenly in a ring around the parent's coordinates
-				const childAngle = (2 * Math.PI * j) / childIds.length;
-				const childX = (attrs?.x ?? serviceNode.x ?? 0) + Math.cos(childAngle) * subRadius;
-				const childY = (attrs?.y ?? serviceNode.y ?? 0) + Math.sin(childAngle) * subRadius;
-
-				if(!(graph ?? this._graph)!.hasNode(childId))
-				{
-					const targetColor = serviceNode.color ? d3RGB(serviceNode.color) : d3HSL(
-						(parent.h - offset + ((j / totalPieces) * segment)) % 360,
-						Math.min(0.8, Math.max(0.2, 0.25 + ((j % root) / root * 0.5))),
-						Math.min(0.8, Math.max(0.2, 0.25 + ((j % root) / root * 0.5)))
-					).rgb();
-					const targetTier = childNodeData.tier;
-					const color = `rgba(${Math.round(targetColor.r)}, ${Math.round(targetColor.g)}, ${Math.round(targetColor.b)}, ${0.5 - 0.10 * (targetTier ?? 0)})`;
-					if(color.includes('NaN'))
-					{
-						debugger;
-					}
-					(graph ?? this._graph)!.addNode(childId, {
-						tier: childNodeData.tier,
-						label: childNodeData.name || childId,
-						x: childX,
-						y: childY,
-						size: this.getScaledSize(childNodeData, (grouped.get(childNodeData.id) ?? []).length),
-						color: color,
-						service: serviceNode.name
-					});
-				}
-			});
-		});
-
-	}
 
 
 	public highlightNodeByName(name: string)

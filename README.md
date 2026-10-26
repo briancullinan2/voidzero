@@ -159,6 +159,16 @@ The system uses a unified build pipeline orchestrated via standard build scripts
 
 ## Project History
 
+
+### 10/26/2026
+
+* new goals for 2D graph, possibly flowing into 3D. show top and second level orbitals, then show forced as we zoom in, then next level appears as orbitals,
+and when out of view make it the DNA orbital for selection being the max off screen that the nodes can go, as the wheel zooms in the nodes collect in a
+giant orbital around the edge of the screen, for each tier i need 3 layouts, parent orbitals, forced after 40 iterations, and DNA selected outside orbital.
+5 to 10 increments per level, next level shows up half way through previous level, i.e. previous level is 2 times larger than screen
+* need to get back to the alien DNA orbital when a node is selected and just the 1 level connected edges are sucked into the middle with low gravity and
+every code feature basically has its own identity shape. this version i will add search results so all the connected features can also show in the orbital
+
 ### 10/23/2026
 
 ![alt text](<Screenshot 2026-10-22 184822.png>) ![alt text](<Screenshot 2026-10-23 220409.png>) ![alt text](<Screenshot 2026-10-24 080316.png>)
@@ -179,7 +189,8 @@ find it useful, but i'll think it looks cool for a moment.
 
 ### 10/14/2026
 
-![alt text](<Screenshot 2026-10-14 114608.png>) ![alt text](<Screenshot 2026-10-14 105034.png>) ![alt text](<Screenshot 2026-10-14 114557.png>) ![alt text](<Screenshot 2026-10-14 195854.png>)
+![alt text](<Screenshot 2026-10-14 114608.png>) ![alt text](<Screenshot 2026-10-14 105034.png>)
+![alt text](<Screenshot 2026-10-14 114557.png>) ![alt text](<Screenshot 2026-10-14 195854.png>)
 
 
 okay, what is this crap? i think it was maybe like 8 years ago i sitting in scottsdale in my house

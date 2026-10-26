@@ -1,7 +1,14 @@
+import Graph from "graphology";
 import { GitHubFileEntry } from "../bundle/github-types";
 import { PROJECT_LAYOUT_TIERS, TierRule } from "./widget-tiers";
 import { WillowEdge, WillowNode } from "./widget-willow";
 import { hsl as d3HSL, rgb as d3RGB } from 'd3';
+
+
+
+export const SCALE_FACTOR = 100;
+export const SCALE_NODES = 30;
+export const EDGE_SCALE = 2;
 
 
 export class ProjectNodes
@@ -534,6 +541,82 @@ export class ProjectNodes
 		};
 	}
 
+
+
+	public static appendGraph(nodes: WillowNode[], lookup: Map<string, string[]>, children: WillowNode[], totalServices: number, grouped: Map<string, string[]>, graph: Graph, factor: number)
+	{
+		const subRadius = 55;
+		[...nodes].forEach((serviceNode: WillowNode, i: number) =>
+		{
+			const childIds = lookup.get(serviceNode.id) || [];
+			const root = Math.max(1, Math.round(Math.sqrt(childIds.length) - 0.8));
+			const totalPieces = childIds.length - root * root;
+			const segment = (360 / totalServices / totalPieces);
+			const parent = serviceNode.color ? d3HSL(serviceNode.color) : d3HSL((360 / totalServices / totalPieces) * i, 0.5, 0.5);
+			const offset = 360 / (totalServices * totalPieces * 2);
+			let attrs: any;
+			try
+			{
+				attrs = graph?.getNodeAttributes(serviceNode.id);
+			} catch(e)
+			{
+
+			}
+
+
+			childIds.forEach((childId, j) =>
+			{
+				const childNodeData = children.find(n => n.id === childId);
+				if(!childNodeData) return;
+
+				// Spread children evenly in a ring around the parent's coordinates
+				const childAngle = (2 * Math.PI * j) / childIds.length;
+				const childX = (attrs?.x ?? serviceNode.x ?? 0) + Math.cos(childAngle) * subRadius;
+				const childY = (attrs?.y ?? serviceNode.y ?? 0) + Math.sin(childAngle) * subRadius;
+
+				if(!graph.hasNode(childId))
+				{
+					const targetColor = serviceNode.color ? d3RGB(serviceNode.color) : d3HSL(
+						(parent.h - offset + ((j / totalPieces) * segment)) % 360,
+						Math.min(0.8, Math.max(0.2, 0.25 + ((j % root) / root * 0.5))),
+						Math.min(0.8, Math.max(0.2, 0.25 + ((j % root) / root * 0.5)))
+					).rgb();
+					const targetTier = childNodeData.tier;
+					const color = `rgba(${Math.round(targetColor.r)}, ${Math.round(targetColor.g)}, ${Math.round(targetColor.b)}, ${0.5 - 0.10 * (targetTier ?? 0)})`;
+					if(color.includes('NaN'))
+					{
+						debugger;
+					}
+					graph.addNode(childId, {
+						tier: childNodeData.tier,
+						label: childNodeData.name || childId,
+						x: childX,
+						y: childY,
+						size: this.getScaledSize(childNodeData, (grouped.get(childNodeData.id) ?? []).length, factor ?? (graph.nodes().length ?? 0) / SCALE_FACTOR),
+						color: color,
+						service: serviceNode.name
+					});
+				}
+			});
+		});
+
+	}
+
+
+
+
+	public static getScaledSize(node: WillowNode, children: number, factor: number)
+	{
+		// const units = (this._graph?.nodes().length ?? 0) / SCALE_FACTOR;
+		return (Math.max(1, factor) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, factor))
+			* (SCALE_FACTOR / SCALE_NODES) + Math.max(SCALE_FACTOR / SCALE_NODES, Math.min(0, children / SCALE_FACTOR));
+	}
+
+	public static getScaledEdge(node: WillowNode, factor: number)
+	{
+		// const units = (this._graph?.nodes().length ?? 0) / SCALE_FACTOR;
+		return Math.max(1, factor) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, factor);
+	}
 
 
 }
