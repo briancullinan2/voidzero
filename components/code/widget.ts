@@ -813,24 +813,26 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 
 
-		// const sensibleSettings2 = forceAtlas2.inferSettings(this._selectedForcedGraph);
-		// forceLayout.assign(this._selectedForcedGraph, {
-		// 	maxIterations: 30,
-		// 	isNodeFixed: (node, attributes) =>
-		// 	{
-		// 		const isFixed = !this.allConnected?.includes(node);
-		// 		//&& !moreConnected.includes(node);
-		// 		//|| node === this.selectedId;
-		// 		//|| attributes.tier === 0;
-		// 		return isFixed;
-		// 	},
-		// 	settings: {
-		// 		...sensibleSettings2,
-		// 		// attraction: 0.001,
-		// 		// repulsion: 1.5,
-		// 		gravity: 0.2,
-		// 	}
-		// });
+		const sensibleSettings2 = forceAtlas2.inferSettings(this._selectedForcedGraph);
+		forceAtlas2.assign(this._selectedForcedGraph, {
+			iterations: 30,
+			// maxIterations: 30,
+			// isNodeFixed: (node, attributes) =>
+			// {
+			// 	const isFixed = !this.allConnected?.includes(node);
+			// 	//&& !moreConnected.includes(node);
+			// 	//|| node === this.selectedId;
+			// 	//|| attributes.tier === 0;
+			// 	return isFixed;
+			// },
+			settings: {
+				...sensibleSettings2,
+				// attraction: 0.1,
+				// repulsion: 1.5,
+				gravity: 0.05,
+				strongGravityMode: true,
+			}
+		});
 
 
 
