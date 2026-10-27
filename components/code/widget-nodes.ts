@@ -649,12 +649,10 @@ export class ProjectNodes
 		centerX: number = 0,
 		centerY: number = 0,
 		baseRadius: number = 150,     // Increased base radius to push rings outward
-		layerSpacing: number = 20     // Wider spacing between concentric layers
+		layerSpacing: number = 50     // Wider spacing between concentric layers
 	): Graph
 	{
 		const newGraph = new Graph();
-
-		// 1. EXPANSIVE SCALING: Scale outward dynamically based on service count to fill the viewport
 		// const serviceCount = Math.max(1, nodes.length);
 		// const adaptiveBaseRadius = Math.max(baseRadius, 250 + (serviceCount * 12));
 		// const adaptiveLayerSpacing = Math.max(layerSpacing, 40 + (serviceCount * 2));
@@ -675,6 +673,7 @@ export class ProjectNodes
 		}
 
 		const targetSlots: TargetSlot[] = [];
+		const serviceNodes = nodes.filter(n => n.tier === 0).map(n => n.id);
 
 		nodes.forEach((serviceNode: WillowNode, sIndex: number) =>
 		{
@@ -682,7 +681,13 @@ export class ProjectNodes
 			if(childIds.length === 0) return;
 
 			// Expand outward per service layer
-			let serviceRadius = adaptiveBaseRadius + (sIndex * adaptiveLayerSpacing);
+			let serviceIndex = serviceNodes.indexOf(serviceNode.id);
+			if(serviceIndex === -1)
+			{
+				serviceIndex = serviceNodes.findIndex(n => grouped.get(serviceNode.id)?.includes(n));
+			}
+
+			let serviceRadius = adaptiveBaseRadius + (serviceIndex * (adaptiveLayerSpacing / serviceNodes.length));
 			serviceRadius = Math.min(serviceRadius, maxAllowedRadius);
 
 			const serviceAngleOffset = sIndex * 0.35;
@@ -804,7 +809,7 @@ export class ProjectNodes
 		assignedSlots.forEach((slot, childId) =>
 		{
 			const { childNodeData, serviceNode, x, y } = slot;
-			const groupCount = (grouped.get(childNodeData.id) ?? []).length;
+			const groupCount = (lookup.get(childNodeData.id) ?? []).length;
 
 			const targetColor = d3RGB(serviceNode.color || '#3b82f6');
 			const targetTier = childNodeData.tier ?? 0;

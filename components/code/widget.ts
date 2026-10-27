@@ -40,6 +40,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private _combinedOrbitalGraph: Graph = new Graph;
 	private _combinedForcedGraph: Graph = new Graph;
 	private _selectedRingGraph: Graph = new Graph;
+	private _selectedForcedGraph: Graph = new Graph;
 	private _renderer: Sigma | null = null;
 	private _container?: HTMLDivElement;
 	private _isInitialized = false;
@@ -67,7 +68,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	protected childrenByParentAll?: Map<string, string[]>;
 	protected parentByChildren?: Map<string, string[]>;
 	protected selectedId: string | undefined;
-	protected allConnected?: any[];
+	protected allConnected?: string[];
 
 	constructor()
 	{
@@ -127,8 +128,17 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 					this._combinedGraph.setNodeAttribute(n, 'y', 0);
 				}
 			}
-			NodeAnimator.transitionToGraph(this._renderer, this._combinedForcedGraph, this._selectedRingGraph, 1, this.allConnected, this.forceSelectedGraph.bind(this));
-
+			const notConnected: string[] = [];
+			this._combinedForcedGraph.forEachNode(n =>
+			{
+				if(!this.allConnected?.includes(n))
+				{
+					notConnected.push(n);
+				}
+			});
+			this.forceSelectedGraph();
+			NodeAnimator.transitionToGraph(this._renderer, this._combinedForcedGraph, this._selectedRingGraph, 1, this.allConnected);
+			NodeAnimator.transitionToGraph(this._renderer, this._combinedForcedGraph, this._selectedForcedGraph, 1, notConnected);
 		} else if(!this.hoverNode)
 		{
 			this.selected = this.hoverNode;
@@ -665,7 +675,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			this._tier0ForcedRatio = this.getGraphBBox(this._tier0ForcedGraph);
 
 			const ring1 = ProjectNodes.generateAlienRingGraph(
-				services,
+				[...services, ...nodes1],
 				childrenByParent,
 				nodes1,
 				servicesAndNodes.length,
@@ -707,12 +717,12 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				this.childrenByParentAll,
 				[...nodes1, ...nodes2],
 				servicesAndNodesAndMore.length,
-				this.childrenByParentAll,
+				this.parentByChildren,
 				this._combinedForcedGraph,
 				servicesAndNodesAndMore.length / SCALE_FACTOR);
 
 			CodeWidget.mergeSubGraph(this._selectedRingGraph, moreRings);
-			//CodeWidget.mergeSubGraph(this._selectedRingGraph, ring1);
+			CodeWidget.mergeSubGraph(this._selectedRingGraph, ring1);
 
 			// CodeWidget.mergeSubGraph(this._combinedGraph, this._fileGraph);
 			CodeWidget.mergeSubGraph(this._combinedGraph, this._tier2OrbitalGraph);
@@ -736,22 +746,88 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	protected forceSelectedGraph()
 	{
 		// 1. Increase gravity and repulsion to pull movable nodes inward toward the center
-		const sensibleSettings2 = forceAtlas2.inferSettings(this._combinedGraph);
-		forceLayout.assign(this._combinedGraph, {
-			maxIterations: 30,
-			isNodeFixed: (node, attributes) =>
+		let j = 0;
+		const moreConnected: string[] = [];
+		this._combinedOrbitalGraph.forEachEdge((edgeId: string, attributes, source, target) =>
+		{
+			if(this.allConnected?.includes(source) || this.allConnected?.includes(target))
 			{
-				return !this.allConnected?.includes(node)
-					|| node === this.selectedId
-					|| attributes.tier === 0;
-			},
-			settings: {
-				...sensibleSettings2,
-				attraction: 0.001,
-				repulsion: 1.5,
-				gravity: 0.2,
+				if(!moreConnected.includes(source) && !this.allConnected?.includes(source))
+				{
+					moreConnected.push(source);
+				}
+				if(!moreConnected.includes(target) && !this.allConnected?.includes(target))
+				{
+					moreConnected.push(target);
+				}
 			}
 		});
+
+		this._selectedForcedGraph = new Graph;
+		const existingCount = [...this.allConnected ?? [], ...moreConnected].filter(n => this._combinedOrbitalGraph.hasNode(n));
+		this._combinedOrbitalGraph.forEachNode((nodeId: string, attributes) =>
+		{
+			if(this.allConnected?.includes(nodeId) || moreConnected.includes(nodeId))
+			{
+				if(!this._selectedForcedGraph.hasNode(nodeId))
+				{
+					const childAngle = (2 * Math.PI * j) / existingCount.length;
+					const childX = /*(attributes?.x ?? 0)*/ + Math.cos(childAngle) * 55;
+					const childY = /*(attributes?.y ?? 0)*/ + Math.sin(childAngle) * 55;
+					this._selectedForcedGraph.addNode(nodeId, Object.assign({}, attributes, {
+						x: childX, y: childY
+					}));
+					j++;
+				}
+				else
+				{
+					// If the node already exists, copy/update its x and y values
+					if(attributes.x !== undefined)
+					{
+						this._selectedForcedGraph.setNodeAttribute(nodeId, 'x', attributes.x);
+					}
+					if(attributes.y !== undefined)
+					{
+						this._selectedForcedGraph.setNodeAttribute(nodeId, 'y', attributes.y);
+					}
+				}
+			}
+		});
+
+		this._combinedOrbitalGraph.forEachEdge((edgeId: string, attributes, source, target) =>
+		{
+			if(!this._selectedForcedGraph.hasEdge(source, target)
+				&& (this.allConnected?.includes(source)
+					|| this.allConnected?.includes(target)
+					// || moreConnected?.includes(source)
+					// || moreConnected?.includes(target))
+				))
+			{
+				this._selectedForcedGraph.addEdge(source, target, Object.assign({}, attributes));
+			}
+		});
+
+
+
+		// const sensibleSettings2 = forceAtlas2.inferSettings(this._selectedForcedGraph);
+		// forceLayout.assign(this._selectedForcedGraph, {
+		// 	maxIterations: 30,
+		// 	isNodeFixed: (node, attributes) =>
+		// 	{
+		// 		const isFixed = !this.allConnected?.includes(node)
+		// 		//|| node === this.selectedId;
+		// 		//|| attributes.tier === 0;
+		// 		return isFixed;
+		// 	},
+		// 	settings: {
+		// 		...sensibleSettings2,
+		// 		// attraction: 0.001,
+		// 		// repulsion: 1.5,
+		// 		gravity: 0.8,
+		// 	}
+		// });
+
+
 
 		// 2. Shape the connected nodes into a central DNA double-helix structure
 		// if(this.allConnected && this.allConnected.length > 0)
