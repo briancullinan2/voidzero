@@ -746,9 +746,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	protected forceSelectedGraph()
 	{
 		// 1. Increase gravity and repulsion to pull movable nodes inward toward the center
-		let j = 0;
 		const moreConnected: string[] = [];
-		this._combinedOrbitalGraph.forEachEdge((edgeId: string, attributes, source, target) =>
+		this._selectedRingGraph.forEachEdge((edgeId: string, attributes, source, target) =>
 		{
 			if(this.allConnected?.includes(source) || this.allConnected?.includes(target))
 			{
@@ -764,16 +763,18 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		});
 
 		this._selectedForcedGraph = new Graph;
-		const existingCount = [...this.allConnected ?? [], ...moreConnected].filter(n => this._combinedOrbitalGraph.hasNode(n));
-		this._combinedOrbitalGraph.forEachNode((nodeId: string, attributes) =>
+		const existingCount = [...this.allConnected ?? []] //, ...moreConnected]
+			.filter(n => this._combinedForcedGraph.hasNode(n));
+		let j = 0;
+		this._selectedRingGraph.forEachNode((nodeId: string, attributes) =>
 		{
-			if(this.allConnected?.includes(nodeId) || moreConnected.includes(nodeId))
+			if(this.allConnected?.includes(nodeId))
 			{
+				const childAngle = (2 * Math.PI * j) / (existingCount.length ?? 0);
+				const childX = /*(attributes?.x ?? 0)*/ + Math.cos(childAngle) * 55;
+				const childY = /*(attributes?.y ?? 0)*/ + Math.sin(childAngle) * 55;
 				if(!this._selectedForcedGraph.hasNode(nodeId))
 				{
-					const childAngle = (2 * Math.PI * j) / existingCount.length;
-					const childX = /*(attributes?.x ?? 0)*/ + Math.cos(childAngle) * 55;
-					const childY = /*(attributes?.y ?? 0)*/ + Math.sin(childAngle) * 55;
 					this._selectedForcedGraph.addNode(nodeId, Object.assign({}, attributes, {
 						x: childX, y: childY
 					}));
@@ -784,23 +785,26 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 					// If the node already exists, copy/update its x and y values
 					if(attributes.x !== undefined)
 					{
-						this._selectedForcedGraph.setNodeAttribute(nodeId, 'x', attributes.x);
+						this._selectedForcedGraph.setNodeAttribute(nodeId, 'x', childX ?? attributes.x);
 					}
 					if(attributes.y !== undefined)
 					{
-						this._selectedForcedGraph.setNodeAttribute(nodeId, 'y', attributes.y);
+						this._selectedForcedGraph.setNodeAttribute(nodeId, 'y', childY ?? attributes.y);
 					}
 				}
 			}
+
+			if(moreConnected.includes(nodeId) && !this._selectedForcedGraph.hasNode(nodeId))
+			{
+				this._selectedForcedGraph.addNode(nodeId, Object.assign({}, attributes));
+			}
 		});
 
-		this._combinedOrbitalGraph.forEachEdge((edgeId: string, attributes, source, target) =>
+		this._selectedRingGraph.forEachEdge((edgeId: string, attributes, source, target) =>
 		{
 			if(!this._selectedForcedGraph.hasEdge(source, target)
-				&& (this.allConnected?.includes(source)
-					|| this.allConnected?.includes(target)
-					// || moreConnected?.includes(source)
-					// || moreConnected?.includes(target))
+				&& (this.allConnected?.includes(source) || this.allConnected?.includes(target)
+					// || moreConnected?.includes(source) || moreConnected?.includes(target))
 				))
 			{
 				this._selectedForcedGraph.addEdge(source, target, Object.assign({}, attributes));
@@ -814,7 +818,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		// 	maxIterations: 30,
 		// 	isNodeFixed: (node, attributes) =>
 		// 	{
-		// 		const isFixed = !this.allConnected?.includes(node)
+		// 		const isFixed = !this.allConnected?.includes(node);
+		// 		//&& !moreConnected.includes(node);
 		// 		//|| node === this.selectedId;
 		// 		//|| attributes.tier === 0;
 		// 		return isFixed;
@@ -823,7 +828,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		// 		...sensibleSettings2,
 		// 		// attraction: 0.001,
 		// 		// repulsion: 1.5,
-		// 		gravity: 0.8,
+		// 		gravity: 0.2,
 		// 	}
 		// });
 
