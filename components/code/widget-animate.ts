@@ -234,6 +234,42 @@ export class NodeAnimator
 		// });
 	}
 
+	public static transitionToGraph(renderer: Sigma, orbitalGraph: Graph, forcedGraph: Graph, percent: number, except?: string[], callback?: Function)
+	{
+		const graph = renderer.getGraph();
+		const targetPositions: Record<string, { x: number, y: number; }> = {};
+
+		orbitalGraph.forEachNode((nodeKey, orbitalAttrs) =>
+		{
+			if(!graph.hasNode(nodeKey)) return;
+			if(except?.includes(nodeKey))
+			{
+				return;
+			}
+
+			// 1. Get Orbital coordinates (ox, oy) as the baseline (tierRatio = 0)
+			const ox = orbitalAttrs.x ?? 0;
+			const oy = orbitalAttrs.y ?? 0;
+
+			// 3. Get Forced coordinates (fx, fy) as the target destination (tierRatio = 1)
+			const forcedAttrs = forcedGraph.hasNode(nodeKey) ? forcedGraph.getNodeAttributes(nodeKey) : null;
+			const fx = forcedAttrs?.x ?? graph.getNodeAttribute(nodeKey, 'x') ?? ox;
+			const fy = forcedAttrs?.y ?? graph.getNodeAttribute(nodeKey, 'y') ?? oy;
+
+			// 4. Interpolate between orbital and forced positions
+			targetPositions[nodeKey] = {
+				x: ox + (fx - ox) * percent,
+				y: oy + (fy - oy) * percent
+			};
+		});
+
+		// Fire the animation once
+		NodeAnimator.cancelAnimation = NodeAnimator.animateNodes(graph, targetPositions, {
+			duration: 200,
+			easing: 'quadraticInOut'
+		}, callback);
+	}
+
 	public static transitionToRatio(renderer: Sigma, orbitalGraph: Graph, forcedGraph: Graph, zoomLevel: number)
 	{
 		const graph = renderer.getGraph();

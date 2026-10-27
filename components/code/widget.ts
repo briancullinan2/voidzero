@@ -33,8 +33,13 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private _graph: Graph = new Graph;
 	private _fileGraph: Graph = new Graph;
 	private _combinedGraph: Graph = new Graph;
-	private _initialOrbitalGraph: Graph = new Graph;
-	private _initialForcedGraph: Graph = new Graph;
+	private _tier0OrbitalGraph: Graph = new Graph;
+	private _tier0ForcedGraph: Graph = new Graph;
+	private _tier2OrbitalGraph: Graph = new Graph;
+	private _tier2ForcedGraph: Graph = new Graph;
+	private _combinedOrbitalGraph: Graph = new Graph;
+	private _combinedForcedGraph: Graph = new Graph;
+	private _selectedRingGraph: Graph = new Graph;
 	private _renderer: Sigma | null = null;
 	private _container?: HTMLDivElement;
 	private _isInitialized = false;
@@ -56,8 +61,13 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private edgeTarget: Map<string, number> = new Map();
 	protected zoomLevel: number = 4 * 10;
 	protected zoomTier: number = 0;
-	protected _initialOrbitalRatio: number | undefined;
-	protected _initialForcedRatio: number | undefined;
+	protected _tier0OrbitalRatio: number | undefined;
+	protected _tier0ForcedRatio: number | undefined;
+	protected selected: WillowNode | undefined;
+	protected childrenByParentAll?: Map<string, string[]>;
+	protected parentByChildren?: Map<string, string[]>;
+	protected selectedId: string | undefined;
+	protected allConnected?: any[];
 
 	constructor()
 	{
@@ -90,9 +100,42 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		});
 
 		this._container = this.node.querySelector('#sigma-container') as HTMLDivElement;
-
+		this._container.addEventListener('click', this.mouseClick.bind(this), { capture: true, passive: false });
 		this._container.addEventListener('wheel', this.wheelZoom.bind(this), { capture: true, passive: false });
 		this._loading = this.loadFiles();
+	}
+
+
+	protected mouseClick(e: MouseEvent)
+	{
+
+		if(!this._renderer) return;
+		if(this.hoverNode && this.selected !== this.hoverNode)
+		{
+			this.selected = this.hoverNode;
+			this.selectedId = this.selected?.id;
+			this.allConnected = [
+				this.selectedId,
+				...this.childrenByParentAll?.get(this.selected.id) ?? [],
+				...this.parentByChildren?.get(this.selected.id) ?? []
+			];
+			for(const n of this.allConnected)
+			{
+				if(this._combinedGraph.hasNode(n))
+				{
+					this._combinedGraph.setNodeAttribute(n, 'x', 0);
+					this._combinedGraph.setNodeAttribute(n, 'y', 0);
+				}
+			}
+			NodeAnimator.transitionToGraph(this._renderer, this._combinedForcedGraph, this._selectedRingGraph, 1, this.allConnected, this.forceSelectedGraph.bind(this));
+
+		} else if(!this.hoverNode)
+		{
+			this.selected = this.hoverNode;
+			this.selectedId = undefined;
+			this.allConnected = undefined;
+			NodeAnimator.transitionToRatio(this._renderer, this._combinedOrbitalGraph, this._combinedForcedGraph, this.zoomLevel);
+		}
 	}
 
 
@@ -113,9 +156,16 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		}
 		//camera.zoomIn({ factor: zoomFactor, duration: 100 });
 		this.zoomTier = Math.round(4 - this.zoomLevel / 10);
+		if(this.selected)
+		{
+			NodeAnimator.transitionToGraph(this._renderer, this._combinedForcedGraph, this._selectedRingGraph, 1, this.allConnected);
+		} else
+		{
+			NodeAnimator.transitionToRatio(this._renderer, this._combinedOrbitalGraph, this._combinedForcedGraph, this.zoomLevel);
+		}
+
 		this.updateStatus();
 		this._renderer.refresh();
-		NodeAnimator.transitionToRatio(this._renderer, this._initialOrbitalGraph, this._initialForcedGraph, this.zoomLevel);
 	}
 
 
@@ -270,7 +320,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				label: node.name,
 				x: node.x,
 				y: node.y,
-				size: ProjectNodes.getScaledSize(node, (grouped.get(node.id) ?? []).length, factor),
+				size: ProjectNodes.getScaledSize(node, (grouped.get(node.id) ?? []).length, this._graph),
 				color: color,
 				service: node.name
 			});
@@ -439,6 +489,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				const alpha = Math.max(0, 1 - tierRatio) * 0.4;
 				const rgb = d3HSL(data.color || '#333').rgb();
 
+				res.size = data.size + tierRatio * 10;
 				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
 
 				if(res.color.includes('NaN')) { debugger; }
@@ -508,7 +559,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 		const childrenByParent = new Map<string, string[]>();
 		const childrenByParent2 = new Map<string, string[]>();
-		const childrenByParentAll = new Map<string, string[]>();
+		this.parentByChildren = new Map<string, string[]>();
+		this.childrenByParentAll = new Map<string, string[]>();
 		edges1.forEach(edge =>
 		{
 			const parentId = services.some(s => s.id === edge.source) ? edge.source : edge.target;
@@ -518,12 +570,16 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			{
 				childrenByParent.set(parentId, []);
 				childrenByParent2.set(parentId, []);
-				childrenByParentAll.set(parentId, []);
+				this.childrenByParentAll?.set(parentId, []);
 			}
-
+			if(!this.parentByChildren?.has(childId))
+			{
+				this.parentByChildren?.set(childId, []);
+			}
 			childrenByParent.get(parentId)?.push(childId);
 			childrenByParent2.get(parentId)?.push(childId);
-			childrenByParentAll.get(parentId)?.push(childId);
+			this.childrenByParentAll?.get(parentId)?.push(childId);
+			this.parentByChildren?.get(childId)?.push(parentId);
 		});
 
 		const servicesAndNodes = [...services, ...nodes1];
@@ -535,10 +591,15 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			if(!childrenByParent2.has(parentId))
 			{
 				childrenByParent2.set(parentId, []);
-				childrenByParentAll.get(parentId)?.push(childId);
+				this.childrenByParentAll?.set(parentId, []);
+			}
+			if(!this.parentByChildren?.has(childId))
+			{
+				this.parentByChildren?.set(childId, []);
 			}
 			childrenByParent2.get(parentId)?.push(childId);
-			childrenByParentAll.get(parentId)?.push(childId);
+			this.childrenByParentAll?.get(parentId)?.push(childId);
+			this.parentByChildren?.get(childId)?.push(parentId);
 		});
 
 		const servicesAndNodesAndMore = [...services, ...nodes1, ...nodes2];
@@ -547,21 +608,24 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			const parentId = servicesAndNodesAndMore.some(s => s.id === edge.source) ? edge.source : edge.target;
 			const childId = servicesAndNodesAndMore.some(s => s.id === edge.target) ? edge.source : edge.target;
 
-			if(!childrenByParentAll.has(parentId))
+			if(!this.childrenByParentAll?.has(parentId))
 			{
-				childrenByParentAll.set(parentId, []);
+				this.childrenByParentAll?.set(parentId, []);
 			}
-			childrenByParentAll.get(parentId)?.push(childId);
+			if(!this.parentByChildren?.has(childId))
+			{
+				this.parentByChildren?.set(childId, []);
+			}
+			this.childrenByParentAll?.get(parentId)?.push(childId);
+			this.parentByChildren?.get(childId)?.push(parentId);
 		});
 
 
 		this.allNodes = [...services, ...nodes1, ...nodes2, ...nodes3];
 
-		this.appendServices(services, childrenByParentAll, servicesAndNodes.length / SCALE_FACTOR);
+		this.appendServices(services, this.childrenByParentAll, servicesAndNodes.length / SCALE_FACTOR);
 
-		ProjectNodes.appendGraph(services, childrenByParent, nodes1, services.length, childrenByParentAll, this._graph, servicesAndNodes.length / SCALE_FACTOR);
-
-		//ProjectNodes.appendGraph(servicesAndNodes, childrenByParent2, nodes2, services.length, childrenByParentAll, this._graph, this.allNodes.length / SCALE_FACTOR);
+		ProjectNodes.appendGraph(services, childrenByParent, nodes1, services.length, this.childrenByParentAll, this._graph, servicesAndNodes.length / SCALE_FACTOR);
 
 		this.appendEdges(this.allNodes, [...edges1, ...edges2], this._graph);
 
@@ -585,47 +649,76 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		// Apply ForceAtlas2 safely with fallback
 		try
 		{
-			CodeWidget.mergeSubGraph(this._initialOrbitalGraph, this._graph);
-			this._initialOrbitalRatio = this.getGraphBBox(this._initialOrbitalGraph);
+			CodeWidget.mergeSubGraph(this._tier0OrbitalGraph, this._graph);
+			this._tier0OrbitalRatio = this.getGraphBBox(this._tier0OrbitalGraph);
 
-			const sensibleSettings = forceAtlas2.inferSettings(this._graph);
-			forceAtlas2.assign(this._graph, {
-				iterations: 10,
+			CodeWidget.mergeSubGraph(this._tier0ForcedGraph, this._graph);
+			const sensibleSettings = forceAtlas2.inferSettings(this._tier0ForcedGraph);
+			forceAtlas2.assign(this._tier0ForcedGraph, {
+				iterations: 20,
 				settings: {
 					...sensibleSettings,
 					gravity: 1.0,
 					strongGravityMode: true
 				}
 			});
-			CodeWidget.mergeSubGraph(this._initialForcedGraph, this._graph);
-			this._initialForcedRatio = this.getGraphBBox(this._initialForcedGraph);
+			this._tier0ForcedRatio = this.getGraphBBox(this._tier0ForcedGraph);
 
+			const ring1 = ProjectNodes.generateAlienRingGraph(
+				services,
+				childrenByParent,
+				nodes1,
+				servicesAndNodes.length,
+				this.childrenByParentAll,
+				this._tier0ForcedGraph,
+				servicesAndNodes.length / SCALE_FACTOR);
+
+
+			CodeWidget.mergeSubGraph(this._tier2OrbitalGraph, this._tier0ForcedGraph);
+			ProjectNodes.appendGraph(servicesAndNodes, childrenByParent2, nodes2, services.length, this.childrenByParentAll, this._tier2OrbitalGraph, this.allNodes.length / SCALE_FACTOR);
+			this.appendEdges(this.allNodes, [...edges1, ...edges2], this._tier2OrbitalGraph);
+			CodeWidget.mergeSubGraph(this._tier2ForcedGraph, this._tier2OrbitalGraph);
+
+			const sensibleSettings2 = forceAtlas2.inferSettings(this._tier2ForcedGraph);
+			forceLayout.assign(this._tier2ForcedGraph, {
+				maxIterations: 30,
+				isNodeFixed: (node, attributes) =>
+				{
+					return attributes.tier < 2;
+				},
+				settings: {
+					...sensibleSettings2,
+					attraction: 0.005,
+					repulsion: 0.15,
+					gravity: 0.5
+				}
+			});
+
+			CodeWidget.mergeSubGraph(this._combinedForcedGraph, this._tier2ForcedGraph);
+			CodeWidget.mergeSubGraph(this._combinedForcedGraph, this._tier0ForcedGraph);
 			// CodeWidget.mergeSubGraph(this._fileGraph, this._graph);
 
 			// ProjectNodes.appendGraph(servicesAndNodesAndMore, childrenByParentAll, nodes3, services.length + nodes1.length, childrenByParentAll, this._fileGraph, this.allNodes.length / SCALE_FACTOR);
 
 			// this.appendEdges(this.allNodes, [...edges1, ...edges2, ...edges3], this._fileGraph);
 
-			// const sensibleSettings2 = forceAtlas2.inferSettings(this._fileGraph);
-			// forceLayout.assign(this._fileGraph, {
-			// 	maxIterations: 10,
-			// 	// iterations: 10,
-			// 	isNodeFixed: (node, attributes) =>
-			// 	{
-			// 		const attrs = this._fileGraph?.getNodeAttributes(node);
-			// 		const tier = attrs?.tier ?? 0;
-			// 		return tier <= 2;
-			// 	},
-			// 	settings: {
-			// 		...sensibleSettings2,
-			// 		// attraction: 0.005,
-			// 		// repulsion: 0.1,
-			// 		gravity: 0.1
-			// 	}
-			// });
+			const moreRings = ProjectNodes.generateAlienRingGraph(
+				[...services, ...nodes1, ...nodes2],
+				this.childrenByParentAll,
+				[...nodes1, ...nodes2],
+				servicesAndNodesAndMore.length,
+				this.childrenByParentAll,
+				this._combinedForcedGraph,
+				servicesAndNodesAndMore.length / SCALE_FACTOR);
+
+			CodeWidget.mergeSubGraph(this._selectedRingGraph, moreRings);
+			//CodeWidget.mergeSubGraph(this._selectedRingGraph, ring1);
 
 			// CodeWidget.mergeSubGraph(this._combinedGraph, this._fileGraph);
-			CodeWidget.mergeSubGraph(this._combinedGraph, this._initialOrbitalGraph);
+			CodeWidget.mergeSubGraph(this._combinedGraph, this._tier2OrbitalGraph);
+			CodeWidget.mergeSubGraph(this._combinedGraph, this._tier0OrbitalGraph);
+
+			CodeWidget.mergeSubGraph(this._combinedOrbitalGraph, this._combinedGraph);
 
 
 		} catch(e)
@@ -636,11 +729,87 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		this._renderer.refresh();
 
 		// Fix: Zoom out the camera so the entire graph is visible and not giant
-		const camera = this._renderer.getCamera();
-		camera.setState({ x: 0, y: 0, ratio: 1.5, angle: 0 });
+		//CodeWidget.centerGraph(this._renderer);
 		this.startAnimators();
 	}
 
+	protected forceSelectedGraph()
+	{
+		// 1. Increase gravity and repulsion to pull movable nodes inward toward the center
+		const sensibleSettings2 = forceAtlas2.inferSettings(this._combinedGraph);
+		forceLayout.assign(this._combinedGraph, {
+			maxIterations: 30,
+			isNodeFixed: (node, attributes) =>
+			{
+				return !this.allConnected?.includes(node)
+					|| node === this.selectedId
+					|| attributes.tier === 0;
+			},
+			settings: {
+				...sensibleSettings2,
+				attraction: 0.001,
+				repulsion: 1.5,
+				gravity: 0.2,
+			}
+		});
+
+		// 2. Shape the connected nodes into a central DNA double-helix structure
+		// if(this.allConnected && this.allConnected.length > 0)
+		// {
+		// 	const verticalSpacing = 35; // Distance between base pairs along the spine
+		// 	const helixRadius = 90;     // Width of the DNA strands
+		// 	const twistRate = 0.45;     // Controls how tightly the DNA twists
+
+		// 	// Center the helix vertically based on the number of connected nodes
+		// 	const startY = -(this.allConnected.length * verticalSpacing) / 2;
+
+		// 	this.allConnected.forEach((nodeId, index) =>
+		// 	{
+		// 		if(!this._combinedGraph.hasNode(nodeId)) return;
+
+		// 		// Vertical position cascading down the center axis
+		// 		const y = startY + (index * verticalSpacing);
+
+		// 		// Double-helix sine/cosine twist
+		// 		// Alternates nodes between the two intertwined strands (+x and -x sides)
+		// 		const angle = index * twistRate;
+		// 		const strandMultiplier = index % 2 === 0 ? 1 : -1;
+		// 		const x = Math.cos(angle) * helixRadius * strandMultiplier;
+
+		// 		// Apply the DNA coordinates to the graph
+		// 		this._combinedGraph.setNodeAttribute(nodeId, 'x', x);
+		// 		this._combinedGraph.setNodeAttribute(nodeId, 'y', y);
+		// 	});
+		// }
+	}
+
+
+	public static centerGraph(renderer: Sigma)
+	{
+		const bbox = renderer.getBBox();
+
+		// 1. Calculate the exact center using your [min, max] tuple extents
+		const graphCenterX = (bbox.x[0] + bbox.x[1]) / 2;
+		const graphCenterY = (bbox.y[0] + bbox.y[1]) / 2;
+
+		// 2. Convert graph-space center to camera/framed-graph space using Sigma's native method
+		const targetState = renderer.graphToFramedGraph({
+			x: graphCenterX,
+			y: graphCenterY
+		});
+
+		// 3. Animate the camera to the properly mapped coordinates
+		renderer.getCamera().animate(
+			{
+				x: targetState.x,
+				y: targetState.y
+			},
+			{
+				duration: 300,
+				easing: 'quadraticInOut'
+			}
+		);
+	}
 
 	private appendEdges(allNodes: WillowNode[], edges: WillowEdge[], graph: Graph)
 	{
@@ -727,6 +896,9 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			if(!masterGraph.hasEdge(source, target))
 			{
 				masterGraph.addEdge(source, target, Object.assign({}, attributes));
+			} else
+			{
+				// masterGraph.updateEdgeWithKey()
 			}
 		});
 

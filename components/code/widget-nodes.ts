@@ -592,7 +592,7 @@ export class ProjectNodes
 						label: childNodeData.name || childId,
 						x: childX,
 						y: childY,
-						size: this.getScaledSize(childNodeData, (grouped.get(childNodeData.id) ?? []).length, factor ?? (graph.nodes().length ?? 0) / SCALE_FACTOR),
+						size: this.getScaledSize(childNodeData, (grouped.get(childNodeData.id) ?? []).length, graph),
 						color: color,
 						service: serviceNode.name
 					});
@@ -604,13 +604,30 @@ export class ProjectNodes
 
 
 
-
-	public static getScaledSize(node: WillowNode, children: number, factor: number)
+	public static getScaledSize(nodeData: WillowNode, groupCount: number, graph: Graph): number
 	{
-		// const units = (this._graph?.nodes().length ?? 0) / SCALE_FACTOR;
-		return (Math.max(1, factor) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, factor))
-			* (SCALE_FACTOR / SCALE_NODES) + Math.max(SCALE_FACTOR / SCALE_NODES, Math.min(0, children / SCALE_FACTOR));
+		return 5;
+		const totalNodes = graph.order || 1;
+
+		// Base size that scales sub-linearly with graph size (using log scale)
+		// This ensures large graphs don't crush nodes into tiny pixels, and small graphs don't look sparse
+		const dynamicSize = 4 + (6 * Math.log10(totalNodes + 1));
+
+		// Optional: Boost size slightly if the node has a high group/connection count
+		const groupBonus = Math.min(4, groupCount * 0.5);
+
+		// Clamp between a safe min and max pixel radius (e.g., 5px to 16px)
+		return Math.max(5, Math.min(16, dynamicSize + groupBonus));
 	}
+
+
+
+	// public static getScaledSize(node: WillowNode, children: number, factor: number)
+	// {
+	// 	// const units = (this._graph?.nodes().length ?? 0) / SCALE_FACTOR;
+	// 	return (Math.max(1, factor) - ((node.tier ?? 0) + 1) / 4 * Math.max(1, factor))
+	// 		* (SCALE_FACTOR / SCALE_NODES) + Math.max(SCALE_FACTOR / SCALE_NODES, Math.min(0, children / SCALE_FACTOR));
+	// }
 
 	public static getScaledEdge(node: WillowNode, factor: number)
 	{
@@ -619,4 +636,195 @@ export class ProjectNodes
 	}
 
 
+
+
+	public static generateAlienRingGraph(
+		nodes: WillowNode[],
+		lookup: Map<string, string[]>,
+		children: WillowNode[],
+		totalServices: number,
+		grouped: Map<string, string[]>,
+		forcedGraph: Graph,
+		factor: number,
+		centerX: number = 0,
+		centerY: number = 0,
+		baseRadius: number = 150,     // Increased base radius to push rings outward
+		layerSpacing: number = 20     // Wider spacing between concentric layers
+	): Graph
+	{
+		const newGraph = new Graph();
+
+		// 1. EXPANSIVE SCALING: Scale outward dynamically based on service count to fill the viewport
+		// const serviceCount = Math.max(1, nodes.length);
+		// const adaptiveBaseRadius = Math.max(baseRadius, 250 + (serviceCount * 12));
+		// const adaptiveLayerSpacing = Math.max(layerSpacing, 40 + (serviceCount * 2));
+		const adaptiveBaseRadius = baseRadius;
+		const adaptiveLayerSpacing = layerSpacing;
+
+		// Generous maximum boundary to allow rings to fill out the screen edges
+		const maxAllowedRadius = 400;
+
+		interface TargetSlot
+		{
+			x: number;
+			y: number;
+			serviceNode: WillowNode;
+			serviceIndex: number;
+			childNodeData: WillowNode | any;
+			childId: string;
+		}
+
+		const targetSlots: TargetSlot[] = [];
+
+		nodes.forEach((serviceNode: WillowNode, sIndex: number) =>
+		{
+			const childIds = lookup.get(serviceNode.id) || [];
+			if(childIds.length === 0) return;
+
+			// Expand outward per service layer
+			let serviceRadius = adaptiveBaseRadius + (sIndex * adaptiveLayerSpacing);
+			serviceRadius = Math.min(serviceRadius, maxAllowedRadius);
+
+			const serviceAngleOffset = sIndex * 0.35;
+
+			childIds.forEach((childId, j) =>
+			{
+				const childNodeData = children.find(n => n.id === childId);
+				if(!childNodeData) return;
+
+				const angle = serviceAngleOffset + (2 * Math.PI * j) / childIds.length;
+				const slotX = centerX + Math.cos(angle) * serviceRadius;
+				const slotY = centerY + Math.sin(angle) * serviceRadius;
+
+				targetSlots.push({
+					x: slotX,
+					y: slotY,
+					serviceNode,
+					serviceIndex: sIndex,
+					childNodeData,
+					childId
+				});
+			});
+		});
+
+		// 2. Gather ALL unique child nodes
+		const targetSlotNodeIds = new Set(targetSlots.map(s => s.childId));
+		const allTargetChildIds = Array.from(new Set([
+			...targetSlotNodeIds,
+			...children.map(c => c.id)
+		]));
+
+		const nodeCurrentPositions = new Map<string, { x: number; y: number; }>();
+		const totalFallbackNodes = allTargetChildIds.length;
+
+		allTargetChildIds.forEach((id, index) =>
+		{
+			let fx, fy;
+			if(forcedGraph.hasNode(id))
+			{
+				fx = forcedGraph.getNodeAttribute(id, 'x') ?? centerX;
+				fy = forcedGraph.getNodeAttribute(id, 'y') ?? centerY;
+			}
+			else
+			{
+				// FIX: Scatter missing/Tier 0 nodes evenly on an outer perimeter ring
+				// instead of collapsing them to dead center (0,0)
+				const scatterAngle = (2 * Math.PI * index) / totalFallbackNodes;
+				const scatterRadius = adaptiveBaseRadius * 1.5;
+				fx = centerX + Math.cos(scatterAngle) * scatterRadius;
+				fy = centerY + Math.sin(scatterAngle) * scatterRadius;
+			}
+			nodeCurrentPositions.set(id, { x: fx, y: fy });
+		});
+
+		// 3. Shortest-Path Selection & Sorting Algorithm
+		interface DistancePair
+		{
+			nodeId: string;
+			slotIndex: number;
+			distance: number;
+		}
+
+		const pairs: DistancePair[] = [];
+		allTargetChildIds.forEach(nodeId =>
+		{
+			const pos = nodeCurrentPositions.get(nodeId)!;
+			targetSlots.forEach((slot, slotIndex) =>
+			{
+				const dx = slot.x - pos.x;
+				const dy = slot.y - pos.y;
+				pairs.push({ nodeId, slotIndex, distance: Math.sqrt(dx * dx + dy * dy) });
+			});
+		});
+
+		pairs.sort((a, b) => a.distance - b.distance);
+
+		const assignedSlots = new Map<string, TargetSlot>();
+		const usedSlots = new Set<number>();
+		const assignedNodes = new Set<string>();
+
+		for(const pair of pairs)
+		{
+			if(!assignedNodes.has(pair.nodeId) && !usedSlots.has(pair.slotIndex))
+			{
+				assignedNodes.add(pair.nodeId);
+				usedSlots.add(pair.slotIndex);
+				assignedSlots.set(pair.nodeId, targetSlots[pair.slotIndex]);
+			}
+		}
+
+		// 4. FALLBACK PASS: Ensure zero nodes are dropped
+		allTargetChildIds.forEach((nodeId, idx) =>
+		{
+			if(!assignedSlots.has(nodeId))
+			{
+				const openSlotIndex = targetSlots.findIndex((_, sIdx) => !usedSlots.has(sIdx));
+				if(openSlotIndex !== -1)
+				{
+					usedSlots.add(openSlotIndex);
+					assignedSlots.set(nodeId, targetSlots[openSlotIndex]);
+				}
+				else
+				{
+					const fallbackAngle = (2 * Math.PI * idx) / allTargetChildIds.length;
+					const fallbackRadius = Math.min(maxAllowedRadius, adaptiveBaseRadius * 1.2);
+					assignedSlots.set(nodeId, {
+						x: centerX + Math.cos(fallbackAngle) * fallbackRadius,
+						y: centerY + Math.sin(fallbackAngle) * fallbackRadius,
+						serviceNode: nodes[0] || { id: 'default', name: 'Default', color: '#3b82f6' },
+						serviceIndex: 0,
+						childNodeData: children.find(c => c.id === nodeId) || { id: nodeId, tier: 0, name: nodeId },
+						childId: nodeId
+					});
+				}
+			}
+		});
+
+		// 5. Populate and return the new Graph
+		assignedSlots.forEach((slot, childId) =>
+		{
+			const { childNodeData, serviceNode, x, y } = slot;
+			const groupCount = (grouped.get(childNodeData.id) ?? []).length;
+
+			const targetColor = d3RGB(serviceNode.color || '#3b82f6');
+			const targetTier = childNodeData.tier ?? 0;
+			const alpha = Math.max(0.2, 0.9 - (targetTier * 0.15));
+			const color = `rgba(${Math.round(targetColor.r)}, ${Math.round(targetColor.g)}, ${Math.round(targetColor.b)}, ${alpha})`;
+
+			if(!newGraph.hasNode(childId))
+			{
+				newGraph.addNode(childId, {
+					tier: childNodeData.tier,
+					label: childNodeData.name || childId,
+					x: x,
+					y: y,
+					size: this.getScaledSize(childNodeData, groupCount, forcedGraph),
+					color: color,
+					service: serviceNode.name
+				});
+			}
+		});
+
+		return newGraph;
+	}
 }
