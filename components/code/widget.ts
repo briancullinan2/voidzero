@@ -69,6 +69,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	protected parentByChildren?: Map<string, string[]>;
 	protected selectedId: string | undefined;
 	protected allConnected?: string[];
+	protected hoverConnected?: string[];
 
 	constructor()
 	{
@@ -102,8 +103,22 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	}
 
 
-	protected mouseMove(event: MouseEvent)
+	private running = false;
+	private refresh?: ReturnType<typeof setInterval>;
+
+	protected async mouseMove(event: MouseEvent)
 	{
+		if(this.running)
+		{
+			if(this.refresh)
+			{
+				clearInterval(this.refresh);
+			}
+			this.refresh = setTimeout(this.mouseMove.bind(this, event), 200);
+			return;
+		}
+
+		this.running = true;
 		this._mouseX = event.clientX;
 		this._mouseY = event.clientY;
 		event.preventDefault();
@@ -115,14 +130,25 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		if(activeNodeId)
 		{
 			this.hoverNode = this.allNodes?.find(n => n.id === activeNodeId);
+			this.hoverNodeId = activeNodeId;
+			this.hoverConnected = [
+				this.hoverNodeId,
+				...this.childrenByParentAll?.get(activeNodeId) ?? [],
+				...this.parentByChildren?.get(activeNodeId) ?? []
+			];
 		} else
 		{
 			this.hoverNode = undefined;
+			this.hoverNodeId = undefined;
+			this.hoverConnected = undefined;
 			// this.selected = undefined;
 			// this.selectedId = undefined;
 		}
 
 		this.updateStatus();
+		this._renderer?.refresh();
+		await new Promise(resolve => setTimeout(resolve, 150));
+		this.running = false;
 		return false;
 	}
 
@@ -155,7 +181,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			const distance = Math.sqrt(dx * dx + dy * dy);
 
 			// Check if the mouse is within the node's radius
-			if(distance <= attrs.size)
+			if(distance <= attrs.size * 2)
 			{
 				hoveredNodeId = node;
 			}
@@ -204,6 +230,9 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			this.allConnected = undefined;
 			NodeAnimator.transitionToRatio(this._renderer, this._combinedOrbitalGraph, this._combinedForcedGraph, this.zoomLevel);
 		}
+
+		this.updateStatus();
+		this._renderer.refresh();
 	}
 
 
@@ -579,13 +608,30 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				const tierRatio = Math.abs(Math.min(10, Math.max(-10, targetZoom - this.zoomLevel)) / 10);
 
 				// Peak alpha is 0.4 when distance (tierRatio) is 0, fading out to 0 at distance 1
-				const alpha = Math.max(0, 1 - tierRatio) * 0.4;
+				let alpha = Math.max(0, 1 - tierRatio) * 0.4;
+				if((this.hoverNodeId && this.hoverConnected?.includes(node))
+					|| (this.selectedId && this.allConnected?.includes(node)))
+				{
+					alpha *= 2;
+				} else if(this.hoverNodeId || this.selectedId)
+				{
+					alpha *= 0.5;
+				}
 				const rgb = d3HSL(data.color || '#333').rgb();
 				const isHidden = Math.abs(targetZoom - this.zoomLevel) >= 10;
+				const isHover = this.hoverNodeId === node;
 
 				//this._combinedGraph.setNodeAttribute(node, 'hidden', isHidden);
 				res.hidden = isHidden;
 				res.size = data.size + tierRatio * 10;
+				if(isHidden)
+				{
+					res.size = 0;
+				}
+				else if(isHover)
+				{
+					res.size *= 1.5;
+				}
 				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
 				res.highlighted = false;
 
@@ -627,12 +673,32 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				}
 				const isHidden = distance >= 10;
 				const tierRatio = Math.min(10, Math.max(0, distance)) / 10;
-				const alpha = Math.max(0, 1 - tierRatio) * 0.4;
+				let alpha = Math.max(0, 1 - tierRatio) * 0.4;
+				let size = data.size;
+				if((this.hoverNodeId && this.hoverConnected?.includes(source))
+					|| (this.selectedId && this.allConnected?.includes(source))
+					|| (this.hoverNodeId && this.hoverConnected?.includes(target))
+					|| (this.selectedId && this.allConnected?.includes(target))
+				)
+				{
+					size *= 2;
+					alpha *= 2;
+				} else if(this.hoverNodeId || this.selectedId)
+				{
+					size *= 0.5;
+					alpha *= 0.5;
+				}
 
 				const rgb = d3HSL(data.color || '#cbd5e1').rgb();
 
+				if(isHidden)
+				{
+					res.size = 0;
+				} else if(size)
+				{
+					res.size = size;
+				}
 
-				//this._combinedGraph.setEdgeAttribute(edge, 'hidden', isHidden);
 				res.hidden = isHidden;
 				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
 
@@ -811,7 +877,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				settings: {
 					...sensibleSettings2,
 					attraction: 0.005,
-					repulsion: 0.15,
+					repulsion: 1.5,
 					gravity: 0.5
 				}
 			});
