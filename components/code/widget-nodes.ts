@@ -594,7 +594,8 @@ export class ProjectNodes
 						y: childY,
 						size: this.getScaledSize(childNodeData, (grouped.get(childNodeData.id) ?? []).length, graph),
 						color: color,
-						service: serviceNode.name
+						service: serviceNode.name,
+						hidden: (childNodeData.tier ?? 0) > 0
 					});
 				}
 			});
@@ -689,6 +690,19 @@ export class ProjectNodes
 
 			let serviceRadius = adaptiveBaseRadius + (serviceIndex * (adaptiveLayerSpacing / serviceNodes.length));
 			serviceRadius = Math.min(serviceRadius, maxAllowedRadius);
+			if(serviceNode.tier === 0)
+			{
+				const { x, y, color } = forcedGraph.getNodeAttributes(serviceNode.id);
+				newGraph.addNode(serviceNode.id, {
+					tier: serviceNode.tier,
+					label: serviceNode.name ?? serviceNode.id,
+					x: x,
+					y: y,
+					size: this.getScaledSize(serviceNode, serviceNodes.length, forcedGraph),
+					color: color,
+					service: serviceNode.name
+				});
+			}
 
 			const serviceAngleOffset = sIndex * 0.35;
 

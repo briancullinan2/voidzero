@@ -242,6 +242,7 @@ export class NodeAnimator
 		orbitalGraph.forEachNode((nodeKey, orbitalAttrs) =>
 		{
 			if(!graph.hasNode(nodeKey)) return;
+
 			if(except?.includes(nodeKey))
 			{
 				return;

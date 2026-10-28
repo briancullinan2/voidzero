@@ -93,17 +93,75 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
                 <div class="legend-item" style="font-weight:600; margin-bottom:8px;">Services & Modules</div>
             </div>`;
 
-		this.node.addEventListener('mousemove', (e: MouseEvent) =>
-		{
-			this._mouseX = e.clientX;
-			this._mouseY = e.clientY;
-			this.updateStatus();
-		});
 
 		this._container = this.node.querySelector('#sigma-container') as HTMLDivElement;
 		this._container.addEventListener('click', this.mouseClick.bind(this), { capture: true, passive: false });
 		this._container.addEventListener('wheel', this.wheelZoom.bind(this), { capture: true, passive: false });
+		this._container.addEventListener('mousemove', this.mouseMove.bind(this), { capture: true, passive: false });
 		this._loading = this.loadFiles();
+	}
+
+
+	protected mouseMove(event: MouseEvent)
+	{
+		this._mouseX = event.clientX;
+		this._mouseY = event.clientY;
+		event.preventDefault();
+		event.stopImmediatePropagation();
+
+		// Call your custom hit-test function
+		const activeNodeId = this.getActiveNodeUnderMouse(event);
+
+		if(activeNodeId)
+		{
+			this.hoverNode = this.allNodes?.find(n => n.id === activeNodeId);
+		} else
+		{
+			this.hoverNode = undefined;
+			// this.selected = undefined;
+			// this.selectedId = undefined;
+		}
+
+		this.updateStatus();
+		return false;
+	}
+
+
+
+	private getActiveNodeUnderMouse(event: MouseEvent): string | undefined
+	{
+		if(!this._renderer || !this._container) return;
+
+		const rect = this._container.getBoundingClientRect();
+		const x = event.clientX - rect.left;
+		const y = event.clientY - rect.top;
+
+		// Convert container pixel coordinates to graph-space coordinates
+		const mouseGraph = this._renderer.viewportToGraph({ x, y });
+		const graph = this._renderer.getGraph();
+
+		let hoveredNodeId: string | undefined = undefined;
+
+		graph.forEachNode((node, attrs) =>
+		{
+			// Skip non-interactive, hidden, or disabled nodes entirely
+			if(attrs.nonInteractive || attrs.hidden)
+			{
+				return;
+			}
+
+			const dx = attrs.x - mouseGraph.x;
+			const dy = attrs.y - mouseGraph.y;
+			const distance = Math.sqrt(dx * dx + dy * dy);
+
+			// Check if the mouse is within the node's radius
+			if(distance <= attrs.size)
+			{
+				hoveredNodeId = node;
+			}
+		});
+
+		return hoveredNodeId;
 	}
 
 
@@ -173,6 +231,19 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		{
 			NodeAnimator.transitionToRatio(this._renderer, this._combinedOrbitalGraph, this._combinedForcedGraph, this.zoomLevel);
 		}
+
+		this._combinedGraph.forEachNode((n, { tier }) =>
+		{
+			const targetZoom = (4 - tier) * 10;
+			const isHidden = Math.abs(targetZoom - this.zoomLevel) >= 10;
+			this._combinedGraph.setNodeAttribute(n, 'hidden', isHidden);
+		});
+		this._combinedGraph.forEachEdge((n, { tier }) =>
+		{
+			const targetZoom = (4 - tier) * 10;
+			const isHidden = Math.abs(targetZoom - this.zoomLevel) >= 10;
+			this._combinedGraph.setEdgeAttribute(n, 'hidden', isHidden);
+		});
 
 		this.updateStatus();
 		this._renderer.refresh();
@@ -483,7 +554,19 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				enableEdgeEvents: false,
 				autoRescale: true,
 				labelRenderedSizeThreshold: 3,
+				nodeLabelEvents: false,
+				edgeLabelEvents: false,
 			},
+
+			// hoverReducer: (node, data) =>
+			// {
+			// 	// If the node is non-interactive or should not show a hover box
+			// 	if(this._combinedGraph.getNodeAttribute(node, 'nonInteractive'))
+			// 	{
+			// 		return { ...data, label: "" }; // Clear the label during hover pass so no box renders
+			// 	}
+			// 	return data;
+			// },
 			nodeReducer: (node, data) =>
 			{
 				const res = { ...data };
@@ -498,9 +581,13 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				// Peak alpha is 0.4 when distance (tierRatio) is 0, fading out to 0 at distance 1
 				const alpha = Math.max(0, 1 - tierRatio) * 0.4;
 				const rgb = d3HSL(data.color || '#333').rgb();
+				const isHidden = Math.abs(targetZoom - this.zoomLevel) >= 10;
 
+				//this._combinedGraph.setNodeAttribute(node, 'hidden', isHidden);
+				res.hidden = isHidden;
 				res.size = data.size + tierRatio * 10;
 				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
+				res.highlighted = false;
 
 				if(res.color.includes('NaN')) { debugger; }
 				return res;
@@ -538,17 +625,19 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				{
 					distance = this.zoomLevel - maxZoom;
 				}
-
-				// Fade out over a 10-unit span outside of the bounds
+				const isHidden = distance >= 10;
 				const tierRatio = Math.min(10, Math.max(0, distance)) / 10;
 				const alpha = Math.max(0, 1 - tierRatio) * 0.4;
 
 				const rgb = d3HSL(data.color || '#cbd5e1').rgb();
 
+
+				//this._combinedGraph.setEdgeAttribute(edge, 'hidden', isHidden);
+				res.hidden = isHidden;
 				res.color = `rgba(${Math.round(rgb.r)}, ${Math.round(rgb.g)}, ${Math.round(rgb.b)}, ${alpha})`;
 
 				if(res.color.includes('NaN')) { debugger; }
-				return res;
+				return res; //{ ...res, label: undefined };
 			}
 		});
 
@@ -631,6 +720,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		});
 
 
+
 		this.allNodes = [...services, ...nodes1, ...nodes2, ...nodes3];
 
 		this.appendServices(services, this.childrenByParentAll, servicesAndNodes.length / SCALE_FACTOR);
@@ -641,20 +731,42 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 
 
 
-
-		this._renderer.on("enterNode", ({ node }) =>
+		this._renderer.on("enterNode", ({ node, event }) =>
 		{
+			if(this._combinedGraph.getNodeAttribute(node, 'hidden'))
+			{
+				event.preventSigmaDefault();
+				return { label: "" };
+			}
 			this.hoverNodeId = node;
 			this.hoverNode = this.allNodes?.find(n => n.id === node);
+			this._renderer?.refresh();
 		});
 
-		this._renderer.on("leaveNode", () =>
+		this._renderer.on("leaveNode", ({ node, event }) =>
 		{
+			// if(this._combinedGraph.getNodeAttribute(node, 'hidden'))
+			// {
+			// 	event.preventSigmaDefault();
+			// 	return;
+			// }
 			this.hoverNode = undefined;
 			this.hoverNodeId = undefined;
+			this._renderer?.refresh();
 		});
 
+		this._renderer.on('clickNode', ({ node, event }) =>
+		{
+			// Check if the node is marked as non-interactive / un-hoverable
+			if(this._combinedGraph.getNodeAttribute(node, 'hidden'))
+			{
+				event.preventSigmaDefault();
+				return { label: "" }; // Completely ignore clicks/hovers for this node
+			}
 
+			// Your normal click logic here...
+			// highlightNodes(renderer, { data: {}, node });
+		});
 
 		// Apply ForceAtlas2 safely with fallback
 		try
@@ -743,6 +855,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		this.startAnimators();
 	}
 
+
+
 	protected forceSelectedGraph()
 	{
 		// 1. Increase gravity and repulsion to pull movable nodes inward toward the center
@@ -775,7 +889,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				const childY = /*(attributes?.y ?? 0)*/ + Math.sin(childAngle) * 55;
 				if(!this._selectedForcedGraph.hasNode(nodeId))
 				{
-					this._selectedForcedGraph.addNode(nodeId, Object.assign({}, attributes, {
+					this._selectedForcedGraph.addNode(nodeId, Object.assign(Object.assign({}, attributes), {
 						x: childX, y: childY
 					}));
 					j++;
@@ -865,6 +979,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		// 	});
 		// }
 	}
+
 
 
 	public static centerGraph(renderer: Sigma)

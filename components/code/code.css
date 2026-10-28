@@ -136,3 +136,7 @@
 	margin-right: 8px;
 	border-radius: 3px;
 }
+
+.sigma-mouse {
+	display: none !important;
+}
