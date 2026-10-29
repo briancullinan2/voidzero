@@ -37,6 +37,9 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	private _tier0ForcedGraph: Graph = new Graph;
 	private _tier2OrbitalGraph: Graph = new Graph;
 	private _tier2ForcedGraph: Graph = new Graph;
+	private _tier3OrbitalGraph: Graph = new Graph;
+	private _tier3ForcedGraph: Graph = new Graph;
+
 	private _combinedOrbitalGraph: Graph = new Graph;
 	private _combinedForcedGraph: Graph = new Graph;
 	private _selectedRingGraph: Graph = new Graph;
@@ -162,33 +165,34 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		const x = event.clientX - rect.left;
 		const y = event.clientY - rect.top;
 
-		// Convert container pixel coordinates to graph-space coordinates
 		const mouseGraph = this._renderer.viewportToGraph({ x, y });
 		const graph = this._renderer.getGraph();
 
 		let hoveredNodeId: string | undefined = undefined;
+		let minSqDistance = Infinity;
 
 		graph.forEachNode((node, attrs) =>
 		{
-			// Skip non-interactive, hidden, or disabled nodes entirely
-			if(attrs.nonInteractive || attrs.hidden)
-			{
-				return;
-			}
+			if(attrs.nonInteractive || attrs.hidden) return;
 
 			const dx = attrs.x - mouseGraph.x;
 			const dy = attrs.y - mouseGraph.y;
-			const distance = Math.sqrt(dx * dx + dy * dy);
+			const sqDistance = (dx * dx) + (dy * dy);
 
-			// Check if the mouse is within the node's radius
-			if(distance <= attrs.size * 2)
+			// Use squared radius check to avoid Math.sqrt()
+			const hitRadius = (attrs.size * 2);
+			const sqRadius = hitRadius * hitRadius;
+
+			if(sqDistance <= sqRadius && sqDistance < minSqDistance)
 			{
+				minSqDistance = sqDistance;
 				hoveredNodeId = node;
 			}
 		});
 
 		return hoveredNodeId;
 	}
+
 
 
 	protected mouseClick(e: MouseEvent)
@@ -253,13 +257,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		}
 		//camera.zoomIn({ factor: zoomFactor, duration: 100 });
 		this.zoomTier = Math.round(4 - this.zoomLevel / 10);
-		if(this.selected)
-		{
-			NodeAnimator.transitionToGraph(this._renderer, this._combinedForcedGraph, this._selectedRingGraph, 1, this.allConnected);
-		} else
-		{
-			NodeAnimator.transitionToRatio(this._renderer, this._combinedOrbitalGraph, this._combinedForcedGraph, this.zoomLevel);
-		}
+
 
 		this._combinedGraph.forEachNode((n, { tier }) =>
 		{
@@ -273,6 +271,15 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			const isHidden = Math.abs(targetZoom - this.zoomLevel) >= 10;
 			this._combinedGraph.setEdgeAttribute(n, 'hidden', isHidden);
 		});
+
+
+		if(this.selected)
+		{
+			NodeAnimator.transitionToGraph(this._renderer, this._combinedForcedGraph, this._selectedRingGraph, 1, this.allConnected);
+		} else
+		{
+			NodeAnimator.transitionToRatio(this._renderer, this._combinedOrbitalGraph, this._combinedForcedGraph, this.zoomLevel);
+		}
 
 		this.updateStatus();
 		this._renderer.refresh();
@@ -559,18 +566,102 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 	}
 
 
-	private async initGraph()
+
+	private async getNodesAndEdges(services: WillowNode[])
 	{
-		if(!this._graph || !this._combinedGraph || !this._fileGraph || !this._container)
+
+		const { nodes: nodes1, edges: edges1 } = await this._loadTier1;
+		const { nodes: nodes2, edges: edges2 } = await this._loadTier2;
+		const { nodes: nodes3, edges: edges3 } = await this._loadTier3;
+
+		const childrenByParent = new Map<string, string[]>();
+		const childrenByParent2 = new Map<string, string[]>();
+		this.parentByChildren = new Map<string, string[]>();
+		this.childrenByParentAll = new Map<string, string[]>();
+		edges1.forEach(edge =>
+		{
+			const parentId = services.some(s => s.id === edge.source) ? edge.source : edge.target;
+			const childId = services.some(s => s.id === edge.target) ? edge.source : edge.target;
+
+			if(!childrenByParent.has(parentId))
+			{
+				childrenByParent.set(parentId, []);
+				childrenByParent2.set(parentId, []);
+				this.childrenByParentAll?.set(parentId, []);
+			}
+			if(!this.parentByChildren?.has(childId))
+			{
+				this.parentByChildren?.set(childId, []);
+			}
+			childrenByParent.get(parentId)?.push(childId);
+			childrenByParent2.get(parentId)?.push(childId);
+			this.childrenByParentAll?.get(parentId)?.push(childId);
+			this.parentByChildren?.get(childId)?.push(parentId);
+		});
+
+		const servicesAndNodes = [...services, ...nodes1];
+		edges2.forEach(edge =>
+		{
+			const parentId = servicesAndNodes.some(s => s.id === edge.source) ? edge.source : edge.target;
+			const childId = servicesAndNodes.some(s => s.id === edge.target) ? edge.source : edge.target;
+
+			if(!childrenByParent2.has(parentId))
+			{
+				childrenByParent2.set(parentId, []);
+				this.childrenByParentAll?.set(parentId, []);
+			}
+			if(!this.parentByChildren?.has(childId))
+			{
+				this.parentByChildren?.set(childId, []);
+			}
+			childrenByParent2.get(parentId)?.push(childId);
+			this.childrenByParentAll?.get(parentId)?.push(childId);
+			this.parentByChildren?.get(childId)?.push(parentId);
+		});
+
+		const servicesAndNodesAndMore = [...services, ...nodes1, ...nodes2];
+		edges3.forEach(edge =>
+		{
+			const parentId = servicesAndNodesAndMore.some(s => s.id === edge.source) ? edge.source : edge.target;
+			const childId = servicesAndNodesAndMore.some(s => s.id === edge.target) ? edge.source : edge.target;
+
+			if(!this.childrenByParentAll?.has(parentId))
+			{
+				this.childrenByParentAll?.set(parentId, []);
+			}
+			if(!this.parentByChildren?.has(childId))
+			{
+				this.parentByChildren?.set(childId, []);
+			}
+			this.childrenByParentAll?.get(parentId)?.push(childId);
+			this.parentByChildren?.get(childId)?.push(parentId);
+		});
+
+		return {
+			nodes1, edges1,
+			nodes2, edges2,
+			nodes3, edges3,
+			servicesAndNodes,
+			childrenByParent,
+			childrenByParent2,
+			servicesAndNodesAndMore,
+		};
+	}
+
+
+
+	private async initSigma()
+	{
+		if(!this._container)
 		{
 			this.initDom();
 		}
-		if(!this._graph || !this._combinedGraph || !this._fileGraph || !this._container)
+
+		if(!this._container)
 		{
 			return;
 		}
-		await this._loading;
-		// Initialize Sigma renderer
+
 		this._renderer = new Sigma(this._combinedGraph, this._container, {
 			settings: {
 				//defaultNodeColor: '#999',
@@ -706,98 +797,14 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				return res; //{ ...res, label: undefined };
 			}
 		});
+	}
 
 
-		const services = await this._loadTier0 ?? [
-			{ id: 'Core.js', name: 'Core', color: '#7f8c8d' },
-			{ id: 'test-cells.js', name: 'Frameworks', color: '#2ecc71' },
-			{ id: 'sigma-script.js', name: 'Frontends', color: '#d35400' },
-			{ id: 'zuora-to-eloqua.ipynb', name: 'Databases', color: '#1abc9c' },
-			{ id: 'node-graph.json', name: 'Cloud Services', color: '#f1c40f' },
-			{ id: 'cache-notebook.js', name: 'Core', color: '#7f8c8d' },
-			{ id: 'watch-files.js', name: 'Utilities', color: '#e67e22' }
-		];
-
-		const { nodes: nodes1, edges: edges1 } = await this._loadTier1;
-		const { nodes: nodes2, edges: edges2 } = await this._loadTier2;
-		const { nodes: nodes3, edges: edges3 } = await this._loadTier3;
-
-		const childrenByParent = new Map<string, string[]>();
-		const childrenByParent2 = new Map<string, string[]>();
-		this.parentByChildren = new Map<string, string[]>();
-		this.childrenByParentAll = new Map<string, string[]>();
-		edges1.forEach(edge =>
-		{
-			const parentId = services.some(s => s.id === edge.source) ? edge.source : edge.target;
-			const childId = services.some(s => s.id === edge.target) ? edge.source : edge.target;
-
-			if(!childrenByParent.has(parentId))
-			{
-				childrenByParent.set(parentId, []);
-				childrenByParent2.set(parentId, []);
-				this.childrenByParentAll?.set(parentId, []);
-			}
-			if(!this.parentByChildren?.has(childId))
-			{
-				this.parentByChildren?.set(childId, []);
-			}
-			childrenByParent.get(parentId)?.push(childId);
-			childrenByParent2.get(parentId)?.push(childId);
-			this.childrenByParentAll?.get(parentId)?.push(childId);
-			this.parentByChildren?.get(childId)?.push(parentId);
-		});
-
-		const servicesAndNodes = [...services, ...nodes1];
-		edges2.forEach(edge =>
-		{
-			const parentId = servicesAndNodes.some(s => s.id === edge.source) ? edge.source : edge.target;
-			const childId = servicesAndNodes.some(s => s.id === edge.target) ? edge.source : edge.target;
-
-			if(!childrenByParent2.has(parentId))
-			{
-				childrenByParent2.set(parentId, []);
-				this.childrenByParentAll?.set(parentId, []);
-			}
-			if(!this.parentByChildren?.has(childId))
-			{
-				this.parentByChildren?.set(childId, []);
-			}
-			childrenByParent2.get(parentId)?.push(childId);
-			this.childrenByParentAll?.get(parentId)?.push(childId);
-			this.parentByChildren?.get(childId)?.push(parentId);
-		});
-
-		const servicesAndNodesAndMore = [...services, ...nodes1, ...nodes2];
-		edges3.forEach(edge =>
-		{
-			const parentId = servicesAndNodesAndMore.some(s => s.id === edge.source) ? edge.source : edge.target;
-			const childId = servicesAndNodesAndMore.some(s => s.id === edge.target) ? edge.source : edge.target;
-
-			if(!this.childrenByParentAll?.has(parentId))
-			{
-				this.childrenByParentAll?.set(parentId, []);
-			}
-			if(!this.parentByChildren?.has(childId))
-			{
-				this.parentByChildren?.set(childId, []);
-			}
-			this.childrenByParentAll?.get(parentId)?.push(childId);
-			this.parentByChildren?.get(childId)?.push(parentId);
-		});
+	private attachNodeEvents()
+	{
 
 
-
-		this.allNodes = [...services, ...nodes1, ...nodes2, ...nodes3];
-
-		this.appendServices(services, this.childrenByParentAll, servicesAndNodes.length / SCALE_FACTOR);
-
-		ProjectNodes.appendGraph(services, childrenByParent, nodes1, services.length, this.childrenByParentAll, this._graph, servicesAndNodes.length / SCALE_FACTOR);
-
-		this.appendEdges(this.allNodes, [...edges1, ...edges2], this._graph);
-
-
-
-		this._renderer.on("enterNode", ({ node, event }) =>
+		this._renderer?.on("enterNode", ({ node, event }) =>
 		{
 			if(this._combinedGraph.getNodeAttribute(node, 'hidden'))
 			{
@@ -809,7 +816,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			this._renderer?.refresh();
 		});
 
-		this._renderer.on("leaveNode", ({ node, event }) =>
+		this._renderer?.on("leaveNode", ({ node, event }) =>
 		{
 			// if(this._combinedGraph.getNodeAttribute(node, 'hidden'))
 			// {
@@ -821,7 +828,7 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			this._renderer?.refresh();
 		});
 
-		this._renderer.on('clickNode', ({ node, event }) =>
+		this._renderer?.on('clickNode', ({ node, event }) =>
 		{
 			// Check if the node is marked as non-interactive / un-hoverable
 			if(this._combinedGraph.getNodeAttribute(node, 'hidden'))
@@ -833,6 +840,26 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			// Your normal click logic here...
 			// highlightNodes(renderer, { data: {}, node });
 		});
+
+	}
+
+
+	// this is cool because each tier is made into a graph that starts off radial according to its parents forced layout
+	//   that's how i get it to look so flowy, just like the universe
+	private makeGraphs(
+		services: WillowNode[],
+		nodes1: WillowNode[], nodes2: WillowNode[], nodes3: WillowNode[],
+		edges1: WillowEdge[], edges2: WillowEdge[], edges3: WillowEdge[],
+		servicesAndNodes: WillowNode[],
+		childrenByParent: Map<string, string[]>,
+		childrenByParent2: Map<string, string[]>,
+		servicesAndNodesAndMore: WillowNode[]
+	)
+	{
+		if(!this.childrenByParentAll || !this.allNodes || !this.parentByChildren)
+		{
+			return;
+		}
 
 		// Apply ForceAtlas2 safely with fallback
 		try
@@ -882,8 +909,33 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 				}
 			});
 
+
+			CodeWidget.mergeSubGraph(this._tier3OrbitalGraph, this._tier2ForcedGraph);
+			ProjectNodes.appendGraph(servicesAndNodesAndMore, this.childrenByParentAll, nodes3, services.length, this.childrenByParentAll, this._tier3OrbitalGraph, this.allNodes.length / SCALE_FACTOR);
+			this.appendEdges(this.allNodes, [...edges1, ...edges2, ...edges3], this._tier3OrbitalGraph);
+			CodeWidget.mergeSubGraph(this._tier3ForcedGraph, this._tier3OrbitalGraph);
+
+			const sensibleSettings3 = forceAtlas2.inferSettings(this._tier3ForcedGraph);
+			forceLayout.assign(this._tier3ForcedGraph, {
+				maxIterations: 30,
+				isNodeFixed: (node, attributes) =>
+				{
+					return attributes.tier < 3;
+				},
+				settings: {
+					...sensibleSettings3,
+					attraction: 0.005,
+					repulsion: 1.5,
+					gravity: 0.5
+				}
+			});
+
+
+
+			CodeWidget.mergeSubGraph(this._combinedForcedGraph, this._tier3ForcedGraph);
 			CodeWidget.mergeSubGraph(this._combinedForcedGraph, this._tier2ForcedGraph);
 			CodeWidget.mergeSubGraph(this._combinedForcedGraph, this._tier0ForcedGraph);
+
 			// CodeWidget.mergeSubGraph(this._fileGraph, this._graph);
 
 			// ProjectNodes.appendGraph(servicesAndNodesAndMore, childrenByParentAll, nodes3, services.length + nodes1.length, childrenByParentAll, this._fileGraph, this.allNodes.length / SCALE_FACTOR);
@@ -902,7 +954,8 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 			CodeWidget.mergeSubGraph(this._selectedRingGraph, moreRings);
 			CodeWidget.mergeSubGraph(this._selectedRingGraph, ring1);
 
-			// CodeWidget.mergeSubGraph(this._combinedGraph, this._fileGraph);
+
+			CodeWidget.mergeSubGraph(this._combinedGraph, this._tier3OrbitalGraph);
 			CodeWidget.mergeSubGraph(this._combinedGraph, this._tier2OrbitalGraph);
 			CodeWidget.mergeSubGraph(this._combinedGraph, this._tier0OrbitalGraph);
 
@@ -913,8 +966,63 @@ export class CodeWidget extends widgetSelf.GenericSearchableWidget
 		{
 			console.warn('ForceAtlas2 layout skipped.', e);
 		}
+	}
 
-		this._renderer.refresh();
+
+
+	private async initGraph()
+	{
+		if(!this._graph || !this._combinedGraph || !this._fileGraph || !this._container)
+		{
+			this.initDom();
+		}
+		if(!this._graph || !this._combinedGraph || !this._fileGraph || !this._container)
+		{
+			return;
+		}
+		await this._loading;
+
+		await this.initSigma();
+
+		const services = await this._loadTier0 ?? [
+			{ id: 'Core.js', name: 'Core', color: '#7f8c8d' },
+			{ id: 'test-cells.js', name: 'Frameworks', color: '#2ecc71' },
+			{ id: 'sigma-script.js', name: 'Frontends', color: '#d35400' },
+			{ id: 'zuora-to-eloqua.ipynb', name: 'Databases', color: '#1abc9c' },
+			{ id: 'node-graph.json', name: 'Cloud Services', color: '#f1c40f' },
+			{ id: 'cache-notebook.js', name: 'Core', color: '#7f8c8d' },
+			{ id: 'watch-files.js', name: 'Utilities', color: '#e67e22' }
+		];
+
+
+		const { nodes1, nodes2, nodes3, edges1, edges2, edges3,
+			servicesAndNodes, childrenByParent, childrenByParent2,
+			servicesAndNodesAndMore
+		} = await this.getNodesAndEdges(services);
+
+		if(!this.childrenByParentAll || !this.parentByChildren)
+		{
+			return;
+		}
+
+		this.allNodes = [...services, ...nodes1, ...nodes2, ...nodes3];
+
+		this.appendServices(services, this.childrenByParentAll, servicesAndNodes.length / SCALE_FACTOR);
+
+		ProjectNodes.appendGraph(services, childrenByParent, nodes1, services.length, this.childrenByParentAll, this._graph, servicesAndNodes.length / SCALE_FACTOR);
+
+		this.appendEdges(this.allNodes, [...edges1, ...edges2], this._graph);
+
+		this.attachNodeEvents();
+
+		this.makeGraphs(
+			services,
+			nodes1, nodes2, nodes3, edges1, edges2, edges3,
+			servicesAndNodes, childrenByParent, childrenByParent2,
+			servicesAndNodesAndMore
+		);
+
+		this._renderer?.refresh();
 
 		// Fix: Zoom out the camera so the entire graph is visible and not giant
 		//CodeWidget.centerGraph(this._renderer);

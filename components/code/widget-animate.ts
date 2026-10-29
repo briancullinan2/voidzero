@@ -243,7 +243,7 @@ export class NodeAnimator
 		{
 			if(!graph.hasNode(nodeKey)) return;
 
-			if(except?.includes(nodeKey))
+			if(except?.includes(nodeKey) || graph.getNodeAttribute(nodeKey, 'hidden'))
 			{
 				return;
 			}
